@@ -8,11 +8,6 @@ import hashlib
 import secrets as secrets_lib
 import yfinance as yf
 
-# ── st.secrets → variables de entorno (los módulos las leen con os.environ) ───
-os.environ["SUPABASE_URL"]    = st.secrets["SUPABASE_URL"]
-os.environ["SUPABASE_KEY"]    = st.secrets["SUPABASE_KEY"]
-os.environ["BANXICO_TOKEN"]   = st.secrets["BANXICO_TOKEN"]
-
 from supabase import create_client, Client
 from modulos.datos       import cargar_datos, calcular_retornos, obtener_tasa_referencia_banxico
 from modulos.reporte     import generar_reporte
