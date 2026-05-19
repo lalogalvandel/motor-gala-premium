@@ -10,4 +10,3 @@ hmmlearn
 supabase
 lxml
 requests
-kaleido==0.1.0.post1
