@@ -19,9 +19,7 @@ def calcular_retornos(datos: pd.DataFrame):
     matriz_covarianza = retornos_diarios.cov() * 252
     return retornos_diarios, retornos_anuales, matriz_covarianza
   
-import os
 import requests
-from dotenv import load_dotenv
 
 # 1. RUTA ABSOLUTA A PRUEBA DE BALAS
 # Esto le dice a Python exactamente dónde está tu carpeta motor_gala, estés donde estés.
@@ -36,7 +34,7 @@ def obtener_tasa_referencia_banxico() -> float:
     Se conecta al Banco de México y extrae la Tasa de Referencia actual en tiempo real.
     Devuelve la tasa en formato decimal.
     """
-    token_banxico = os.environ.get("BANXICO_TOKEN")
+    token = st.secrets["TOKEN_BANXICO"]
     
     # Diagnóstico 1: ¿Leyó el archivo?
     if not token_banxico:
