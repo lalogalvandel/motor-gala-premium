@@ -7,3 +7,4 @@ yfinance
 scipy
 scikit-learn
 hmmlearn
+supabase
