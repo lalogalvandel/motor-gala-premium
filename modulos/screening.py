@@ -6,19 +6,23 @@ from sklearn.cluster import KMeans
 import concurrent.futures
 import warnings
 import requests 
+import io
 
 warnings.filterwarnings("ignore")
 
 # ── 1. WEB SCRAPING DINÁMICO (MODO DISFRAZ) ──
+# ── 1. WEB SCRAPING DINÁMICO (MODO DISFRAZ) ──
 def obtener_sp500():
     """Descarga la lista de tickers del S&P 500 simulando ser un navegador."""
     try:
-        # Disfraz de Google Chrome para que Wikipedia no nos bloquee
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        # Disfraz de Chrome actualizado para evadir firewalls
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
         url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
         respuesta = requests.get(url, headers=headers)
+        respuesta.raise_for_status() # Lanza error si Wikipedia nos bloquea
         
-        tablas = pd.read_html(respuesta.text)
+        # LA LLAVE MAESTRA: io.StringIO
+        tablas = pd.read_html(io.StringIO(respuesta.text))
         df = tablas[0]
         tickers = df['Symbol'].astype(str).str.replace('.', '-').tolist()
         return tickers
@@ -30,18 +34,19 @@ def obtener_sp500():
 def obtener_nasdaq100():
     """Descarga la lista del NASDAQ 100 en vivo."""
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124'}
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'}
         url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
         respuesta = requests.get(url, headers=headers)
+        respuesta.raise_for_status()
         
-        tablas = pd.read_html(respuesta.text)
+        tablas = pd.read_html(io.StringIO(respuesta.text))
         for tabla in tablas:
             if 'Ticker' in tabla.columns:
                 return tabla['Ticker'].astype(str).str.replace('.', '-').tolist()
         return ['QQQ']
     except Exception as e:
+        print(f"Error NASDAQ: {e}")
         return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA']
-
 # Diccionario inteligente: guarda funciones en lugar de listas estáticas
 UNIVERSOS = {
     '🇺🇸 S&P 500 (500 activos en vivo)': obtener_sp500,
