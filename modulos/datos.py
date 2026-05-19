@@ -1,6 +1,7 @@
 import yfinance as yf
 import numpy as np
 import pandas as pd
+import os
 
 def cargar_datos(tickers: list, start: str = '2020-01-01', end: str = '2026-05-08') -> pd.DataFrame:
     """Descarga precios de cierre y elimina filas con NaN."""
