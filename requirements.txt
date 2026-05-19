@@ -10,3 +10,4 @@ hmmlearn
 supabase
 lxml
 requests
+kaleido
