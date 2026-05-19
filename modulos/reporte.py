@@ -67,7 +67,7 @@ def _fig_a_imagen(fig, width=500, height=300):
     Los SVG son infinitamente mejores que los PNG porque no se pixelan.
     """
     # Exportamos a formato SVG en lugar de PNG
-    img_bytes = fig.to_image(format="svg", width=width, height=height)
+    img_bytes = fig.to_image(format="png", width=width, height=height)
     return io.BytesIO(img_bytes)
 
 
