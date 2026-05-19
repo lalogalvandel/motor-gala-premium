@@ -61,14 +61,22 @@ def _estilos():
 
 import plotly.io as pio
 
+import io
+from reportlab.platypus import Image
+
 def _fig_a_imagen(fig, width=500, height=300):
     """
-    Exporta la figura de Plotly a bytes de formato SVG (vectores).
-    Los SVG son infinitamente mejores que los PNG porque no se pixelan.
+    Exporta la figura de Plotly a PNG y la convierte en un 
+    objeto 'Image' (Flowable) compatible con ReportLab.
     """
-    # Exportamos a formato SVG en lugar de PNG
-    img_bytes = fig.to_image(format="png", width=width, height=height)
-    return io.BytesIO(img_bytes)
+    # 1. Tomamos la captura de la gráfica
+    img_bytes = fig.to_image(format="png")
+    
+    # 2. La guardamos en la memoria temporal
+    buffer = io.BytesIO(img_bytes)
+    
+    # 3. ¡LA CLAVE! Envolvemos la memoria en un elemento visual de ReportLab
+    return Image(buffer, width=width, height=height)
 
 
 def _tabla_estilo(data, col_widths, header_color=None):
