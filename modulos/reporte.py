@@ -59,11 +59,16 @@ def _estilos():
     }
     return estilos
 
+import plotly.io as pio
 
-def _fig_a_imagen(fig, width=680, height=320, scale=1.5):
-    """Convierte figura Plotly a objeto Image de ReportLab."""
-    img_bytes = fig.to_image(format="png", width=width, height=height, scale=scale)
-    return Image(io.BytesIO(img_bytes), width=6.5*inch, height=(height/width)*6.5*inch)
+def _fig_a_imagen(fig, width=500, height=300):
+    """
+    Exporta la figura de Plotly a bytes de formato SVG (vectores).
+    Los SVG son infinitamente mejores que los PNG porque no se pixelan.
+    """
+    # Exportamos a formato SVG en lugar de PNG
+    img_bytes = fig.to_image(format="svg", width=width, height=height)
+    return io.BytesIO(img_bytes)
 
 
 def _tabla_estilo(data, col_widths, header_color=None):
