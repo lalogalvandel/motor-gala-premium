@@ -1,7 +1,8 @@
 import yfinance as yf
 import numpy as np
 import pandas as pd
-import os
+import requests
+import streamlit as st  # <-- AÑADIDO: Vital para usar st.secrets
 
 def cargar_datos(tickers: list, start: str = '2020-01-01', end: str = '2026-05-08') -> pd.DataFrame:
     """Descarga precios de cierre y elimina filas con NaN."""
@@ -19,32 +20,18 @@ def calcular_retornos(datos: pd.DataFrame):
     retornos_anuales = retornos_diarios.mean() * 252
     matriz_covarianza = retornos_diarios.cov() * 252
     return retornos_diarios, retornos_anuales, matriz_covarianza
-  
-import requests
-
-# 1. RUTA ABSOLUTA A PRUEBA DE BALAS
-# Esto le dice a Python exactamente dónde está tu carpeta motor_gala, estés donde estés.
-directorio_base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ruta_env = os.path.join(directorio_base, 'apiky.env')
-
-# Forzamos la carga desde esa ruta exacta
-load_dotenv(dotenv_path=ruta_env)
 
 def obtener_tasa_referencia_banxico() -> float:
     """
     Se conecta al Banco de México y extrae la Tasa de Referencia actual en tiempo real.
     Devuelve la tasa en formato decimal.
     """
-    token = st.secrets["TOKEN_BANXICO"]
+    # 1. Extraemos directamente de la bóveda de Streamlit (Variable unificada)
+    token_banxico = st.secrets["TOKEN_BANXICO"]
     
-    # Diagnóstico 1: ¿Leyó el archivo?
-    if not token_banxico:
-        print(f"🚨 ERROR FATAL: No se encontró BANXICO_TOKEN. Python buscó en: {ruta_env}")
-        return 0.0650
-        
     url = "https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF61745/datos/oportuno"
     
-    # 2. DISFRAZ INSTITUCIONAL (Evita que el Firewall de Banxico nos bloquee por ser un bot de Python)
+    # 2. DISFRAZ INSTITUCIONAL (Evita que el Firewall nos bloquee)
     headers = {
         "Bmx-Token": token_banxico,
         "Accept": "application/json",
@@ -54,11 +41,10 @@ def obtener_tasa_referencia_banxico() -> float:
     try:
         respuesta = requests.get(url, headers=headers)
         
-        # Diagnóstico 2: ¿Banxico nos bloqueó?
+        # Diagnóstico: ¿Banxico nos bloqueó?
         if respuesta.status_code != 200:
             print(f"🚨 BANXICO RECHAZÓ LA CONEXIÓN. Código de error: {respuesta.status_code}")
-            print(f"Mensaje del banco: {respuesta.text}")
-            return 0.0650
+            return 0.0650  # Fallback
             
         respuesta.raise_for_status()
         datos = respuesta.json()
