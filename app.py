@@ -342,8 +342,8 @@ with tab_motor:
             max_pe       = st.slider("P/E máximo", 10.0, 100.0, 50.0, step=5.0)
             min_roe_scr  = st.slider("ROE mínimo (%)", 0.0, 50.0, 10.0, step=1.0,
                                      help="Return on Equity mínimo aceptable")
-            max_deuda_scr = st.slider("Deuda/Capital máximo", 0.0, 5.0, 1.5, step=0.1,
-                                      help="Ratio Deuda/Capital. 1.5 = deuda 1.5x el capital propio")
+            max_deuda_scr = st.slider("Deuda/Capital máximo (%)", 0, 500, 150, step=10,
+                                      help="Ejemplo: 150 = deuda equivalente a 1.5x el capital propio")
             n_clusters   = st.slider("Grupos de diversificación (K-Means)", 2, 8, 4)
             ejecutar_scr = st.form_submit_button("Ejecutar análisis fundamental", use_container_width=True)
     else:
@@ -374,6 +374,20 @@ with tab_motor:
         aportacion_mensual    = st.number_input("Aportación periódica (MXN)", min_value=0, value=100_000, step=10_000)
         horizonte_años        = st.slider("Horizonte de inversión (años)", min_value=1, max_value=40, value=10)
         num_sims              = st.slider("Simulaciones Monte Carlo", 500, 5000, 2000, step=500)
+
+        st.markdown("---")
+        st.subheader("Benchmark comparativo")
+        PERFILES_BENCHMARK = {
+            "Agresivo (S&P 500 — SPY)":           "SPY",
+            "Agresivo Tecnológico (Nasdaq — QQQ)": "QQQ",
+            "Moderado (Global 60/40 — AOR)":       "AOR",
+            "Conservador (Bonos Globales — AGG)":  "AGG",
+        }
+        benchmark_seleccion = st.selectbox(
+            "Perfil del benchmark",
+            list(PERFILES_BENCHMARK.keys()),
+            help="El benchmark se descarga junto con los activos para que las dimensiones cuadren."
+        )
         ejecutar              = st.form_submit_button("Ejecutar optimización", use_container_width=True)
 
     # ── Funciones con caché ────────────────────────────────────────────────────
@@ -430,7 +444,7 @@ with tab_motor:
                     min_market_cap=min_cap,
                     min_profit_margin=min_margin,
                     max_pe=max_pe,
-                    max_deuda=max_deuda_scr * 100,  # yfinance devuelve debtToEquity * 100
+                    max_deuda=float(max_deuda_scr),  # yfinance devuelve debtToEquity en %, ej. 150 = 1.5x
                     min_roe=min_roe_scr,
                 )
                 if len(df_filtrado) < 2:
@@ -463,17 +477,33 @@ with tab_motor:
         st.stop()
 
     # ── Descarga de históricos ─────────────────────────────────────────────────
+    # Guardamos benchmark_elegido en session_state para que persista entre reruns
+    benchmark_elegido = PERFILES_BENCHMARK[benchmark_seleccion]
     if ejecutar:
-        st.session_state["tickers_procesar"] = tickers_input
+        st.session_state["tickers_procesar"]  = tickers_input
+        st.session_state["benchmark_elegido"] = benchmark_elegido
 
-    tickers_finales = st.session_state.get("tickers_procesar", tickers_input)
+    tickers_finales   = st.session_state.get("tickers_procesar", tickers_input)
+    benchmark_elegido = st.session_state.get("benchmark_elegido", benchmark_elegido)
+
+    # Construir lista de descarga: activos del usuario + benchmark (sin duplicados)
+    tickers_lista     = [t.strip() for t in tickers_finales.split(",")]
+    tickers_descarga  = tickers_lista + (
+        [benchmark_elegido] if benchmark_elegido not in tickers_lista else []
+    )
+    tickers_descarga_key = ", ".join(tickers_descarga)  # clave para el caché
 
     try:
         with st.spinner("Descargando series históricas de precios..."):
-            datos, retornos_diarios, retornos_anuales, matriz_cov = obtener_datos(
-                tickers_finales, str(fecha_inicio), str(fecha_fin)
+            datos_full, retornos_full, _, _ = obtener_datos(
+                tickers_descarga_key, str(fecha_inicio), str(fecha_fin)
             )
-            tickers = retornos_diarios.columns.tolist()
+            # Separar benchmark del universo de optimización
+            tickers           = [t for t in retornos_full.columns if t != benchmark_elegido]
+            datos             = datos_full[tickers]
+            retornos_diarios  = retornos_full[tickers]
+            retornos_para_bt  = retornos_full          # incluye benchmark para backtesting
+            _, retornos_anuales, matriz_cov = calcular_retornos(datos)
     except Exception as e:
         st.error(f"Error al descargar históricos: {e}")
         st.stop()
@@ -607,47 +637,7 @@ with tab_motor:
             es_riesgo=_es_r, df_regimenes=_df_reg, comision_broker=comision,
             capital_inicial=cap, benchmark_ticker_override=bench_override)
 
-    # ── Benchmark dinámico ────────────────────────────────────────────────────
-    PERFILES_BENCHMARK = {
-        "Agresivo (S&P 500 — SPY)":           "SPY",
-        "Agresivo Tecnológico (Nasdaq — QQQ)": "QQQ",
-        "Moderado (Global 60/40 — AOR)":       "AOR",
-        "Conservador (Bonos Globales — AGG)":  "AGG",
-    }
-    benchmark_seleccion = st.selectbox(
-        "Perfil del Benchmark Comparativo",
-        list(PERFILES_BENCHMARK.keys()),
-        help="Define el índice de referencia contra el que se mide el desempeño del motor."
-    )
-    benchmark_elegido = PERFILES_BENCHMARK[benchmark_seleccion]
-
-    # Si el benchmark no está en los tickers del usuario, lo descargamos y lo añadimos
-    @st.cache_data(show_spinner=False, ttl=3600)
-    def obtener_benchmark_externo(ticker: str, inicio: str, fin: str):
-        try:
-            datos_b = cargar_datos([ticker], inicio, fin)
-            ret_b, _, _ = calcular_retornos(datos_b)
-            return ret_b[ticker]
-        except Exception:
-            return None
-
-    if benchmark_elegido not in retornos_diarios.columns:
-        serie_bench_extra = obtener_benchmark_externo(
-            benchmark_elegido, str(fecha_inicio), str(fecha_fin)
-        )
-        if serie_bench_extra is not None:
-            retornos_para_bt = retornos_diarios.copy()
-            retornos_para_bt[benchmark_elegido] = serie_bench_extra
-            retornos_para_bt = retornos_para_bt.dropna()
-        else:
-            st.warning(
-                f"No fue posible descargar {benchmark_elegido}. "
-                "Se usará el primer ticker disponible como benchmark."
-            )
-            retornos_para_bt = retornos_diarios
-            benchmark_elegido = retornos_diarios.columns[0]
-    else:
-        retornos_para_bt = retornos_diarios
+    # retornos_para_bt ya incluye el benchmark — definido en la descarga de datos
     with st.spinner("Procesando backtesting..."):
         REFUGIOS      = {"TLT","IEF","SHY","BND","AGG","BIL","GLD","IAU","USDC-USD","CASH"}
         es_riesgo_arr = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in tickers])
