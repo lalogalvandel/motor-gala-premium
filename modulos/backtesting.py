@@ -23,10 +23,16 @@ def calcular_backtest_walk_forward(
     retornos_estrategia = []
     fechas_estrategia = []
     
-    pesos_anteriores = None  # <--- NUEVO: Memoria del portafolio pasado
+    pesos_anteriores = None  
     
     total_dias = len(retornos_diarios)
     
+    if total_dias <= ventana_entrenamiento:
+        # Si no hay suficiente historia, usamos la mitad de los datos para entrenar 
+        # y la otra mitad para probar, con un mínimo de 21 días (1 mes)
+        ventana_entrenamiento = max(21, total_dias // 2)
+        frecuencia_rebalanceo = max(21, ventana_entrenamiento // 2)
+
     for inicio_test in range(ventana_entrenamiento, total_dias, frecuencia_rebalanceo):
         fin_test = min(inicio_test + frecuencia_rebalanceo, total_dias)
         datos_train = retornos_diarios.iloc[inicio_test - ventana_entrenamiento : inicio_test]
