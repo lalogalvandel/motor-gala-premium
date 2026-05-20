@@ -617,7 +617,7 @@ with tab_motor:
         capital_inicial=capital_inicial, aportacion_periodica=aportacion_mensual,
         rendimiento_anual=ret_opt, volatilidad_anual=vol_opt,
         meses=horizonte_años*12, frecuencia_aportacion=frecuencia_aportacion,
-        tasa_benchmark=tasa_actual_banxico, num_simulaciones=1000,
+        tasa_benchmark=tasa_actual_banxico, num_simulaciones=num_sims,
         retornos_diarios=retorno_port_mc)
 
     st.caption(f"t-Student gl={df_t:.2f} — "
