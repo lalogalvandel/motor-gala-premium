@@ -1,16 +1,25 @@
+import scipy.stats as stats
 import numpy as np
-from scipy import stats
 
-def calibrar_grados_libertad(retornos_diarios) -> float:
+def calibrar_grados_libertad(retornos_diarios):
     """
-    Calibra los grados de libertad de la t de Student
-    ajustando a los retornos históricos reales del portafolio.
-    Típicamente entre 3 y 6 para activos financieros.
+    Calibra los grados de libertad de una distribución t-Student.
+    Blindado contra inanición de datos y valores nulos.
     """
-    params = stats.t.fit(retornos_diarios, floc=0)
-    df_calibrado = params[0]
-    # Clampear entre 3 y 30 para estabilidad numérica
-    return float(np.clip(df_calibrado, 3, 30))
+    # 1. Limpiamos cualquier rastro de NaNs que haya sobrevivido
+    retornos_limpios = retornos_diarios.dropna()
+    
+    if len(retornos_limpios) < 20:
+        # Asumimos 4.0 (una distribución con colas pesadas moderadas) por seguridad
+        return 4.0 
+        
+    try:
+        # 3. Ajustamos la distribución de forma segura
+        params = stats.t.fit(retornos_limpios, floc=0)
+        return params[0]
+    except Exception:
+        # Si SciPy entra en pánico por matemáticas extremas, salvamos el proceso
+        return 4.0
 
 def simular_capital(
     capital_inicial: float,
