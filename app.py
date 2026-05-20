@@ -637,18 +637,22 @@ with tab_motor:
             es_riesgo=_es_r, df_regimenes=_df_reg, comision_broker=comision,
             capital_inicial=cap, benchmark_ticker_override=bench_override)
 
-   # ── INICIO DEL BLOQUE A REEMPLAZAR ──
+  # ── INICIO DEL BLOQUE A REEMPLAZAR ──
     with st.spinner("Procesando backtesting..."):
         REFUGIOS = {"TLT","IEF","SHY","BND","AGG","BIL","GLD","IAU","USDC-USD","CASH"}
         
-        # 1. Filtramos la matriz para evitar columnas duplicadas o fantasmas
+        # 1. Asegurar que la matriz principal solo tenga los tickers reales y el benchmark
         columnas_validas = [c for c in list(tickers) + [benchmark_elegido] if c in retornos_para_bt.columns]
         retornos_para_bt = retornos_para_bt[columnas_validas]
         
-        # 2. EL SECRETO: El arreglo de riesgo debe tener EXACTAMENTE el mismo tamaño
-        # que las columnas que entran al backtesting para que Numpy no colapse.
-        es_riesgo_arr = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in retornos_para_bt.columns])
+        # 2. EL SECRETO REVELADO: Extraer SOLAMENTE los activos que van a Markowitz 
+        # (Es decir, todas las columnas EXCEPTO el benchmark)
+        activos_optimizador = [c for c in retornos_para_bt.columns if c != benchmark_elegido]
+        
+        # 3. Crear el arreglo de riesgo del mismo tamaño exacto que los activos (ej. shape 4)
+        es_riesgo_arr = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in activos_optimizador])
 
+        # 4. Calcular el Glide Path dinámico
         factor_glide = max(min(1.0, max(0.20, horizonte_años/15.0)),
                            max(0.0, 1.0 - np.sum(es_riesgo_arr==0.0)*peso_max))
         
@@ -656,7 +660,6 @@ with tab_motor:
             retornos_para_bt, tasa_rf, capital_inicial, peso_min, peso_max,
             factor_glide, es_riesgo_arr, st.session_state.df_regimenes,
             comision_broker, benchmark_elegido)
-    # ── FIN DEL BLOQUE A REEMPLAZAR ──
             
         # Extraemos solo las columnas que existen, borrando "fantasmas"
         columnas_existentes = [c for c in columnas_validas if c in retornos_para_bt.columns]
