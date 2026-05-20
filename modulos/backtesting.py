@@ -97,6 +97,15 @@ def calcular_metricas_backtest(
     equity_port: pd.Series, equity_bench: pd.Series,
 ) -> dict:
     """Métricas comparativas institucionales."""
+    
+    if len(equity_port) < 2:
+        return {
+            'cagr_port': 0.0, 'cagr_bench': 0.0, 'vol_port': 0.0, 'vol_bench': 0.0,
+            'sharpe_port': 0.0, 'sharpe_bench': 0.0, 'sortino_port': 0.0, 'sortino_bench': 0.0,
+            'mdd_port': 0.0, 'mdd_bench': 0.0, 'calmar_port': 0.0, 'calmar_bench': 0.0,
+            'beta': 1.0, 'alpha': 0.0,
+        }
+
     n_años = len(retorno_port) / 252
 
     cagr_port  = (equity_port.iloc[-1]  / equity_port.iloc[0])  ** (1/n_años) - 1
