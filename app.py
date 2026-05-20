@@ -638,11 +638,27 @@ with tab_motor:
             capital_inicial=cap, benchmark_ticker_override=bench_override)
 
     # retornos_para_bt ya incluye el benchmark — definido en la descarga de datos
+    # retornos_para_bt ya incluye el benchmark — definido en la descarga de datos
     with st.spinner("Procesando backtesting..."):
         REFUGIOS      = {"TLT","IEF","SHY","BND","AGG","BIL","GLD","IAU","USDC-USD","CASH"}
-        es_riesgo_arr = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in tickers])
+        
+        columnas_validas = list(tickers)
+        if benchmark_elegido not in columnas_validas:
+            columnas_validas.append(benchmark_elegido)
+            
+        # Extraemos solo las columnas que existen, borrando "fantasmas"
+        columnas_existentes = [c for c in columnas_validas if c in retornos_para_bt.columns]
+        retornos_para_bt = retornos_para_bt[columnas_existentes]
+        
+        # 2. Generamos el arreglo de riesgo ESTRICTAMENTE para las columnas que se van a optimizar
+        # (Es decir, la matriz pura sin el benchmark)
+        activos_optimizador = [c for c in retornos_para_bt.columns if c != benchmark_elegido]
+        es_riesgo_arr = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in activos_optimizador])
+        # ────────────────────────────────────────────────────────────
+
         factor_glide  = max(min(1.0, max(0.20, horizonte_años/15.0)),
                             max(0.0, 1.0 - np.sum(es_riesgo_arr==0.0)*peso_max))
+        
         df_equity, benchmark_ticker, retorno_port, retorno_bench = correr_backtest(
             retornos_para_bt, tasa_rf, capital_inicial, peso_min, peso_max,
             factor_glide, es_riesgo_arr, st.session_state.df_regimenes,
