@@ -637,34 +637,26 @@ with tab_motor:
             es_riesgo=_es_r, df_regimenes=_df_reg, comision_broker=comision,
             capital_inicial=cap, benchmark_ticker_override=bench_override)
 
-    # retornos_para_bt ya incluye el benchmark — definido en la descarga de datos
-    # retornos_para_bt ya incluye el benchmark — definido en la descarga de datos
-    # retornos_para_bt ya incluye el benchmark — definido en la descarga de datos
+   # ── INICIO DEL BLOQUE A REEMPLAZAR ──
     with st.spinner("Procesando backtesting..."):
-        REFUGIOS      = {"TLT","IEF","SHY","BND","AGG","BIL","GLD","IAU","USDC-USD","CASH"}
+        REFUGIOS = {"TLT","IEF","SHY","BND","AGG","BIL","GLD","IAU","USDC-USD","CASH"}
         
-        # ── 🛡️ BLINDAJE ABSOLUTO (Detector de Fantasmas) ──
-        # 1. Validamos que Yahoo Finance realmente haya descargado el benchmark que elegiste
-        if benchmark_elegido not in retornos_para_bt.columns:
-            st.error(f"🚨 Error de Datos: El motor exige '{benchmark_elegido}', pero no se descargó de internet. Sube a la línea de tu código donde descargas los datos (yf.download) y asegúrate de que le estás pasando la variable 'benchmark_elegido' en lugar del texto estático.")
-            st.stop() # Detiene la app limpiamente sin lanzar letras rojas de Traceback
-            
-        # 2. Forzamos a la matriz a tener ÚNICAMENTE los activos elegidos y el benchmark actual
-        # Esto asesina a cualquier "SPY" o ticker viejo que haya sobrado en la descarga.
-        columnas_estrictas = list(tickers) + [benchmark_elegido]
-        retornos_para_bt = retornos_para_bt[columnas_estrictas]
+        # 1. Filtramos la matriz para evitar columnas duplicadas o fantasmas
+        columnas_validas = [c for c in list(tickers) + [benchmark_elegido] if c in retornos_para_bt.columns]
+        retornos_para_bt = retornos_para_bt[columnas_validas]
         
-        # 3. El arreglo de riesgo DEBE ser exactamente del tamaño de los 'tickers' puros
-        es_riesgo_arr = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in tickers])
-        # ────────────────────────────────────────────────────────────
+        # 2. EL SECRETO: El arreglo de riesgo debe tener EXACTAMENTE el mismo tamaño
+        # que las columnas que entran al backtesting para que Numpy no colapse.
+        es_riesgo_arr = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in retornos_para_bt.columns])
 
-        factor_glide  = max(min(1.0, max(0.20, horizonte_años/15.0)),
-                            max(0.0, 1.0 - np.sum(es_riesgo_arr==0.0)*peso_max))
-                            
+        factor_glide = max(min(1.0, max(0.20, horizonte_años/15.0)),
+                           max(0.0, 1.0 - np.sum(es_riesgo_arr==0.0)*peso_max))
+        
         df_equity, benchmark_ticker, retorno_port, retorno_bench = correr_backtest(
             retornos_para_bt, tasa_rf, capital_inicial, peso_min, peso_max,
             factor_glide, es_riesgo_arr, st.session_state.df_regimenes,
             comision_broker, benchmark_elegido)
+    # ── FIN DEL BLOQUE A REEMPLAZAR ──
             
         # Extraemos solo las columnas que existen, borrando "fantasmas"
         columnas_existentes = [c for c in columnas_validas if c in retornos_para_bt.columns]
