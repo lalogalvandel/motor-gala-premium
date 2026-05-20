@@ -57,15 +57,29 @@ def _estilos():
     }
 
 
-def _fig_a_imagen(fig, h_inch: float = 3.0) -> Image:
+def _fig_a_imagen(fig, width=800, height=400, scale=2):
     """
-    Exporta una figura Plotly a PNG y la convierte en un Image de ReportLab.
-    Siempre ocupa el ancho completo de la página; la altura se controla con h_inch.
+    Convierte figura Plotly a objeto Image de ReportLab.
+    Blindado contra recortes de ejes y empalmes de texto.
     """
-    px_w = int(PAGE_W / inch * 96)          # 96 dpi → píxeles de ancho
-    px_h = int(h_inch * 96)
-    img_bytes = fig.to_image(format="png", width=px_w, height=px_h, scale=2)
-    return Image(io.BytesIO(img_bytes), width=PAGE_W, height=h_inch * inch)
+    # 1. Forzamos márgenes de seguridad (left, right, top, bottom) 
+    # El margen izquierdo (l=110) evita que se corten textos largos como "Bear Market 2022"
+    fig.update_layout(margin=dict(l=110, r=40, t=40, b=60))
+    
+    # 2. Expandimos el lienzo virtual. 
+    # Al crecer los píxeles base, las fuentes se hacen relativamente 
+    # más pequeñas y dejan "respirar" a las líneas y leyendas.
+    lienzo_w = width * 1.5
+    lienzo_h = height * 1.5
+    
+    # 3. Tomamos la "foto" en ultra alta resolución (scale=2)
+    img_bytes = fig.to_image(format="png", width=lienzo_w, height=lienzo_h, scale=scale)
+    
+    # 4. La pegamos en el PDF usando las proporciones físicas correctas
+    ancho_fisico = 6.5 * inch
+    alto_fisico = (height / width) * ancho_fisico
+    
+    return Image(io.BytesIO(img_bytes), width=ancho_fisico, height=alto_fisico)
 
 
 def _tabla_estilo(data, col_widths, header_color=None):
