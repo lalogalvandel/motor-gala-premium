@@ -772,6 +772,7 @@ with tab_motor:
                     capital_riesgo=capital_riesgo, p5_final=p5[-1], p50_final=p50[-1],
                     p95_final=p95[-1], horizonte_años=horizonte_años,
                     capital_inicial=capital_inicial, aportacion_mensual=aportacion_mensual,
+                    num_sims=num_sims,
                     metricas_bt=metricas_bt, benchmark_ticker=benchmark_ticker,
                     df_screening=st.session_state.get("df_screening", None),
                     fig_markowitz=fig_markowitz, fig_mc=fig_mc, fig_var=fig_var,
