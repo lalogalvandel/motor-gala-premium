@@ -13,11 +13,16 @@ def calcular_backtest_walk_forward(
     ventana_entrenamiento: int = 252,
     frecuencia_rebalanceo: int = 63,
     capital_inicial: float = 100_000,
-    comision_broker: float = 0.0015  # <--- NUEVO: 0.15% de comisión por defecto
+    comision_broker: float = 0.0015,
+    benchmark_ticker_override: str = None,   # ← NUEVO, opcional
 ) -> tuple:
     
     cols = retornos_diarios.columns.tolist()
-    benchmark_ticker = 'SPY' if 'SPY' in cols else cols[0]
+    # ── NUEVO: permite override del benchmark desde la UI ─────────────────────
+    if benchmark_ticker_override and benchmark_ticker_override in cols:
+        benchmark_ticker = benchmark_ticker_override
+    else:
+        benchmark_ticker = 'SPY' if 'SPY' in cols else cols[0]
     retorno_bench_completo = retornos_diarios[benchmark_ticker]
 
     retornos_estrategia = []
