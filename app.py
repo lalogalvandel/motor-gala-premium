@@ -655,7 +655,7 @@ with tab_motor:
                            max(0.0, 1.0 - np.sum(es_riesgo_arr==0.0)*peso_max))
         
         # 4. Corremos el motor con las dimensiones perfectamente selladas
-        df_equity, benchmark_ticker, retorno_port, retorno_bench = correr_backtest(
+        df_equity, benchmark_ticker, retorno_bench, retorno_port = correr_backtest(
             retornos_para_bt, tasa_rf, capital_inicial, peso_min, peso_max,
             factor_glide, es_riesgo_arr, st.session_state.df_regimenes,
             comision_broker, benchmark_elegido)
