@@ -310,7 +310,7 @@ def generar_reporte(
 
     if fig_anuales:
         # El radar: Le exige al PDF 4 pulgadas libres. Si no las hay, corta la página aquí mismo.
-        story.append(CondPageBreak(4 * inch)) 
+        story.append(PageBreak())
         
         story.append(Spacer(1, 0.1*inch))
         story.append(Paragraph("Retornos Anuales Comparativos", E['subseccion']))
