@@ -105,7 +105,9 @@ def descargar_fundamentales_paralelo(tickers, max_workers=10): # <-- Bajamos los
 # ── 3. FILTROS Y MACHINE LEARNING ──
 def filtrar_candidatos(
     df: pd.DataFrame, min_market_cap: float = 10.0, min_profit_margin: float = 5.0,
-    max_pe: float = 50.0, max_deuda: float = 200.0, exigir_dividendos: bool = True
+    max_pe: float = 50.0, max_deuda: float = 200.0,
+    min_roe: float = 0.0,        # ← NUEVO
+    exigir_dividendos: bool = True
 ) -> pd.DataFrame:
     
     df_filtrado = df.copy()
@@ -117,6 +119,11 @@ def filtrar_candidatos(
     df_filtrado = df_filtrado[
         (df_filtrado['Deuda/Capital'].isna()) | (df_filtrado['Deuda/Capital'] <= max_deuda)
     ]
+    # ── NUEVO: filtro ROE mínimo ──────────────────────────────────────────────
+    if min_roe > 0:
+        df_filtrado = df_filtrado[
+            (df_filtrado['ROE %'].isna()) | (df_filtrado['ROE %'] >= min_roe)
+        ]
 
     if exigir_dividendos:
         df_filtrado = df_filtrado[df_filtrado['Div Yield %'] > 0.0]
