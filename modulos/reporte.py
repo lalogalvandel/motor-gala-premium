@@ -57,7 +57,7 @@ def _estilos():
     }
 
 
-def _fig_a_imagen(fig, width=800, height=400, scale=2):
+def _fig_a_imagen(fig, width=800, height=400, scale=2, w_inch=None, h_inch=None, **kwargs):
     """
     Convierte figura Plotly a objeto Image de ReportLab.
     Blindado contra recortes de ejes y empalmes de texto.
@@ -87,7 +87,6 @@ def _fig_a_imagen(fig, width=800, height=400, scale=2):
         alto_fisico = (height / width) * ancho_fisico
         
     return Image(io.BytesIO(img_bytes), width=ancho_fisico, height=alto_fisico)
-
 
 def _tabla_estilo(data, col_widths, header_color=None):
     header_color = header_color or AZUL_OSCURO
