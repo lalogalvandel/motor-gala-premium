@@ -456,7 +456,7 @@ def generar_reporte(
     if fig_mc:
         story.append(KeepTogether([
             Spacer(1, 0.2 * inch),
-            Paragraph("Trayectorias de Capital — {num_sims:,}", E['subseccion']),
+            Paragraph(f"Trayectorias de Capital — {num_sims:,}", E['subseccion']),
             Spacer(1, 0.08 * inch),
             _fig_a_imagen(fig_mc, h_inch=3.2),
         ]))
