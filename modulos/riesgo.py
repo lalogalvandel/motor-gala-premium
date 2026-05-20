@@ -5,19 +5,32 @@ from scipy import stats
 def calcular_var_cvar(retorno_portafolio_diario: pd.Series, capital: float):
     """VaR y CVaR histórico y paramétrico."""
 
+    retornos_limpios = retorno_portafolio_diario.dropna()
+    if len(retornos_limpios) < 5:
+        return {
+            'VaR_95_hist':  0.0,
+            'VaR_99_hist':  0.0,
+            'VaR_95_param': 0.0,
+            'VaR_99_param': 0.0,
+            'CVaR_95':      0.0,
+            'CVaR_99':      0.0,
+            'capital':      capital,
+        }
+    # ─────────────────────────────────────────────────────
+
     # Histórico
-    VaR_95_hist = np.percentile(retorno_portafolio_diario, 5)
-    VaR_99_hist = np.percentile(retorno_portafolio_diario, 1)
+    VaR_95_hist = np.percentile(retornos_limpios, 5)
+    VaR_99_hist = np.percentile(retornos_limpios, 1)
 
     # Paramétrico (asume normalidad)
-    mu  = retorno_portafolio_diario.mean()
-    sig = retorno_portafolio_diario.std()
+    mu  = retornos_limpios.mean()
+    sig = retornos_limpios.std()
     VaR_95_param = stats.norm.ppf(0.05, mu, sig)
     VaR_99_param = stats.norm.ppf(0.01, mu, sig)
 
     # CVaR (Expected Shortfall)
-    CVaR_95 = retorno_portafolio_diario[retorno_portafolio_diario <= VaR_95_hist].mean()
-    CVaR_99 = retorno_portafolio_diario[retorno_portafolio_diario <= VaR_99_hist].mean()
+    CVaR_95 = retornos_limpios[retornos_limpios <= VaR_95_hist].mean()
+    CVaR_99 = retornos_limpios[retornos_limpios <= VaR_99_hist].mean()
 
     return {
         'VaR_95_hist':  VaR_95_hist,
