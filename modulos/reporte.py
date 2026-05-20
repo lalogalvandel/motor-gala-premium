@@ -66,19 +66,26 @@ def _fig_a_imagen(fig, width=800, height=400, scale=2):
     # El margen izquierdo (l=110) evita que se corten textos largos como "Bear Market 2022"
     fig.update_layout(margin=dict(l=110, r=40, t=40, b=60))
     
-    # 2. Expandimos el lienzo virtual. 
-    # Al crecer los píxeles base, las fuentes se hacen relativamente 
-    # más pequeñas y dejan "respirar" a las líneas y leyendas.
+    # 2. Expandimos el lienzo virtual para alta resolución
     lienzo_w = width * 1.5
     lienzo_h = height * 1.5
-    
-    # 3. Tomamos la "foto" en ultra alta resolución (scale=2)
     img_bytes = fig.to_image(format="png", width=lienzo_w, height=lienzo_h, scale=scale)
     
-    # 4. La pegamos en el PDF usando las proporciones físicas correctas
-    ancho_fisico = 6.5 * inch
-    alto_fisico = (height / width) * ancho_fisico
-    
+    # 3. Calculamos el tamaño físico en el PDF basado en los parámetros que mande tu código
+    if h_inch is not None and w_inch is None:
+        alto_fisico = h_inch * inch
+        ancho_fisico = (width / height) * alto_fisico
+    elif w_inch is not None and h_inch is None:
+        ancho_fisico = w_inch * inch
+        alto_fisico = (height / width) * ancho_fisico
+    elif w_inch is not None and h_inch is not None:
+        ancho_fisico = w_inch * inch
+        alto_fisico = h_inch * inch
+    else:
+        # Por defecto, toma casi todo el ancho de la página
+        ancho_fisico = 6.5 * inch
+        alto_fisico = (height / width) * ancho_fisico
+        
     return Image(io.BytesIO(img_bytes), width=ancho_fisico, height=alto_fisico)
 
 
