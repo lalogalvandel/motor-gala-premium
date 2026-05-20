@@ -340,6 +340,10 @@ with tab_motor:
             min_margin   = st.slider("Margen de beneficio mínimo (%)", 0.0, 30.0, margen_sugerido, step=1.0,
                                      help=f"Referencia Banxico: {margen_sugerido}%")
             max_pe       = st.slider("P/E máximo", 10.0, 100.0, 50.0, step=5.0)
+            min_roe_scr  = st.slider("ROE mínimo (%)", 0.0, 50.0, 10.0, step=1.0,
+                                     help="Return on Equity mínimo aceptable")
+            max_deuda_scr = st.slider("Deuda/Capital máximo", 0.0, 5.0, 1.5, step=0.1,
+                                      help="Ratio Deuda/Capital. 1.5 = deuda 1.5x el capital propio")
             n_clusters   = st.slider("Grupos de diversificación (K-Means)", 2, 8, 4)
             ejecutar_scr = st.form_submit_button("Ejecutar análisis fundamental", use_container_width=True)
     else:
@@ -421,8 +425,14 @@ with tab_motor:
             if df_fund.empty:
                 st.error("No fue posible obtener datos de Yahoo Finance.")
             else:
-                df_filtrado = filtrar_candidatos(df_fund, min_market_cap=min_cap,
-                                                 min_profit_margin=min_margin, max_pe=max_pe)
+                df_filtrado = filtrar_candidatos(
+                    df_fund,
+                    min_market_cap=min_cap,
+                    min_profit_margin=min_margin,
+                    max_pe=max_pe,
+                    max_deuda=max_deuda_scr * 100,  # yfinance devuelve debtToEquity * 100
+                    min_roe=min_roe_scr,
+                )
                 if len(df_filtrado) < 2:
                     st.warning(f"Solo {len(df_filtrado)} instrumentos superaron los filtros.")
                 else:
@@ -540,6 +550,49 @@ with tab_motor:
     df_pesos = pd.DataFrame({"Activo": tickers, "Peso (%)": (pesos_opt*100).round(2)}) \
         .sort_values("Peso (%)", ascending=False)
     st.dataframe(df_pesos, use_container_width=True)
+    # ── Asistente de Rebalanceo ───────────────────────────────────────────────
+    st.subheader("Asistente de Rebalanceo Automático")
+    st.caption(
+        "Instrucciones exactas para asignar el capital inicial según los pesos óptimos. "
+        "Asume que el capital está actualmente en efectivo o en liquidez total."
+    )
+
+    capital_rebalanceo = st.number_input(
+        "Capital disponible para asignar (MXN)",
+        min_value=0, value=int(capital_inicial), step=10_000,
+        key="capital_rebalanceo",
+        help="Por defecto usa el capital inicial configurado. Puede ajustarlo aquí."
+    )
+
+    df_rebalanceo = pd.DataFrame({
+        "Activo":            tickers,
+        "Peso Óptimo (%)":  (pesos_opt * 100).round(2),
+        "Monto Objetivo (MXN)": (pesos_opt * capital_rebalanceo).round(0).astype(int),
+    }).sort_values("Peso Óptimo (%)", ascending=False).reset_index(drop=True)
+
+    df_rebalanceo["Instrucción en Mercado"] = df_rebalanceo["Monto Objetivo (MXN)"].apply(
+        lambda m: f"Invertir ${m:,}"
+    )
+
+    # Resaltado visual: mayor peso → instrucción más relevante
+    st.dataframe(
+        df_rebalanceo[["Activo", "Peso Óptimo (%)", "Monto Objetivo (MXN)", "Instrucción en Mercado"]],
+        use_container_width=True,
+        column_config={
+            "Monto Objetivo (MXN)": st.column_config.NumberColumn(format="$%d"),
+            "Peso Óptimo (%)":      st.column_config.ProgressColumn(
+                min_value=0, max_value=100, format="%.2f%%"
+            ),
+        }
+    )
+
+    total_asignado = df_rebalanceo["Monto Objetivo (MXN)"].sum()
+    diferencia     = capital_rebalanceo - total_asignado
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Capital disponible",  f"${capital_rebalanceo:,}")
+    c2.metric("Total a asignar",     f"${total_asignado:,}")
+    c3.metric("Diferencia (redondeo)", f"${diferencia:,}",
+              help="Diferencia por redondeo. Asignar al activo de mayor peso.")
 
     # ── Backtesting Walk-Forward ───────────────────────────────────────────────
     st.markdown("---")
@@ -547,20 +600,63 @@ with tab_motor:
     st.caption("Pesos recalculados trimestralmente con datos históricos exclusivamente. Neto de comisiones.")
 
     @st.cache_data(show_spinner=False)
-    def correr_backtest(datos, rf, cap, pmin, pmax, max_r, _es_r, _df_reg, comision):
+    def correr_backtest(datos, rf, cap, pmin, pmax, max_r, _es_r, _df_reg, comision, bench_override):
         return calcular_backtest_walk_forward(
             retornos_diarios=datos, funcion_optimizador=optimizar_sharpe_slsqp,
             tasa_rf=rf, peso_min=pmin, peso_max=pmax, max_riesgo_total=max_r,
-            es_riesgo=_es_r, df_regimenes=_df_reg, comision_broker=comision, capital_inicial=cap)
+            es_riesgo=_es_r, df_regimenes=_df_reg, comision_broker=comision,
+            capital_inicial=cap, benchmark_ticker_override=bench_override)
 
+    # ── Benchmark dinámico ────────────────────────────────────────────────────
+    PERFILES_BENCHMARK = {
+        "Agresivo (S&P 500 — SPY)":           "SPY",
+        "Agresivo Tecnológico (Nasdaq — QQQ)": "QQQ",
+        "Moderado (Global 60/40 — AOR)":       "AOR",
+        "Conservador (Bonos Globales — AGG)":  "AGG",
+    }
+    benchmark_seleccion = st.selectbox(
+        "Perfil del Benchmark Comparativo",
+        list(PERFILES_BENCHMARK.keys()),
+        help="Define el índice de referencia contra el que se mide el desempeño del motor."
+    )
+    benchmark_elegido = PERFILES_BENCHMARK[benchmark_seleccion]
+
+    # Si el benchmark no está en los tickers del usuario, lo descargamos y lo añadimos
+    @st.cache_data(show_spinner=False, ttl=3600)
+    def obtener_benchmark_externo(ticker: str, inicio: str, fin: str):
+        try:
+            datos_b = cargar_datos([ticker], inicio, fin)
+            ret_b, _, _ = calcular_retornos(datos_b)
+            return ret_b[ticker]
+        except Exception:
+            return None
+
+    if benchmark_elegido not in retornos_diarios.columns:
+        serie_bench_extra = obtener_benchmark_externo(
+            benchmark_elegido, str(fecha_inicio), str(fecha_fin)
+        )
+        if serie_bench_extra is not None:
+            retornos_para_bt = retornos_diarios.copy()
+            retornos_para_bt[benchmark_elegido] = serie_bench_extra
+            retornos_para_bt = retornos_para_bt.dropna()
+        else:
+            st.warning(
+                f"No fue posible descargar {benchmark_elegido}. "
+                "Se usará el primer ticker disponible como benchmark."
+            )
+            retornos_para_bt = retornos_diarios
+            benchmark_elegido = retornos_diarios.columns[0]
+    else:
+        retornos_para_bt = retornos_diarios
     with st.spinner("Procesando backtesting..."):
         REFUGIOS      = {"TLT","IEF","SHY","BND","AGG","BIL","GLD","IAU","USDC-USD","CASH"}
         es_riesgo_arr = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in tickers])
         factor_glide  = max(min(1.0, max(0.20, horizonte_años/15.0)),
                             max(0.0, 1.0 - np.sum(es_riesgo_arr==0.0)*peso_max))
         df_equity, benchmark_ticker, retorno_port, retorno_bench = correr_backtest(
-            retornos_diarios, tasa_rf, capital_inicial, peso_min, peso_max,
-            factor_glide, es_riesgo_arr, st.session_state.df_regimenes, comision_broker)
+            retornos_para_bt, tasa_rf, capital_inicial, peso_min, peso_max,
+            factor_glide, es_riesgo_arr, st.session_state.df_regimenes,
+            comision_broker, benchmark_elegido)
 
     metricas_bt = cached_metricas_bt(
         retorno_port, retorno_bench, tasa_rf,
@@ -646,6 +742,49 @@ with tab_motor:
     c3.metric("Favorable (P95)", f"${p95[-1]:,.0f}")
     c4.metric("Tasa fija",       f"${benchmark_fijo[-1]:,.0f}",
               delta=f"${p50[-1]-benchmark_fijo[-1]:,.0f} diferencial")
+    # ── Tabla de hitos en el tiempo ───────────────────────────────────────────
+    st.markdown("**Matriz de capitalización por horizonte temporal**")
+    st.caption(
+        "Comparativa del escenario base (P50) vs tasa fija en hitos clave. "
+        "Ilustra cómo el interés compuesto amplifica la ventaja a largo plazo."
+    )
+
+    n_meses_total = horizonte_años * 12
+    hitos_meses   = [m for m in [12, 36, 60, n_meses_total] if m <= n_meses_total]
+    hitos_labels  = {12: "1 año", 36: "3 años", 60: "5 años", n_meses_total: f"{horizonte_años} años (fin)"}
+    # Eliminar duplicados si horizonte < 5 años
+    hitos_meses   = list(dict.fromkeys(hitos_meses))
+
+    filas_hitos = []
+    for m in hitos_meses:
+        idx = min(m, len(p50) - 1)
+        ventaja = p50[idx] - benchmark_fijo[idx]
+        filas_hitos.append({
+            "Horizonte":            hitos_labels.get(m, f"Mes {m}"),
+            "Adverso P5 (MXN)":    int(p5[idx]),
+            "Base P50 (MXN)":      int(p50[idx]),
+            "Favorable P95 (MXN)": int(p95[idx]),
+            "Tasa fija (MXN)":     int(benchmark_fijo[idx]),
+            "Ventaja P50 vs Fija": int(ventaja),
+        })
+
+    df_hitos = pd.DataFrame(filas_hitos)
+    st.dataframe(
+        df_hitos,
+        use_container_width=True,
+        column_config={
+            "Adverso P5 (MXN)":    st.column_config.NumberColumn(format="$%d"),
+            "Base P50 (MXN)":      st.column_config.NumberColumn(format="$%d"),
+            "Favorable P95 (MXN)": st.column_config.NumberColumn(format="$%d"),
+            "Tasa fija (MXN)":     st.column_config.NumberColumn(format="$%d"),
+            "Ventaja P50 vs Fija": st.column_config.NumberColumn(format="$%d"),
+        },
+        hide_index=True,
+    )
+    st.caption(
+        "La columna 'Ventaja P50 vs Fija' muestra cuánto capital adicional genera el motor "
+        "respecto a dejar el dinero en un instrumento de tasa fija al mismo horizonte."
+    )
 
     # ── Riesgo institucional ───────────────────────────────────────────────────
     st.markdown("---")
