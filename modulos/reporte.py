@@ -8,7 +8,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table,
-    TableStyle, HRFlowable, PageBreak, Image
+    TableStyle, HRFlowable, PageBreak, Image, KeepTogether
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
@@ -309,9 +309,14 @@ def generar_reporte(
         story.append(_fig_a_imagen(fig_bt, height=280))
 
     if fig_anuales:
-        story.append(Spacer(1, 0.1*inch))
-        story.append(Paragraph("Retornos Anuales Comparativos", E['subseccion']))
-        story.append(_fig_a_imagen(fig_anuales, height=240))
+        # Envolvemos el título y la gráfica en una lista para mantenerlos pegados
+        bloque_anuales = [
+            Spacer(1, 0.1*inch),
+            Paragraph("Retornos Anuales Comparativos", E['subseccion']),
+            _fig_a_imagen(fig_anuales, height=240)
+        ]
+        # Append de KeepTogether para evitar que el PDF los separe de hoja
+        story.append(KeepTogether(bloque_anuales))
 
     story.append(PageBreak())
 
