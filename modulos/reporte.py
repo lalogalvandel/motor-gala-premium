@@ -128,7 +128,7 @@ def generar_reporte(
     df_stress, capital_riesgo,
     # Monte Carlo
     p5_final, p50_final, p95_final,
-    horizonte_años, capital_inicial, aportacion_mensual,
+    horizonte_años, capital_inicial, aportacion_mensual, num_sims,
     # Backtesting
     metricas_bt, benchmark_ticker,
     # Screening (opcional)
@@ -456,7 +456,7 @@ def generar_reporte(
     if fig_mc:
         story.append(KeepTogether([
             Spacer(1, 0.2 * inch),
-           #ALOOO Paragraph("Trayectorias de Capital — 1,000 Simulaciones", E['subseccion']),
+            Paragraph("Trayectorias de Capital — {num_sims:,}", E['subseccion']),
             Spacer(1, 0.08 * inch),
             _fig_a_imagen(fig_mc, h_inch=3.2),
         ]))
