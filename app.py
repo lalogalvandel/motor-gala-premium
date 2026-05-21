@@ -466,7 +466,14 @@ with tab_motor:
                         st.dataframe(df_mejores[["Ticker","Nombre","Sector","Cluster",
                                                   "Market Cap (B)","P/E Ratio","Profit Margin %"]],
                                      height=300, use_container_width=True)
-                    tickers_sugeridos = ", ".join(df_mejores["Ticker"].tolist()) + ", TLT, GLD"
+                    st.sidebar.markdown("---")
+                    incluir_refugios = st.sidebar.checkbox("Incluir activos de refugio (TLT, GLD) en cartera sugerida", value=True)
+
+                    if incluir_refugios:
+                        tickers_sugeridos = ", ".join(df_mejores["Ticker"].tolist()) + ", TLT, GLD"
+                    else:
+                        tickers_sugeridos = ", ".join(df_mejores["Ticker"].tolist())
+
                     st.session_state["tickers_screening"] = tickers_sugeridos
                     st.info(f"Cartera sugerida: **{tickers_sugeridos}**")
         st.stop()
