@@ -1165,7 +1165,11 @@ with tab_comunidad:
     st.markdown("---")
     st.markdown("**Posts de la comunidad**")
 
-    posts = obtener_posts_aprobados()
+    try:
+        posts = obtener_posts_aprobados()
+    except Exception as e:
+        posts = []
+        st.error("Error de conexión con el servidor de la comunidad.")
     if not posts:
         st.info("Aún no hay publicaciones aprobadas. Sea el primero en contribuir.")
     else:
