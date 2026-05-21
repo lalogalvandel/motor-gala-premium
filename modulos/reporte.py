@@ -257,12 +257,7 @@ def generar_reporte(
     # ══════════════════════════════════════════════════════════════════════════
     story.append(Spacer(1, 0.3 * inch))
     story += _seccion(f"2. Backtesting Histórico — GaLa vs {benchmark_ticker}", E['seccion'])
-    Paragraph(
-    "Nota técnica: Esta sección refleja el desempeño real del modelo operando bajo condiciones de incertidumbre histórica (walk-forward). "
-    "Las métricas difieren de la Página 2, la cual representa la optimización teórica actual con acceso a la información completa de la serie histórica.",
-    style='Italic'
-)
-    Paragraph("\n")
+    
     bt_data = [
         ['Métrica', 'GaLa', benchmark_ticker, 'Ventaja GaLa'],
         ['CAGR',
