@@ -337,21 +337,23 @@ with tab_motor:
         with st.sidebar.form("screening_form"):
             universo_sel = st.selectbox("Universo de análisis", list(UNIVERSOS.keys()))
             min_cap      = st.slider("Capitalización mínima (B USD)", 1.0, 100.0, 10.0, step=1.0)
-            min_margin   = st.slider("Margen de beneficio mínimo (%)", 0.0, 30.0, margen_sugerido, step=1.0)
+            min_margin   = st.slider("Margen de beneficio mínimo (%)", 0.0, 30.0, margen_sugerido, step=1.0,
+                                     help=f"Referencia Banxico: {margen_sugerido}%")
             max_pe       = st.slider("P/E máximo", 10.0, 100.0, 50.0, step=5.0)
-            min_roe_scr  = st.slider("ROE mínimo (%)", 0.0, 50.0, 10.0, step=1.0)
-            max_deuda_scr = st.slider("Deuda/Capital máximo (%)", 0, 500, 150, step=10)
+            min_roe_scr  = st.slider("ROE mínimo (%)", 0.0, 50.0, 10.0, step=1.0,
+                                     help="Return on Equity mínimo aceptable")
+            max_deuda_scr = st.slider("Deuda/Capital máximo (%)", 0, 500, 150, step=10,
+                                      help="Ejemplo: 150 = deuda equivalente a 1.5x el capital propio")
             n_clusters   = st.slider("Grupos de diversificación (K-Means)", 2, 8, 4)
-            
-            # El checkbox vive aquí
+            # FIX: El checkbox ahora vive fijo dentro del formulario
             incluir_refugios = st.checkbox("Incluir activos de refugio (TLT, GLD)", value=True)
             
             ejecutar_scr = st.form_submit_button("Ejecutar análisis fundamental", use_container_width=True)
     else:
         ejecutar_scr = False
 
-
-    # 🔥 LA CIRUGÍA: EJECUTAMOS EL SCREENING AQUÍ MISMO, ANTES DEL MÓDULO 2 🔥
+    # 🔥 LA EJECUCIÓN DEL SCREENING DEBE IR ESTRICTAMENTE AQUÍ 🔥
+    # (Entre el Módulo 1 y el Módulo 2)
     if usar_screening and ejecutar_scr:
         st.header("Análisis Fundamental — Selección de Activos")
         seleccion        = UNIVERSOS[universo_sel]
@@ -372,13 +374,13 @@ with tab_motor:
                     df_clusterizado, df_mejores = clustering_activos(df_filtrado, n_clusters)
                     st.session_state["df_screening"] = df_mejores
 
-                    # Leemos el checkbox al instante
+                    # FIX: Leemos el checkbox instantáneamente
                     if incluir_refugios:
                         tickers_sugeridos = ", ".join(df_mejores["Ticker"].tolist()) + ", TLT, GLD"
                     else:
                         tickers_sugeridos = ", ".join(df_mejores["Ticker"].tolist())
 
-                    # Guardamos en sesión Y forzamos la actualización de la caja de texto
+                    # FIX: Guardamos en variables de estado ANTES del text_area
                     st.session_state["tickers_screening"] = tickers_sugeridos
                     st.session_state["widget_tickers"] = tickers_sugeridos
 
@@ -398,21 +400,42 @@ with tab_motor:
     st.sidebar.markdown("---")
     st.sidebar.subheader("2. Parámetros de Optimización")
 
-    # Recuperamos la información más fresca que acaba de soltar el screening
     if usar_screening and "tickers_screening" in st.session_state:
         tickers_default = st.session_state["tickers_screening"]
     else:
         tickers_default = "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"
 
     with st.sidebar.form("optim_form"):
-        # 🔥 FIX: Agregamos key="widget_tickers". Esto hace que la caja de texto 
-        # reciba órdenes directas desde la línea 56 (arriba) 🔥
+        # 🔥 FIX: Agregamos key="widget_tickers". Sin esto, la caja no obedece al screening.
         tickers_input         = st.text_area("Activos a optimizar", value=tickers_default, height=70, key="widget_tickers")
         fecha_inicio          = st.date_input("Fecha de inicio", value=pd.Timestamp("2020-01-01"))
         fecha_fin             = st.date_input("Fecha de cierre", value=pd.Timestamp("2026-05-08"))
-        
-        # ... (Aquí sigue el resto de tu Módulo 2 intacto: restricciones, capital, benchmark, etc.) ...
-        
+        st.markdown("---")
+        st.subheader("Restricciones de concentración")
+        peso_max              = st.slider("Exposición máxima por activo (%)", 10, 100, 40) / 100
+        peso_min              = st.slider("Exposición mínima por activo (%)", 0, 10, 2) / 100
+        comision_broker       = st.number_input("Comisión operativa (%)", value=0.15, step=0.05) / 100
+        st.markdown("---")
+        st.subheader("Proyección de capital")
+        capital_inicial       = st.number_input("Capital inicial (MXN)", min_value=0, value=100_000, step=10_000)
+        frecuencia_aportacion = st.selectbox("Frecuencia de aportación", ["Mensual", "Trimestral", "Anual"], index=2)
+        aportacion_mensual    = st.number_input("Aportación periódica (MXN)", min_value=0, value=100_000, step=10_000)
+        horizonte_años        = st.slider("Horizonte de inversión (años)", min_value=1, max_value=40, value=10)
+        num_sims              = st.slider("Simulaciones Monte Carlo", 500, 5000, 2000, step=500)
+
+        st.markdown("---")
+        st.subheader("Benchmark comparativo")
+        PERFILES_BENCHMARK = {
+            "Agresivo (S&P 500 — SPY)":           "SPY",
+            "Agresivo Tecnológico (Nasdaq — QQQ)": "QQQ",
+            "Moderado (Global 60/40 — AOR)":       "AOR",
+            "Conservador (Bonos Globales — AGG)":  "AGG",
+        }
+        benchmark_seleccion = st.selectbox(
+            "Perfil del benchmark",
+            list(PERFILES_BENCHMARK.keys()),
+            help="El benchmark se descarga junto con los activos para que las dimensiones cuadren."
+        )
         ejecutar              = st.form_submit_button("Ejecutar optimización", use_container_width=True)
 
     # ── Funciones con caché ────────────────────────────────────────────────────
