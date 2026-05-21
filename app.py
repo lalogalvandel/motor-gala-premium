@@ -345,6 +345,9 @@ with tab_motor:
             max_deuda_scr = st.slider("Deuda/Capital máximo (%)", 0, 500, 150, step=10,
                                       help="Ejemplo: 150 = deuda equivalente a 1.5x el capital propio")
             n_clusters   = st.slider("Grupos de diversificación (K-Means)", 2, 8, 4)
+            # FIX: El checkbox ahora vive fijo dentro del formulario
+            incluir_refugios = st.checkbox("Incluir activos de refugio (TLT, GLD)", value=True)
+            
             ejecutar_scr = st.form_submit_button("Ejecutar análisis fundamental", use_container_width=True)
     else:
         ejecutar_scr = False
@@ -476,467 +479,464 @@ with tab_motor:
 
                     st.session_state["tickers_screening"] = tickers_sugeridos
                     st.info(f"Cartera sugerida: **{tickers_sugeridos}**")
-        st.stop()
 
     # ── Freno de emergencia ────────────────────────────────────────────────────
     if not ejecutar and not st.session_state.optimizado:
         st.info("Configure los parámetros en el panel izquierdo y ejecute la optimización.")
-        st.stop()
-
-    # ── Descarga de históricos ─────────────────────────────────────────────────
-    # Guardamos benchmark_elegido en session_state para que persista entre reruns
-    benchmark_elegido = PERFILES_BENCHMARK[benchmark_seleccion]
-    if ejecutar:
-        st.session_state["tickers_procesar"]  = tickers_input
-        st.session_state["benchmark_elegido"] = benchmark_elegido
-
-    tickers_finales   = st.session_state.get("tickers_procesar", tickers_input)
-    benchmark_elegido = st.session_state.get("benchmark_elegido", benchmark_elegido)
-
-    # Construir lista de descarga: activos del usuario + benchmark (sin duplicados)
-    tickers_lista     = [t.strip() for t in tickers_finales.split(",")]
-    tickers_descarga  = tickers_lista + (
-        [benchmark_elegido] if benchmark_elegido not in tickers_lista else []
-    )
-    tickers_descarga_key = ", ".join(tickers_descarga)  # clave para el caché
-
-    try:
-        with st.spinner("Descargando series históricas de precios..."):
-            datos_full, retornos_full, _, _ = obtener_datos(
-                tickers_descarga_key, str(fecha_inicio), str(fecha_fin)
-            )
-            # Separar benchmark del universo de optimización
-            tickers           = [t for t in retornos_full.columns if t != benchmark_elegido]
-            datos             = datos_full[tickers]
-            retornos_diarios  = retornos_full[tickers]
-            retornos_para_bt  = retornos_full          # incluye benchmark para backtesting
-            _, retornos_anuales, matriz_cov = calcular_retornos(datos)
-    except Exception as e:
-        st.error(f"Error al descargar históricos: {e}")
-        st.stop()
-
-    # ── Optimización ──────────────────────────────────────────────────────────
-    if ejecutar:
-        with st.spinner("Ejecutando optimización y análisis de regímenes..."):
-            st.session_state.df_regimenes = entrenar_modelo_markov(datos)
-            REFUGIOS = {"TLT","IEF","SHY","BND","AGG","BIL","GLD","IAU","USDC-USD","CASH"}
-            es_riesgo = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in tickers])
-            num_refugios = np.sum(es_riesgo == 0.0)
-            target_riesgo = min(1.0, max(0.20, horizonte_años / 15.0))
-            factor_glide  = max(target_riesgo, max(0.0, 1.0 - num_refugios * peso_max))
-
-            resultados, pesos_guardados = simular_portafolios(
-                retornos_anuales, matriz_cov, tasa_rf, num_portafolios=num_sims)
-
-            pesos_opt = optimizar_sharpe_slsqp(
-                retornos_anuales, matriz_cov, tasa_rf,
-                peso_min=peso_min, peso_max=peso_max,
-                max_riesgo_total=factor_glide, es_riesgo=es_riesgo)
-
-            ret_opt    = float(np.sum(pesos_opt * retornos_anuales))
-            vol_opt    = float(np.sqrt(np.dot(pesos_opt.T, np.dot(matriz_cov, pesos_opt))))
-            sharpe_opt = float((ret_opt - tasa_rf) / vol_opt)
-
-            st.session_state.optimizado  = True
-            st.session_state.pesos_opt   = pesos_opt
-            st.session_state.ret_opt     = ret_opt
-            st.session_state.vol_opt     = vol_opt
-            st.session_state.sharpe_opt  = sharpe_opt
-            st.session_state.resultados  = resultados
-
-    res        = st.session_state.resultados
-    pesos_opt  = st.session_state.pesos_opt
-    ret_opt    = st.session_state.ret_opt
-    vol_opt    = st.session_state.vol_opt
-    sharpe_opt = st.session_state.sharpe_opt
-
-    # ── Precios históricos ─────────────────────────────────────────────────────
-    st.subheader("Precios de Cierre Históricos")
-    if st.toggle("Mostrar gráfica de precios"):
-        st.line_chart(datos)
-    else:
-        st.caption("Active el interruptor para visualizar la evolución histórica de precios.")
-
-    # ── Frontera eficiente ─────────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("Frontera Eficiente — Markowitz")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Retorno Esperado Anual", f"{ret_opt*100:.2f}%")
-    c2.metric("Volatilidad Anual",      f"{vol_opt*100:.2f}%")
-    c3.metric("Ratio de Sharpe",        f"{sharpe_opt:.4f}")
-
-    fig_markowitz = go.Figure()
-    fig_markowitz.add_trace(go.Scatter(
-        x=res[1]*100, y=res[0]*100, mode="markers",
-        marker=dict(color=res[2], colorscale="Viridis", size=4, opacity=0.5,
-                    colorbar=dict(title="Sharpe")),
-        name="Portafolios simulados",
-        hovertemplate="Volatilidad: %{x:.2f}%<br>Retorno: %{y:.2f}%<extra></extra>"
-    ))
-    fig_markowitz.add_trace(go.Scatter(
-        x=[vol_opt*100], y=[ret_opt*100], mode="markers",
-        marker=dict(symbol="star", size=20, color="red"),
-        name="Óptimo Max Sharpe",
-        hovertemplate=f"Sharpe: {sharpe_opt:.4f}<extra></extra>"
-    ))
-    fig_markowitz.update_layout(template="plotly_dark", xaxis_title="Volatilidad Anual (%)",
-        yaxis_title="Retorno Anual (%)", height=480, legend=dict(x=0.01, y=0.99))
-    st.plotly_chart(fig_markowitz, use_container_width=True, key="chart_markowitz")
-
-    st.subheader("Distribución Óptima del Capital")
-    df_pesos = pd.DataFrame({"Activo": tickers, "Peso (%)": (pesos_opt*100).round(2)}) \
-        .sort_values("Peso (%)", ascending=False)
-    st.dataframe(df_pesos, use_container_width=True)
-    # ── Asistente de Rebalanceo ───────────────────────────────────────────────
-    st.subheader("Asistente de Rebalanceo Automático")
-    st.caption(
-        "Instrucciones exactas para asignar el capital inicial según los pesos óptimos. "
-        "Asume que el capital está actualmente en efectivo o en liquidez total."
-    )
-
-    capital_rebalanceo = st.number_input(
-        "Capital disponible para asignar (MXN)",
-        min_value=0, value=int(capital_inicial), step=10_000,
-        key="capital_rebalanceo",
-        help="Por defecto usa el capital inicial configurado. Puede ajustarlo aquí."
-    )
-
-    df_rebalanceo = pd.DataFrame({
-        "Activo":            tickers,
-        "Peso Óptimo (%)":  (pesos_opt * 100).round(2),
-        "Monto Objetivo (MXN)": (pesos_opt * capital_rebalanceo).round(0).astype(int),
-    }).sort_values("Peso Óptimo (%)", ascending=False).reset_index(drop=True)
-
-    df_rebalanceo["Instrucción en Mercado"] = df_rebalanceo["Monto Objetivo (MXN)"].apply(
-        lambda m: f"Invertir ${m:,}"
-    )
-
-    # Resaltado visual: mayor peso → instrucción más relevante
-    st.dataframe(
-        df_rebalanceo[["Activo", "Peso Óptimo (%)", "Monto Objetivo (MXN)", "Instrucción en Mercado"]],
-        use_container_width=True,
-        column_config={
-            "Monto Objetivo (MXN)": st.column_config.NumberColumn(format="$%d"),
-            "Peso Óptimo (%)":      st.column_config.ProgressColumn(
-                min_value=0, max_value=100, format="%.2f%%"
-            ),
-        }
-    )
-
-    total_asignado = df_rebalanceo["Monto Objetivo (MXN)"].sum()
-    diferencia     = capital_rebalanceo - total_asignado
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Capital disponible",  f"${capital_rebalanceo:,}")
-    c2.metric("Total a asignar",     f"${total_asignado:,}")
-    c3.metric("Diferencia (redondeo)", f"${diferencia:,}",
-              help="Diferencia por redondeo. Asignar al activo de mayor peso.")
-
-    # ── Backtesting Walk-Forward ───────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("Backtesting Dinámico — Walk-Forward")
-    st.caption("Pesos recalculados trimestralmente con datos históricos exclusivamente. Neto de comisiones.")
-
-    @st.cache_data(show_spinner=False)
-    def correr_backtest(datos, rf, cap, pmin, pmax, max_r, _es_r, _df_reg, comision, bench_override):
-        return calcular_backtest_walk_forward(
-            retornos_diarios=datos, funcion_optimizador=optimizar_sharpe_slsqp,
-            tasa_rf=rf, peso_min=pmin, peso_max=pmax, max_riesgo_total=max_r,
-            es_riesgo=_es_r, df_regimenes=_df_reg, comision_broker=comision,
-            capital_inicial=cap, benchmark_ticker_override=bench_override)
-
-  # ── INICIO DEL BLOQUE A REEMPLAZAR ──
-    # retornos_para_bt ya incluye el benchmark — definido en la descarga de datos
-    with st.spinner("Procesando backtesting..."):
-        REFUGIOS = {"TLT","IEF","SHY","BND","AGG","BIL","GLD","IAU","USDC-USD","CASH"}
-        
-        # 1. Filtramos para que no haya duplicados ni basura
-        columnas_validas = [c for c in list(tickers) + [benchmark_elegido] if c in retornos_para_bt.columns]
-        retornos_para_bt = retornos_para_bt[columnas_validas]
-        
-        # 2. EL FIX MAESTRO: Mapeamos el riesgo EXACTAMENTE a las columnas que entran al backtester.
-        # Si el backtester usa 5 columnas (activos + benchmark), generamos 5 niveles de riesgo. ¡Cero choques!
-        es_riesgo_arr = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in retornos_para_bt.columns])
-
-        # 3. Calculamos el Glide Path sin problemas
-        factor_glide = max(min(1.0, max(0.20, horizonte_años/15.0)),
-                           max(0.0, 1.0 - np.sum(es_riesgo_arr==0.0)*peso_max))
-        
-
-        df_equity, benchmark_ticker, retorno_port, retorno_bench = correr_backtest(
-            retornos_para_bt, tasa_rf, capital_inicial, peso_min, peso_max,
-            factor_glide, es_riesgo_arr, st.session_state.df_regimenes,
-            comision_broker, benchmark_elegido)
-
-    metricas_bt = cached_metricas_bt(
-        retorno_port, retorno_bench, tasa_rf,
-        df_equity["Portafolio GaLa (Dinámico)"],
-        df_equity[f"Benchmark ({benchmark_ticker})"])
-
-    st.markdown("**Análisis comparativo de rendimiento**")
-    comparativas = [
-        ("CAGR",         f"{metricas_bt['cagr_port']*100:.2f}%",  f"{metricas_bt['cagr_bench']*100:.2f}%"),
-        ("Volatilidad",  f"{metricas_bt['vol_port']*100:.2f}%",   f"{metricas_bt['vol_bench']*100:.2f}%"),
-        ("Sharpe",       f"{metricas_bt['sharpe_port']:.4f}",      f"{metricas_bt['sharpe_bench']:.4f}"),
-        ("Sortino",      f"{metricas_bt['sortino_port']:.4f}",     f"{metricas_bt['sortino_bench']:.4f}"),
-        ("Max Drawdown", f"{metricas_bt['mdd_port']*100:.2f}%",   f"{metricas_bt['mdd_bench']*100:.2f}%"),
-        ("Calmar",       f"{metricas_bt['calmar_port']:.4f}",      f"{metricas_bt['calmar_bench']:.4f}"),
-    ]
-    h1, h2, h3 = st.columns(3)
-    h1.markdown("**Métrica**"); h2.markdown("**Motor GaLa**"); h3.markdown(f"**{benchmark_ticker}**")
-    st.markdown("---")
-    for m, vp, vb in comparativas:
-        c1, c2, c3 = st.columns(3)
-        c1.write(m); c2.write(vp); c3.write(vb)
-    st.markdown("")
-    c1, c2 = st.columns(2)
-    c1.metric("Alpha (Jensen)",    f"{metricas_bt['alpha']*100:.2f}%")
-    c2.metric("Beta vs Benchmark", f"{metricas_bt['beta']:.4f}")
-
-    fig_bt = go.Figure()
-    fig_bt.add_trace(go.Scatter(x=df_equity.index, y=df_equity["Portafolio GaLa (Dinámico)"],
-        mode="lines", line=dict(width=2.5, color="#4488ff"), name="Motor GaLa"))
-    fig_bt.add_trace(go.Scatter(x=df_equity.index,
-        y=df_equity[f"Benchmark ({benchmark_ticker})"],
-        mode="lines", line=dict(width=1.5, color="rgba(200,200,200,0.6)", dash="dot"),
-        name=benchmark_ticker))
-    fig_bt.update_layout(template="plotly_dark", xaxis_title="Fecha", yaxis_title="Capital (USD)",
-        height=420, legend=dict(x=0.01, y=0.99), hovermode="x unified")
-    st.plotly_chart(fig_bt, use_container_width=True, key="chart_bt")
-
-    anuales   = cached_retornos_anuales(retorno_port, retorno_bench)
-
-    fig_anuales = go.Figure()
-    fig_anuales.add_trace(go.Bar(x=anuales.index.astype(str), y=anuales["Portafolio GaLa"],
-        name="Motor GaLa", marker_color="#4488ff"))
-    fig_anuales.add_trace(go.Bar(x=anuales.index.astype(str), y=anuales["Benchmark"],
-        name=benchmark_ticker, marker_color="rgba(200,200,200,0.5)"))
-    fig_anuales.add_hline(y=0, line_color="white", line_width=0.5)
-    fig_anuales.update_layout(template="plotly_dark", barmode="group",
-        xaxis_title="Año", yaxis_title="Retorno (%)", height=360, legend=dict(x=0.01, y=0.99))
-    st.plotly_chart(fig_anuales, use_container_width=True, key="chart_anuales")
-
-    # ── Monte Carlo ────────────────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("Proyección de Capital — Monte Carlo")
-    retorno_port_mc = retornos_diarios @ pesos_opt
-    escenarios, p5, p50, p95, benchmark_fijo, df_t = simular_capital(
-        capital_inicial=capital_inicial, aportacion_periodica=aportacion_mensual,
-        rendimiento_anual=ret_opt, volatilidad_anual=vol_opt,
-        meses=horizonte_años*12, frecuencia_aportacion=frecuencia_aportacion,
-        tasa_benchmark=tasa_actual_banxico, num_simulaciones=num_sims,
-        retornos_diarios=retorno_port_mc)
-
-    st.caption(f"t-Student gl={df_t:.2f} — "
-               f"{'cola pesada severa' if df_t < 5 else 'cola pesada moderada' if df_t < 10 else 'aproximación normal'}")
-
-    fig_mc = go.Figure()
-    for i in range(min(20, escenarios.shape[1])):
-        fig_mc.add_trace(go.Scatter(y=escenarios[:,i], mode="lines",
-            line=dict(width=1, color="rgba(0,150,255,0.08)"), showlegend=False, hoverinfo="skip"))
-    fig_mc.add_trace(go.Scatter(y=p50, mode="lines", line=dict(width=3, color="#17C37B"),
-        name="Base (P50)"))
-    fig_mc.add_trace(go.Scatter(y=p95, mode="lines",
-        line=dict(width=2, color="rgba(23,195,123,0.5)", dash="dot"), name="Favorable (P95)"))
-    fig_mc.add_trace(go.Scatter(y=p5, mode="lines",
-        line=dict(width=2, color="#FF4B4B", dash="dot"), name="Adverso (P5)"))
-    fig_mc.add_trace(go.Scatter(y=benchmark_fijo, mode="lines",
-        line=dict(width=3, color="gray", dash="dash"),
-        name=f"Tasa fija ({tasa_actual_banxico*100:.2f}%)"))
-    fig_mc.update_layout(template="plotly_dark", xaxis_title="Meses", yaxis_title="Capital (MXN)",
-        height=480, legend=dict(x=0.01, y=0.99))
-    st.plotly_chart(fig_mc, use_container_width=True, key="chart_mc")
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Adverso (P5)",    f"${p5[-1]:,.0f}")
-    c2.metric("Base (P50)",      f"${p50[-1]:,.0f}")
-    c3.metric("Favorable (P95)", f"${p95[-1]:,.0f}")
-    c4.metric("Tasa fija",       f"${benchmark_fijo[-1]:,.0f}",
-              delta=f"${p50[-1]-benchmark_fijo[-1]:,.0f} diferencial")
-    # ── Tabla de hitos en el tiempo ───────────────────────────────────────────
-    st.markdown("**Matriz de capitalización por horizonte temporal**")
-    st.caption(
-        "Comparativa del escenario base (P50) vs tasa fija en hitos clave. "
-        "Ilustra cómo el interés compuesto amplifica la ventaja a largo plazo."
-    )
-
-    n_meses_total = horizonte_años * 12
-    hitos_meses   = [m for m in [12, 36, 60, n_meses_total] if m <= n_meses_total]
-    hitos_labels  = {12: "1 año", 36: "3 años", 60: "5 años", n_meses_total: f"{horizonte_años} años (fin)"}
-    # Eliminar duplicados si horizonte < 5 años
-    hitos_meses   = list(dict.fromkeys(hitos_meses))
-
-    filas_hitos = []
-    for m in hitos_meses:
-        idx = min(m, len(p50) - 1)
-        ventaja = p50[idx] - benchmark_fijo[idx]
-        filas_hitos.append({
-            "Horizonte":            hitos_labels.get(m, f"Mes {m}"),
-            "Adverso P5 (MXN)":    int(p5[idx]),
-            "Base P50 (MXN)":      int(p50[idx]),
-            "Favorable P95 (MXN)": int(p95[idx]),
-            "Tasa fija (MXN)":     int(benchmark_fijo[idx]),
-            "Ventaja P50 vs Fija": int(ventaja),
-        })
-
-    df_hitos = pd.DataFrame(filas_hitos)
-    st.dataframe(
-        df_hitos,
-        use_container_width=True,
-        column_config={
-            "Adverso P5 (MXN)":    st.column_config.NumberColumn(format="$%d"),
-            "Base P50 (MXN)":      st.column_config.NumberColumn(format="$%d"),
-            "Favorable P95 (MXN)": st.column_config.NumberColumn(format="$%d"),
-            "Tasa fija (MXN)":     st.column_config.NumberColumn(format="$%d"),
-            "Ventaja P50 vs Fija": st.column_config.NumberColumn(format="$%d"),
-        },
-        hide_index=True,
-    )
-    st.caption(
-        "La columna 'Ventaja P50 vs Fija' muestra cuánto capital adicional genera el motor "
-        "respecto a dejar el dinero en un instrumento de tasa fija al mismo horizonte."
-    )
-
-    # ── Riesgo institucional ───────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("Análisis de Riesgo")
-    capital_riesgo      = st.number_input("Capital de referencia (USD)", value=200_000, step=10_000)
-    retorno_port_diario = retornos_diarios @ pesos_opt
-
-    st.markdown("#### Value at Risk y Expected Shortfall")
-    var_cvar = cached_var_cvar(retorno_port_diario, capital_riesgo)
-    c1,c2,c3,c4 = st.columns(4)
-    c1.metric("VaR 95% Histórico", f"{var_cvar['VaR_95_hist']*100:.2f}%",
-              f"-${abs(var_cvar['VaR_95_hist'])*capital_riesgo:,.0f} USD")
-    c2.metric("VaR 99% Histórico", f"{var_cvar['VaR_99_hist']*100:.2f}%",
-              f"-${abs(var_cvar['VaR_99_hist'])*capital_riesgo:,.0f} USD")
-    c3.metric("CVaR 95%",          f"{var_cvar['CVaR_95']*100:.2f}%",
-              f"-${abs(var_cvar['CVaR_95'])*capital_riesgo:,.0f} USD")
-    c4.metric("CVaR 99%",          f"{var_cvar['CVaR_99']*100:.2f}%",
-              f"-${abs(var_cvar['CVaR_99'])*capital_riesgo:,.0f} USD")
-
-    fig_var = go.Figure()
-    fig_var.add_trace(go.Histogram(x=retorno_port_diario*100, nbinsx=80,
-        marker_color="rgba(68,136,255,0.7)", name="Retornos diarios"))
-    fig_var.add_vline(x=var_cvar["VaR_95_hist"]*100, line_color="red",
-        line_dash="dash", annotation_text="VaR 95%")
-    fig_var.add_vline(x=var_cvar["CVaR_95"]*100,     line_color="orange",
-        line_dash="dash", annotation_text="CVaR 95%")
-    fig_var.add_vline(x=var_cvar["VaR_99_hist"]*100, line_color="magenta",
-        line_dash="dot",  annotation_text="VaR 99%")
-    fig_var.update_layout(template="plotly_dark", height=380,
-        xaxis_title="Retorno Diario (%)", yaxis_title="Frecuencia")
-    st.plotly_chart(fig_var, use_container_width=True, key="chart_var")
-
-    st.markdown("#### Maximum Drawdown")
-    dd_serie, max_dd, inicio_dd, fin_dd, duracion_dd = cached_drawdown(retorno_port_diario)
-    c1,c2,c3 = st.columns(3)
-    c1.metric("Maximum Drawdown", f"{max_dd*100:.2f}%",
-              f"-${abs(max_dd)*capital_riesgo:,.0f} USD")
-    c2.metric("Duración",         f"{duracion_dd} días ({duracion_dd//30} meses)")
-    c3.metric("Período",          f"{inicio_dd.strftime('%b %Y')} — {fin_dd.strftime('%b %Y')}")
-
-    fig_dd = go.Figure()
-    fig_dd.add_trace(go.Scatter(x=dd_serie.index, y=dd_serie*100,
-        fill="tozeroy", fillcolor="rgba(255,68,68,0.3)",
-        line=dict(color="red", width=1), name="Drawdown"))
-    fig_dd.add_hline(y=max_dd*100, line_color="gold", line_dash="dash",
-        annotation_text=f"Max DD: {max_dd*100:.2f}%")
-    fig_dd.update_layout(template="plotly_dark", height=350,
-        xaxis_title="Fecha", yaxis_title="Drawdown (%)")
-    st.plotly_chart(fig_dd, use_container_width=True, key="chart_dd")
-
-    st.markdown("#### Sortino vs Sharpe")
-    sortino, desv_down = cached_sortino(retorno_port_diario, ret_opt, tasa_rf)
-    c1,c2,c3 = st.columns(3)
-    c1.metric("Sharpe",               f"{sharpe_opt:.4f}")
-    c2.metric("Sortino",              f"{sortino:.4f}")
-    c3.metric("Desviación downside",  f"{desv_down*100:.2f}%")
-
-    st.markdown("#### Stress Testing — Escenarios Históricos")
-    df_stress = cached_stress_test(pesos_opt, tickers, capital_riesgo, retornos_diarios)
-    fig_stress = go.Figure(go.Bar(
-        x=df_stress["Pérdida (%)"], y=df_stress["Escenario"], orientation="h",
-        marker_color=["red" if p < -15 else "orange" if p < -8 else "gold"
-                      for p in df_stress["Pérdida (%)"]],
-        text=[f"{p:.1f}%" for p in df_stress["Pérdida (%)"]],
-        textposition="outside"))
-    fig_stress.update_layout(template="plotly_dark", height=350, xaxis_title="Impacto en Capital (%)")
-    st.plotly_chart(fig_stress, use_container_width=True, key="chart_stress")
-    st.dataframe(df_stress, use_container_width=True)
-
-    st.markdown("#### Correlación Dinámica Rolling — 60 días")
-    fig_corr   = None
-    pares_corr = calcular_correlacion_rolling(retornos_diarios)
-    if pares_corr:
-        fig_corr = go.Figure()
-        for (nombre, serie), color in zip(pares_corr.items(), ["gold", "rgba(68,136,255,0.9)"]):
-            fig_corr.add_trace(go.Scatter(x=serie.index, y=serie, mode="lines",
-                line=dict(width=1.5, color=color), name=nombre))
-        fig_corr.add_hline(y=0.6,  line_color="rgba(255,0,0,0.5)",  line_dash="dot",
-            annotation_text="Zona de riesgo")
-        fig_corr.add_hline(y=0,    line_color="gray", line_dash="solid", line_width=0.5)
-        fig_corr.add_hline(y=-0.6, line_color="rgba(0,255,0,0.5)", line_dash="dot",
-            annotation_text="Zona de cobertura")
-        fig_corr.update_layout(template="plotly_dark", height=350,
-            yaxis=dict(range=[-1.1, 1.1]),
-            xaxis_title="Fecha", yaxis_title="Coeficiente de Pearson")
-        st.plotly_chart(fig_corr, use_container_width=True, key="chart_corr")
-    else:
-        st.info(f"Incluya BTC-USD/SPY o QQQ/TLT para ver correlación dinámica. "
-                f"Tickers actuales: {retornos_diarios.columns.tolist()}")
-
-    # ── Regímenes HMM ──────────────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("Detección de Regímenes de Mercado — HMM")
-    df_regimenes = st.session_state.get("df_regimenes", None)
-    if df_regimenes is not None:
-        calma  = df_regimenes[df_regimenes["Regimen"] == 0]
-        panico = df_regimenes[df_regimenes["Regimen"] == 1]
-        fig_hmm = go.Figure()
-        fig_hmm.add_trace(go.Scatter(x=calma.index, y=calma["Precio"], mode="markers",
-            marker=dict(color="rgba(0,255,100,0.6)", size=4), name="Régimen normal"))
-        fig_hmm.add_trace(go.Scatter(x=panico.index, y=panico["Precio"], mode="markers",
-            marker=dict(color="rgba(255,50,50,0.8)", size=6, symbol="x"), name="Régimen de tensión"))
-        fig_hmm.update_layout(template="plotly_dark", height=400,
-            xaxis_title="Fecha", yaxis_title="Precio", legend=dict(x=0.01, y=0.99))
-        st.plotly_chart(fig_hmm, use_container_width=True, key="chart_hmm")
-        pct = (df_regimenes["Regimen"] == 1).mean() * 100
-        c1, c2 = st.columns(2)
-        c1.metric("Régimen normal",   f"{100-pct:.1f}%")
-        c2.metric("Régimen tensión",  f"{pct:.1f}%")
-    else:
-        st.info("Ejecute la optimización para generar el análisis de regímenes.")
-
-    # ── Reporte PDF ────────────────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("Exportar Reporte")
-    if st.button("Generar reporte PDF", type="primary"):
-        with st.spinner("Generando reporte..."):
-            try:
-                pdf_bytes = generar_reporte(
-                    tickers=tickers, pesos_opt=pesos_opt, ret_opt=ret_opt, vol_opt=vol_opt,
-                    sharpe_opt=sharpe_opt, sortino=sortino, desv_down=desv_down, df_t=df_t,
-                    var_cvar=var_cvar, max_dd=max_dd, duracion_dd=duracion_dd,
-                    inicio_dd=inicio_dd, fin_dd=fin_dd, df_stress=df_stress,
-                    capital_riesgo=capital_riesgo, p5_final=p5[-1], p50_final=p50[-1],
-                    p95_final=p95[-1], horizonte_años=horizonte_años,
-                    capital_inicial=capital_inicial, aportacion_mensual=aportacion_mensual,
-                    num_sims=num_sims,
-                    metricas_bt=metricas_bt, benchmark_ticker=benchmark_ticker,
-                    df_screening=st.session_state.get("df_screening", None),
-                    fig_markowitz=fig_markowitz, fig_mc=fig_mc, fig_var=fig_var,
-                    fig_dd=fig_dd, fig_stress=fig_stress, fig_bt=fig_bt,
-                    fig_anuales=fig_anuales, fig_corr=fig_corr,
+    else: 
+        # ── Descarga de históricos ─────────────────────────────────────────────────
+        # Guardamos benchmark_elegido en session_state para que persista entre reruns
+        benchmark_elegido = PERFILES_BENCHMARK[benchmark_seleccion]
+        if ejecutar:
+            st.session_state["tickers_procesar"]  = tickers_input
+            st.session_state["benchmark_elegido"] = benchmark_elegido
+    
+        tickers_finales   = st.session_state.get("tickers_procesar", tickers_input)
+        benchmark_elegido = st.session_state.get("benchmark_elegido", benchmark_elegido)
+    
+        # Construir lista de descarga: activos del usuario + benchmark (sin duplicados)
+        tickers_lista     = [t.strip() for t in tickers_finales.split(",")]
+        tickers_descarga  = tickers_lista + (
+            [benchmark_elegido] if benchmark_elegido not in tickers_lista else []
+        )
+        tickers_descarga_key = ", ".join(tickers_descarga)  # clave para el caché
+    
+        try:
+            with st.spinner("Descargando series históricas de precios..."):
+                datos_full, retornos_full, _, _ = obtener_datos(
+                    tickers_descarga_key, str(fecha_inicio), str(fecha_fin)
                 )
-                st.download_button(
-                    label="Descargar reporte PDF", data=pdf_bytes,
-                    file_name=f"MotorGaLa_{nombre_display}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                    mime="application/pdf")
-                st.success("Reporte generado correctamente.")
-            except Exception as e:
-                st.error(f"Error al generar el reporte: {e}")
-                st.exception(e)
-
+                # Separar benchmark del universo de optimización
+                tickers           = [t for t in retornos_full.columns if t != benchmark_elegido]
+                datos             = datos_full[tickers]
+                retornos_diarios  = retornos_full[tickers]
+                retornos_para_bt  = retornos_full          # incluye benchmark para backtesting
+                _, retornos_anuales, matriz_cov = calcular_retornos(datos)
+        except Exception as e:
+            st.error(f"Error al descargar históricos: {e}")
+            st.stop()
+    
+        # ── Optimización ──────────────────────────────────────────────────────────
+        if ejecutar:
+            with st.spinner("Ejecutando optimización y análisis de regímenes..."):
+                st.session_state.df_regimenes = entrenar_modelo_markov(datos)
+                REFUGIOS = {"TLT","IEF","SHY","BND","AGG","BIL","GLD","IAU","USDC-USD","CASH"}
+                es_riesgo = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in tickers])
+                num_refugios = np.sum(es_riesgo == 0.0)
+                target_riesgo = min(1.0, max(0.20, horizonte_años / 15.0))
+                factor_glide  = max(target_riesgo, max(0.0, 1.0 - num_refugios * peso_max))
+    
+                resultados, pesos_guardados = simular_portafolios(
+                    retornos_anuales, matriz_cov, tasa_rf, num_portafolios=num_sims)
+    
+                pesos_opt = optimizar_sharpe_slsqp(
+                    retornos_anuales, matriz_cov, tasa_rf,
+                    peso_min=peso_min, peso_max=peso_max,
+                    max_riesgo_total=factor_glide, es_riesgo=es_riesgo)
+    
+                ret_opt    = float(np.sum(pesos_opt * retornos_anuales))
+                vol_opt    = float(np.sqrt(np.dot(pesos_opt.T, np.dot(matriz_cov, pesos_opt))))
+                sharpe_opt = float((ret_opt - tasa_rf) / vol_opt)
+    
+                st.session_state.optimizado  = True
+                st.session_state.pesos_opt   = pesos_opt
+                st.session_state.ret_opt     = ret_opt
+                st.session_state.vol_opt     = vol_opt
+                st.session_state.sharpe_opt  = sharpe_opt
+                st.session_state.resultados  = resultados
+    
+        res        = st.session_state.resultados
+        pesos_opt  = st.session_state.pesos_opt
+        ret_opt    = st.session_state.ret_opt
+        vol_opt    = st.session_state.vol_opt
+        sharpe_opt = st.session_state.sharpe_opt
+    
+        # ── Precios históricos ─────────────────────────────────────────────────────
+        st.subheader("Precios de Cierre Históricos")
+        if st.toggle("Mostrar gráfica de precios"):
+            st.line_chart(datos)
+        else:
+            st.caption("Active el interruptor para visualizar la evolución histórica de precios.")
+    
+        # ── Frontera eficiente ─────────────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("Frontera Eficiente — Markowitz")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Retorno Esperado Anual", f"{ret_opt*100:.2f}%")
+        c2.metric("Volatilidad Anual",      f"{vol_opt*100:.2f}%")
+        c3.metric("Ratio de Sharpe",        f"{sharpe_opt:.4f}")
+    
+        fig_markowitz = go.Figure()
+        fig_markowitz.add_trace(go.Scatter(
+            x=res[1]*100, y=res[0]*100, mode="markers",
+            marker=dict(color=res[2], colorscale="Viridis", size=4, opacity=0.5,
+                        colorbar=dict(title="Sharpe")),
+            name="Portafolios simulados",
+            hovertemplate="Volatilidad: %{x:.2f}%<br>Retorno: %{y:.2f}%<extra></extra>"
+        ))
+        fig_markowitz.add_trace(go.Scatter(
+            x=[vol_opt*100], y=[ret_opt*100], mode="markers",
+            marker=dict(symbol="star", size=20, color="red"),
+            name="Óptimo Max Sharpe",
+            hovertemplate=f"Sharpe: {sharpe_opt:.4f}<extra></extra>"
+        ))
+        fig_markowitz.update_layout(template="plotly_dark", xaxis_title="Volatilidad Anual (%)",
+            yaxis_title="Retorno Anual (%)", height=480, legend=dict(x=0.01, y=0.99))
+        st.plotly_chart(fig_markowitz, use_container_width=True, key="chart_markowitz")
+    
+        st.subheader("Distribución Óptima del Capital")
+        df_pesos = pd.DataFrame({"Activo": tickers, "Peso (%)": (pesos_opt*100).round(2)}) \
+            .sort_values("Peso (%)", ascending=False)
+        st.dataframe(df_pesos, use_container_width=True)
+        # ── Asistente de Rebalanceo ───────────────────────────────────────────────
+        st.subheader("Asistente de Rebalanceo Automático")
+        st.caption(
+            "Instrucciones exactas para asignar el capital inicial según los pesos óptimos. "
+            "Asume que el capital está actualmente en efectivo o en liquidez total."
+        )
+    
+        capital_rebalanceo = st.number_input(
+            "Capital disponible para asignar (MXN)",
+            min_value=0, value=int(capital_inicial), step=10_000,
+            key="capital_rebalanceo",
+            help="Por defecto usa el capital inicial configurado. Puede ajustarlo aquí."
+        )
+    
+        df_rebalanceo = pd.DataFrame({
+            "Activo":            tickers,
+            "Peso Óptimo (%)":  (pesos_opt * 100).round(2),
+            "Monto Objetivo (MXN)": (pesos_opt * capital_rebalanceo).round(0).astype(int),
+        }).sort_values("Peso Óptimo (%)", ascending=False).reset_index(drop=True)
+    
+        df_rebalanceo["Instrucción en Mercado"] = df_rebalanceo["Monto Objetivo (MXN)"].apply(
+            lambda m: f"Invertir ${m:,}"
+        )
+    
+        # Resaltado visual: mayor peso → instrucción más relevante
+        st.dataframe(
+            df_rebalanceo[["Activo", "Peso Óptimo (%)", "Monto Objetivo (MXN)", "Instrucción en Mercado"]],
+            use_container_width=True,
+            column_config={
+                "Monto Objetivo (MXN)": st.column_config.NumberColumn(format="$%d"),
+                "Peso Óptimo (%)":      st.column_config.ProgressColumn(
+                    min_value=0, max_value=100, format="%.2f%%"
+                ),
+            }
+        )
+    
+        total_asignado = df_rebalanceo["Monto Objetivo (MXN)"].sum()
+        diferencia     = capital_rebalanceo - total_asignado
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Capital disponible",  f"${capital_rebalanceo:,}")
+        c2.metric("Total a asignar",     f"${total_asignado:,}")
+        c3.metric("Diferencia (redondeo)", f"${diferencia:,}",
+                  help="Diferencia por redondeo. Asignar al activo de mayor peso.")
+    
+        # ── Backtesting Walk-Forward ───────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("Backtesting Dinámico — Walk-Forward")
+        st.caption("Pesos recalculados trimestralmente con datos históricos exclusivamente. Neto de comisiones.")
+    
+        @st.cache_data(show_spinner=False)
+        def correr_backtest(datos, rf, cap, pmin, pmax, max_r, _es_r, _df_reg, comision, bench_override):
+            return calcular_backtest_walk_forward(
+                retornos_diarios=datos, funcion_optimizador=optimizar_sharpe_slsqp,
+                tasa_rf=rf, peso_min=pmin, peso_max=pmax, max_riesgo_total=max_r,
+                es_riesgo=_es_r, df_regimenes=_df_reg, comision_broker=comision,
+                capital_inicial=cap, benchmark_ticker_override=bench_override)
+    
+      # ── INICIO DEL BLOQUE A REEMPLAZAR ──
+        # retornos_para_bt ya incluye el benchmark — definido en la descarga de datos
+        with st.spinner("Procesando backtesting..."):
+            REFUGIOS = {"TLT","IEF","SHY","BND","AGG","BIL","GLD","IAU","USDC-USD","CASH"}
+            
+            # 1. Filtramos para que no haya duplicados ni basura
+            columnas_validas = [c for c in list(tickers) + [benchmark_elegido] if c in retornos_para_bt.columns]
+            retornos_para_bt = retornos_para_bt[columnas_validas]
+            
+            # 2. EL FIX MAESTRO: Mapeamos el riesgo EXACTAMENTE a las columnas que entran al backtester.
+            # Si el backtester usa 5 columnas (activos + benchmark), generamos 5 niveles de riesgo. ¡Cero choques!
+            es_riesgo_arr = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in retornos_para_bt.columns])
+    
+            # 3. Calculamos el Glide Path sin problemas
+            factor_glide = max(min(1.0, max(0.20, horizonte_años/15.0)),
+                               max(0.0, 1.0 - np.sum(es_riesgo_arr==0.0)*peso_max))
+            
+    
+            df_equity, benchmark_ticker, retorno_port, retorno_bench = correr_backtest(
+                retornos_para_bt, tasa_rf, capital_inicial, peso_min, peso_max,
+                factor_glide, es_riesgo_arr, st.session_state.df_regimenes,
+                comision_broker, benchmark_elegido)
+    
+        metricas_bt = cached_metricas_bt(
+            retorno_port, retorno_bench, tasa_rf,
+            df_equity["Portafolio GaLa (Dinámico)"],
+            df_equity[f"Benchmark ({benchmark_ticker})"])
+    
+        st.markdown("**Análisis comparativo de rendimiento**")
+        comparativas = [
+            ("CAGR",         f"{metricas_bt['cagr_port']*100:.2f}%",  f"{metricas_bt['cagr_bench']*100:.2f}%"),
+            ("Volatilidad",  f"{metricas_bt['vol_port']*100:.2f}%",   f"{metricas_bt['vol_bench']*100:.2f}%"),
+            ("Sharpe",       f"{metricas_bt['sharpe_port']:.4f}",      f"{metricas_bt['sharpe_bench']:.4f}"),
+            ("Sortino",      f"{metricas_bt['sortino_port']:.4f}",     f"{metricas_bt['sortino_bench']:.4f}"),
+            ("Max Drawdown", f"{metricas_bt['mdd_port']*100:.2f}%",   f"{metricas_bt['mdd_bench']*100:.2f}%"),
+            ("Calmar",       f"{metricas_bt['calmar_port']:.4f}",      f"{metricas_bt['calmar_bench']:.4f}"),
+        ]
+        h1, h2, h3 = st.columns(3)
+        h1.markdown("**Métrica**"); h2.markdown("**Motor GaLa**"); h3.markdown(f"**{benchmark_ticker}**")
+        st.markdown("---")
+        for m, vp, vb in comparativas:
+            c1, c2, c3 = st.columns(3)
+            c1.write(m); c2.write(vp); c3.write(vb)
+        st.markdown("")
+        c1, c2 = st.columns(2)
+        c1.metric("Alpha (Jensen)",    f"{metricas_bt['alpha']*100:.2f}%")
+        c2.metric("Beta vs Benchmark", f"{metricas_bt['beta']:.4f}")
+    
+        fig_bt = go.Figure()
+        fig_bt.add_trace(go.Scatter(x=df_equity.index, y=df_equity["Portafolio GaLa (Dinámico)"],
+            mode="lines", line=dict(width=2.5, color="#4488ff"), name="Motor GaLa"))
+        fig_bt.add_trace(go.Scatter(x=df_equity.index,
+            y=df_equity[f"Benchmark ({benchmark_ticker})"],
+            mode="lines", line=dict(width=1.5, color="rgba(200,200,200,0.6)", dash="dot"),
+            name=benchmark_ticker))
+        fig_bt.update_layout(template="plotly_dark", xaxis_title="Fecha", yaxis_title="Capital (USD)",
+            height=420, legend=dict(x=0.01, y=0.99), hovermode="x unified")
+        st.plotly_chart(fig_bt, use_container_width=True, key="chart_bt")
+    
+        anuales   = cached_retornos_anuales(retorno_port, retorno_bench)
+    
+        fig_anuales = go.Figure()
+        fig_anuales.add_trace(go.Bar(x=anuales.index.astype(str), y=anuales["Portafolio GaLa"],
+            name="Motor GaLa", marker_color="#4488ff"))
+        fig_anuales.add_trace(go.Bar(x=anuales.index.astype(str), y=anuales["Benchmark"],
+            name=benchmark_ticker, marker_color="rgba(200,200,200,0.5)"))
+        fig_anuales.add_hline(y=0, line_color="white", line_width=0.5)
+        fig_anuales.update_layout(template="plotly_dark", barmode="group",
+            xaxis_title="Año", yaxis_title="Retorno (%)", height=360, legend=dict(x=0.01, y=0.99))
+        st.plotly_chart(fig_anuales, use_container_width=True, key="chart_anuales")
+    
+        # ── Monte Carlo ────────────────────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("Proyección de Capital — Monte Carlo")
+        retorno_port_mc = retornos_diarios @ pesos_opt
+        escenarios, p5, p50, p95, benchmark_fijo, df_t = simular_capital(
+            capital_inicial=capital_inicial, aportacion_periodica=aportacion_mensual,
+            rendimiento_anual=ret_opt, volatilidad_anual=vol_opt,
+            meses=horizonte_años*12, frecuencia_aportacion=frecuencia_aportacion,
+            tasa_benchmark=tasa_actual_banxico, num_simulaciones=num_sims,
+            retornos_diarios=retorno_port_mc)
+    
+        st.caption(f"t-Student gl={df_t:.2f} — "
+                   f"{'cola pesada severa' if df_t < 5 else 'cola pesada moderada' if df_t < 10 else 'aproximación normal'}")
+    
+        fig_mc = go.Figure()
+        for i in range(min(20, escenarios.shape[1])):
+            fig_mc.add_trace(go.Scatter(y=escenarios[:,i], mode="lines",
+                line=dict(width=1, color="rgba(0,150,255,0.08)"), showlegend=False, hoverinfo="skip"))
+        fig_mc.add_trace(go.Scatter(y=p50, mode="lines", line=dict(width=3, color="#17C37B"),
+            name="Base (P50)"))
+        fig_mc.add_trace(go.Scatter(y=p95, mode="lines",
+            line=dict(width=2, color="rgba(23,195,123,0.5)", dash="dot"), name="Favorable (P95)"))
+        fig_mc.add_trace(go.Scatter(y=p5, mode="lines",
+            line=dict(width=2, color="#FF4B4B", dash="dot"), name="Adverso (P5)"))
+        fig_mc.add_trace(go.Scatter(y=benchmark_fijo, mode="lines",
+            line=dict(width=3, color="gray", dash="dash"),
+            name=f"Tasa fija ({tasa_actual_banxico*100:.2f}%)"))
+        fig_mc.update_layout(template="plotly_dark", xaxis_title="Meses", yaxis_title="Capital (MXN)",
+            height=480, legend=dict(x=0.01, y=0.99))
+        st.plotly_chart(fig_mc, use_container_width=True, key="chart_mc")
+    
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Adverso (P5)",    f"${p5[-1]:,.0f}")
+        c2.metric("Base (P50)",      f"${p50[-1]:,.0f}")
+        c3.metric("Favorable (P95)", f"${p95[-1]:,.0f}")
+        c4.metric("Tasa fija",       f"${benchmark_fijo[-1]:,.0f}",
+                  delta=f"${p50[-1]-benchmark_fijo[-1]:,.0f} diferencial")
+        # ── Tabla de hitos en el tiempo ───────────────────────────────────────────
+        st.markdown("**Matriz de capitalización por horizonte temporal**")
+        st.caption(
+            "Comparativa del escenario base (P50) vs tasa fija en hitos clave. "
+            "Ilustra cómo el interés compuesto amplifica la ventaja a largo plazo."
+        )
+    
+        n_meses_total = horizonte_años * 12
+        hitos_meses   = [m for m in [12, 36, 60, n_meses_total] if m <= n_meses_total]
+        hitos_labels  = {12: "1 año", 36: "3 años", 60: "5 años", n_meses_total: f"{horizonte_años} años (fin)"}
+        # Eliminar duplicados si horizonte < 5 años
+        hitos_meses   = list(dict.fromkeys(hitos_meses))
+    
+        filas_hitos = []
+        for m in hitos_meses:
+            idx = min(m, len(p50) - 1)
+            ventaja = p50[idx] - benchmark_fijo[idx]
+            filas_hitos.append({
+                "Horizonte":            hitos_labels.get(m, f"Mes {m}"),
+                "Adverso P5 (MXN)":    int(p5[idx]),
+                "Base P50 (MXN)":      int(p50[idx]),
+                "Favorable P95 (MXN)": int(p95[idx]),
+                "Tasa fija (MXN)":     int(benchmark_fijo[idx]),
+                "Ventaja P50 vs Fija": int(ventaja),
+            })
+    
+        df_hitos = pd.DataFrame(filas_hitos)
+        st.dataframe(
+            df_hitos,
+            use_container_width=True,
+            column_config={
+                "Adverso P5 (MXN)":    st.column_config.NumberColumn(format="$%d"),
+                "Base P50 (MXN)":      st.column_config.NumberColumn(format="$%d"),
+                "Favorable P95 (MXN)": st.column_config.NumberColumn(format="$%d"),
+                "Tasa fija (MXN)":     st.column_config.NumberColumn(format="$%d"),
+                "Ventaja P50 vs Fija": st.column_config.NumberColumn(format="$%d"),
+            },
+            hide_index=True,
+        )
+        st.caption(
+            "La columna 'Ventaja P50 vs Fija' muestra cuánto capital adicional genera el motor "
+            "respecto a dejar el dinero en un instrumento de tasa fija al mismo horizonte."
+        )
+    
+        # ── Riesgo institucional ───────────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("Análisis de Riesgo")
+        capital_riesgo      = st.number_input("Capital de referencia (USD)", value=200_000, step=10_000)
+        retorno_port_diario = retornos_diarios @ pesos_opt
+    
+        st.markdown("#### Value at Risk y Expected Shortfall")
+        var_cvar = cached_var_cvar(retorno_port_diario, capital_riesgo)
+        c1,c2,c3,c4 = st.columns(4)
+        c1.metric("VaR 95% Histórico", f"{var_cvar['VaR_95_hist']*100:.2f}%",
+                  f"-${abs(var_cvar['VaR_95_hist'])*capital_riesgo:,.0f} USD")
+        c2.metric("VaR 99% Histórico", f"{var_cvar['VaR_99_hist']*100:.2f}%",
+                  f"-${abs(var_cvar['VaR_99_hist'])*capital_riesgo:,.0f} USD")
+        c3.metric("CVaR 95%",          f"{var_cvar['CVaR_95']*100:.2f}%",
+                  f"-${abs(var_cvar['CVaR_95'])*capital_riesgo:,.0f} USD")
+        c4.metric("CVaR 99%",          f"{var_cvar['CVaR_99']*100:.2f}%",
+                  f"-${abs(var_cvar['CVaR_99'])*capital_riesgo:,.0f} USD")
+    
+        fig_var = go.Figure()
+        fig_var.add_trace(go.Histogram(x=retorno_port_diario*100, nbinsx=80,
+            marker_color="rgba(68,136,255,0.7)", name="Retornos diarios"))
+        fig_var.add_vline(x=var_cvar["VaR_95_hist"]*100, line_color="red",
+            line_dash="dash", annotation_text="VaR 95%")
+        fig_var.add_vline(x=var_cvar["CVaR_95"]*100,     line_color="orange",
+            line_dash="dash", annotation_text="CVaR 95%")
+        fig_var.add_vline(x=var_cvar["VaR_99_hist"]*100, line_color="magenta",
+            line_dash="dot",  annotation_text="VaR 99%")
+        fig_var.update_layout(template="plotly_dark", height=380,
+            xaxis_title="Retorno Diario (%)", yaxis_title="Frecuencia")
+        st.plotly_chart(fig_var, use_container_width=True, key="chart_var")
+    
+        st.markdown("#### Maximum Drawdown")
+        dd_serie, max_dd, inicio_dd, fin_dd, duracion_dd = cached_drawdown(retorno_port_diario)
+        c1,c2,c3 = st.columns(3)
+        c1.metric("Maximum Drawdown", f"{max_dd*100:.2f}%",
+                  f"-${abs(max_dd)*capital_riesgo:,.0f} USD")
+        c2.metric("Duración",         f"{duracion_dd} días ({duracion_dd//30} meses)")
+        c3.metric("Período",          f"{inicio_dd.strftime('%b %Y')} — {fin_dd.strftime('%b %Y')}")
+    
+        fig_dd = go.Figure()
+        fig_dd.add_trace(go.Scatter(x=dd_serie.index, y=dd_serie*100,
+            fill="tozeroy", fillcolor="rgba(255,68,68,0.3)",
+            line=dict(color="red", width=1), name="Drawdown"))
+        fig_dd.add_hline(y=max_dd*100, line_color="gold", line_dash="dash",
+            annotation_text=f"Max DD: {max_dd*100:.2f}%")
+        fig_dd.update_layout(template="plotly_dark", height=350,
+            xaxis_title="Fecha", yaxis_title="Drawdown (%)")
+        st.plotly_chart(fig_dd, use_container_width=True, key="chart_dd")
+    
+        st.markdown("#### Sortino vs Sharpe")
+        sortino, desv_down = cached_sortino(retorno_port_diario, ret_opt, tasa_rf)
+        c1,c2,c3 = st.columns(3)
+        c1.metric("Sharpe",               f"{sharpe_opt:.4f}")
+        c2.metric("Sortino",              f"{sortino:.4f}")
+        c3.metric("Desviación downside",  f"{desv_down*100:.2f}%")
+    
+        st.markdown("#### Stress Testing — Escenarios Históricos")
+        df_stress = cached_stress_test(pesos_opt, tickers, capital_riesgo, retornos_diarios)
+        fig_stress = go.Figure(go.Bar(
+            x=df_stress["Pérdida (%)"], y=df_stress["Escenario"], orientation="h",
+            marker_color=["red" if p < -15 else "orange" if p < -8 else "gold"
+                          for p in df_stress["Pérdida (%)"]],
+            text=[f"{p:.1f}%" for p in df_stress["Pérdida (%)"]],
+            textposition="outside"))
+        fig_stress.update_layout(template="plotly_dark", height=350, xaxis_title="Impacto en Capital (%)")
+        st.plotly_chart(fig_stress, use_container_width=True, key="chart_stress")
+        st.dataframe(df_stress, use_container_width=True)
+    
+        st.markdown("#### Correlación Dinámica Rolling — 60 días")
+        fig_corr   = None
+        pares_corr = calcular_correlacion_rolling(retornos_diarios)
+        if pares_corr:
+            fig_corr = go.Figure()
+            for (nombre, serie), color in zip(pares_corr.items(), ["gold", "rgba(68,136,255,0.9)"]):
+                fig_corr.add_trace(go.Scatter(x=serie.index, y=serie, mode="lines",
+                    line=dict(width=1.5, color=color), name=nombre))
+            fig_corr.add_hline(y=0.6,  line_color="rgba(255,0,0,0.5)",  line_dash="dot",
+                annotation_text="Zona de riesgo")
+            fig_corr.add_hline(y=0,    line_color="gray", line_dash="solid", line_width=0.5)
+            fig_corr.add_hline(y=-0.6, line_color="rgba(0,255,0,0.5)", line_dash="dot",
+                annotation_text="Zona de cobertura")
+            fig_corr.update_layout(template="plotly_dark", height=350,
+                yaxis=dict(range=[-1.1, 1.1]),
+                xaxis_title="Fecha", yaxis_title="Coeficiente de Pearson")
+            st.plotly_chart(fig_corr, use_container_width=True, key="chart_corr")
+        else:
+            st.info(f"Incluya BTC-USD/SPY o QQQ/TLT para ver correlación dinámica. "
+                    f"Tickers actuales: {retornos_diarios.columns.tolist()}")
+    
+        # ── Regímenes HMM ──────────────────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("Detección de Regímenes de Mercado — HMM")
+        df_regimenes = st.session_state.get("df_regimenes", None)
+        if df_regimenes is not None:
+            calma  = df_regimenes[df_regimenes["Regimen"] == 0]
+            panico = df_regimenes[df_regimenes["Regimen"] == 1]
+            fig_hmm = go.Figure()
+            fig_hmm.add_trace(go.Scatter(x=calma.index, y=calma["Precio"], mode="markers",
+                marker=dict(color="rgba(0,255,100,0.6)", size=4), name="Régimen normal"))
+            fig_hmm.add_trace(go.Scatter(x=panico.index, y=panico["Precio"], mode="markers",
+                marker=dict(color="rgba(255,50,50,0.8)", size=6, symbol="x"), name="Régimen de tensión"))
+            fig_hmm.update_layout(template="plotly_dark", height=400,
+                xaxis_title="Fecha", yaxis_title="Precio", legend=dict(x=0.01, y=0.99))
+            st.plotly_chart(fig_hmm, use_container_width=True, key="chart_hmm")
+            pct = (df_regimenes["Regimen"] == 1).mean() * 100
+            c1, c2 = st.columns(2)
+            c1.metric("Régimen normal",   f"{100-pct:.1f}%")
+            c2.metric("Régimen tensión",  f"{pct:.1f}%")
+        else:
+            st.info("Ejecute la optimización para generar el análisis de regímenes.")
+    
+        # ── Reporte PDF ────────────────────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("Exportar Reporte")
+        if st.button("Generar reporte PDF", type="primary"):
+            with st.spinner("Generando reporte..."):
+                try:
+                    pdf_bytes = generar_reporte(
+                        tickers=tickers, pesos_opt=pesos_opt, ret_opt=ret_opt, vol_opt=vol_opt,
+                        sharpe_opt=sharpe_opt, sortino=sortino, desv_down=desv_down, df_t=df_t,
+                        var_cvar=var_cvar, max_dd=max_dd, duracion_dd=duracion_dd,
+                        inicio_dd=inicio_dd, fin_dd=fin_dd, df_stress=df_stress,
+                        capital_riesgo=capital_riesgo, p5_final=p5[-1], p50_final=p50[-1],
+                        p95_final=p95[-1], horizonte_años=horizonte_años,
+                        capital_inicial=capital_inicial, aportacion_mensual=aportacion_mensual,
+                        num_sims=num_sims,
+                        metricas_bt=metricas_bt, benchmark_ticker=benchmark_ticker,
+                        df_screening=st.session_state.get("df_screening", None),
+                        fig_markowitz=fig_markowitz, fig_mc=fig_mc, fig_var=fig_var,
+                        fig_dd=fig_dd, fig_stress=fig_stress, fig_bt=fig_bt,
+                        fig_anuales=fig_anuales, fig_corr=fig_corr,
+                    )
+                    st.download_button(
+                        label="Descargar reporte PDF", data=pdf_bytes,
+                        file_name=f"MotorGaLa_{nombre_display}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                        mime="application/pdf")
+                    st.success("Reporte generado correctamente.")
+                except Exception as e:
+                    st.error(f"Error al generar el reporte: {e}")
+                    st.exception(e)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — NOTICIAS DEL MERCADO (VERSIÓN BLINDADA)
