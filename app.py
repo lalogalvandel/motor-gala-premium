@@ -939,7 +939,7 @@ with tab_motor:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — NOTICIAS DEL MERCADO
+# TAB 2 — NOTICIAS DEL MERCADO (VERSIÓN BLINDADA)
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_noticias:
     st.subheader("Noticias del Mercado Financiero")
@@ -957,7 +957,8 @@ with tab_noticias:
     @st.cache_data(show_spinner=False, ttl=1800)
     def obtener_noticias(ticker: str) -> list:
         try:
-            return yf.Ticker(ticker).news or []
+            data = yf.Ticker(ticker).news
+            return data if isinstance(data, list) else []
         except Exception:
             return []
 
@@ -968,20 +969,33 @@ with tab_noticias:
         st.info("No hay noticias disponibles en este momento. Intente en unos minutos.")
     else:
         for n in noticias[:12]:
-            titulo    = n.get("title", "Sin título")
-            publisher = n.get("publisher", "—")
-            link      = n.get("link", "#")
-            ts        = n.get("providerPublishTime", None)
-            fecha     = datetime.fromtimestamp(ts).strftime("%d %b %Y  %H:%M") if ts else "—"
+            try:
+                # Si la noticia viene corrupta desde Yahoo, la saltamos sin congelar la app
+                if not isinstance(n, dict):
+                    continue
+                
+                titulo    = n.get("title", "Sin título")
+                publisher = n.get("publisher", "—")
+                link      = n.get("link", "#")
+                ts        = n.get("providerPublishTime", None)
+                
+                # Blindaje contra errores de timestamp
+                try:
+                    fecha = datetime.fromtimestamp(int(ts)).strftime("%d %b %Y  %H:%M") if ts else "—"
+                except Exception:
+                    fecha = "—"
 
-            with st.container():
-                col_txt, col_btn = st.columns([4, 1])
-                with col_txt:
-                    st.markdown(f"**{titulo}**")
-                    st.caption(f"{publisher}  ·  {fecha}")
-                with col_btn:
-                    st.link_button("Leer", link, use_container_width=True)
+                with st.container():
+                    col_txt, col_btn = st.columns([4, 1])
+                    with col_txt:
+                        st.markdown(f"**{titulo}**")
+                        st.caption(f"{publisher}  ·  {fecha}")
+                    with col_btn:
+                        url_destino = link if link and str(link).startswith("http") else "#"
+                        st.link_button("Leer", url_destino, use_container_width=True)
                 st.markdown("---")
+            except Exception:
+                continue
 
 
 # ══════════════════════════════════════════════════════════════════════════════
