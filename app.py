@@ -472,57 +472,6 @@ with tab_motor:
         )
         ejecutar              = st.form_submit_button("Ejecutar optimización", use_container_width=True)
 
-    # ── Screening ──────────────────────────────────────────────────────────────
-    df_mejores = None
-
-    if usar_screening and ejecutar_scr:
-        st.header("Análisis Fundamental — Selección de Activos")
-        seleccion        = UNIVERSOS[universo_sel]
-        tickers_universo = seleccion() if callable(seleccion) else seleccion
-
-        with st.spinner(f"Procesando {len(tickers_universo)} instrumentos..."):
-            df_fund = cached_descargar_fundamentales(tuple(tickers_universo))
-            if df_fund.empty:
-                st.error("No fue posible obtener datos de Yahoo Finance.")
-            else:
-                df_filtrado = filtrar_candidatos(
-                    df_fund,
-                    min_market_cap=min_cap,
-                    min_profit_margin=min_margin,
-                    max_pe=max_pe,
-                    max_deuda=float(max_deuda_scr),  # yfinance devuelve debtToEquity en %, ej. 150 = 1.5x
-                    min_roe=min_roe_scr,
-                )
-                if len(df_filtrado) < 2:
-                    st.warning(f"Solo {len(df_filtrado)} instrumentos superaron los filtros.")
-                else:
-                    df_clusterizado, df_mejores = clustering_activos(df_filtrado, n_clusters)
-                    st.session_state["df_screening"] = df_mejores
-                    st.success(
-                        f"Universo: {len(df_fund)}  |  Tras filtro: {len(df_filtrado)}  "
-                        f"|  Representantes: {len(df_mejores)}"
-                    )
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.markdown("**Instrumentos que superaron el filtro**")
-                        st.dataframe(df_clusterizado.sort_values("Profit Margin %", ascending=False),
-                                     height=300, use_container_width=True)
-                    with c2:
-                        st.markdown("**Selección óptima por cluster**")
-                        st.dataframe(df_mejores[["Ticker","Nombre","Sector","Cluster",
-                                                  "Market Cap (B)","P/E Ratio","Profit Margin %"]],
-                                     height=300, use_container_width=True)
-                    st.sidebar.markdown("---")
-                    incluir_refugios = st.sidebar.checkbox("Incluir activos de refugio (TLT, GLD) en cartera sugerida", value=True)
-
-                    if incluir_refugios:
-                        tickers_sugeridos = ", ".join(df_mejores["Ticker"].tolist()) + ", TLT, GLD"
-                    else:
-                        tickers_sugeridos = ", ".join(df_mejores["Ticker"].tolist())
-
-                    st.session_state["tickers_screening"] = tickers_sugeridos
-                    st.info(f"Cartera sugerida: **{tickers_sugeridos}**")
-
     # ── Freno de emergencia ────────────────────────────────────────────────────
     if not ejecutar and not st.session_state.optimizado:
         st.info("Configure los parámetros en el panel izquierdo y ejecute la optimización.")
