@@ -327,7 +327,41 @@ with tab_motor:
         st.metric(label="Tasa de Referencia Banxico", value=f"{tasa_actual_banxico * 100:.2f}%")
 
     margen_sugerido = float(round(tasa_actual_banxico * 100, 1))
+     # ── Funciones con caché ────────────────────────────────────────────────────
+    @st.cache_data(show_spinner=False, ttl=86400)
+    def cached_descargar_fundamentales(tickers):
+        return descargar_fundamentales_paralelo(tickers, max_workers=10)
 
+    @st.cache_data(show_spinner=False, ttl=3600)
+    def obtener_datos(tickers_key: str, inicio: str, fin: str):
+        tickers_list = [t.strip() for t in tickers_key.split(",")]
+        datos = cargar_datos(tickers_list, inicio, fin)
+        retornos_diarios, retornos_anuales, matriz_cov = calcular_retornos(datos)
+        return datos, retornos_diarios, retornos_anuales, matriz_cov
+
+    @st.cache_data(show_spinner=False)
+    def cached_var_cvar(_ret, cap):
+        return calcular_var_cvar(_ret, cap)
+
+    @st.cache_data(show_spinner=False)
+    def cached_drawdown(_ret):
+        return calcular_drawdown(_ret)
+
+    @st.cache_data(show_spinner=False)
+    def cached_sortino(_ret, r, rf):
+        return calcular_sortino(_ret, r, rf)
+
+    @st.cache_data(show_spinner=False)
+    def cached_stress_test(pesos, tickers, cap, _ret):
+        return calcular_stress_test(pesos, tickers, cap, _ret)
+
+    @st.cache_data(show_spinner=False)
+    def cached_metricas_bt(_rp, _rb, rf, _ep, _eb):
+        return calcular_metricas_backtest(_rp, _rb, rf, _ep, _eb)
+
+    @st.cache_data(show_spinner=False)
+    def cached_retornos_anuales(_rp, _rb):
+        return calcular_retornos_anuales(_rp, _rb)
     # ── Sidebar: Módulo 1 — Análisis Fundamental ──────────────────────────────
     st.sidebar.markdown("---")
     st.sidebar.subheader("1. Análisis Fundamental")
@@ -437,42 +471,6 @@ with tab_motor:
             help="El benchmark se descarga junto con los activos para que las dimensiones cuadren."
         )
         ejecutar              = st.form_submit_button("Ejecutar optimización", use_container_width=True)
-
-    # ── Funciones con caché ────────────────────────────────────────────────────
-    @st.cache_data(show_spinner=False, ttl=86400)
-    def cached_descargar_fundamentales(tickers):
-        return descargar_fundamentales_paralelo(tickers, max_workers=10)
-
-    @st.cache_data(show_spinner=False, ttl=3600)
-    def obtener_datos(tickers_key: str, inicio: str, fin: str):
-        tickers_list = [t.strip() for t in tickers_key.split(",")]
-        datos = cargar_datos(tickers_list, inicio, fin)
-        retornos_diarios, retornos_anuales, matriz_cov = calcular_retornos(datos)
-        return datos, retornos_diarios, retornos_anuales, matriz_cov
-
-    @st.cache_data(show_spinner=False)
-    def cached_var_cvar(_ret, cap):
-        return calcular_var_cvar(_ret, cap)
-
-    @st.cache_data(show_spinner=False)
-    def cached_drawdown(_ret):
-        return calcular_drawdown(_ret)
-
-    @st.cache_data(show_spinner=False)
-    def cached_sortino(_ret, r, rf):
-        return calcular_sortino(_ret, r, rf)
-
-    @st.cache_data(show_spinner=False)
-    def cached_stress_test(pesos, tickers, cap, _ret):
-        return calcular_stress_test(pesos, tickers, cap, _ret)
-
-    @st.cache_data(show_spinner=False)
-    def cached_metricas_bt(_rp, _rb, rf, _ep, _eb):
-        return calcular_metricas_backtest(_rp, _rb, rf, _ep, _eb)
-
-    @st.cache_data(show_spinner=False)
-    def cached_retornos_anuales(_rp, _rb):
-        return calcular_retornos_anuales(_rp, _rb)
 
     # ── Screening ──────────────────────────────────────────────────────────────
     df_mejores = None
