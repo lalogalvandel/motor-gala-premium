@@ -931,38 +931,76 @@ with tab_motor:
                     st.exception(e)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — NOTICIAS DEL MERCADO (VERSIÓN BLINDADA)
+# TAB 2 — NOTICIAS DEL MERCADO (DINÁMICO AL PORTAFOLIO)
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_noticias:
     st.subheader("Noticias del Mercado Financiero")
-    st.caption("Titulares recientes de finanzas, inversión, startups y fintech vía Yahoo Finance.")
+    st.caption("Titulares en tiempo real enfocados en los activos de su portafolio y contexto macroeconómico.")
 
-    TICKERS_NOTICIAS = {
-        "Mercados globales":  "^GSPC",
-        "Tecnología":         "QQQ",
-        "Fintech & Crypto":   "BTC-USD",
-        "Mercado mexicano":   "^MXX",
+    # 1. Definimos las categorías estáticas de contexto general
+    opciones_noticias = {
+        "Mercados Globales (S&P 500)": "^GSPC",
+        "Tecnología (Nasdaq)":         "QQQ",
+        "Fintech & Crypto":            "BTC-USD",
+        "Mercado Mexicano":            "^MXX",
     }
 
-    categoria_sel = st.selectbox("Categoría", list(TICKERS_NOTICIAS.keys()))
+    # 2. Leemos la memoria del motor para ver qué activos está analizando el usuario hoy
+    tickers_usuario = []
+    if "tickers_procesar" in st.session_state and st.session_state["tickers_procesar"]:
+        crudos = st.session_state["tickers_procesar"].split(",")
+        # Limpiamos y quitamos refugios genéricos si queremos enfocarnos en empresas
+        tickers_usuario = [t.strip().upper() for t in crudos if t.strip() and t.strip().upper() not in ["CASH"]]
 
-    @st.cache_data(show_spinner=False, ttl=1800)
-    def obtener_noticias(ticker: str) -> list:
+    # 3. Si hay activos cargados, inyectamos opciones personalizadas al inicio del menú
+    if tickers_usuario:
+        # Agregamos la opción agregada
+        opciones_noticias = {"🌟 Mi Portafolio (Resumen)": "PORTAFOLIO"} | opciones_noticias
+        # Opcional: Agregamos cada ticker individual por si quiere profundizar en uno solo
+        for t in tickers_usuario:
+            opciones_noticias[f"Activo específico: {t}"] = t
+
+    categoria_sel = st.selectbox("Seleccione el enfoque de las noticias", list(opciones_noticias.keys()))
+    ticker_objetivo = opciones_noticias[categoria_sel]
+
+    @st.cache_data(show_spinner=False, ttl=1200) # Cache de 20 min para tener noticias frescas
+    def obtener_noticias(ticker_query: str, lista_portafolio: list) -> list:
+        noticias_agregadas = []
         try:
-            data = yf.Ticker(ticker).news
-            return data if isinstance(data, list) else []
+            if ticker_query == "PORTAFOLIO":
+                # Tomamos máximo los primeros 5 activos para no saturar la API ni al usuario
+                top_tickers = lista_portafolio[:5]
+                for t in top_tickers:
+                    data = yf.Ticker(t).news
+                    if isinstance(data, list):
+                        # Le inyectamos el nombre del ticker a cada noticia
+                        for n in data:
+                            n['origen_ticker'] = t
+                        noticias_agregadas.extend(data)
+                
+                # Ordenamos la ensalada de noticias por fecha (de la más nueva a la más vieja)
+                noticias_agregadas.sort(key=lambda x: x.get("providerPublishTime", 0), reverse=True)
+                return noticias_agregadas
+            else:
+                # Búsqueda normal para un solo índice o un solo activo
+                data = yf.Ticker(ticker_query).news
+                if isinstance(data, list):
+                    for n in data:
+                        n['origen_ticker'] = ticker_query if ticker_query not in ["^GSPC", "QQQ", "BTC-USD", "^MXX"] else ""
+                    return data
+                return []
         except Exception:
-            return []
+            return noticias_agregadas
 
-    with st.spinner("Cargando noticias..."):
-        noticias = obtener_noticias(TICKERS_NOTICIAS[categoria_sel])
+    with st.spinner("Sincronizando con terminales de noticias..."):
+        noticias = obtener_noticias(ticker_objetivo, tickers_usuario)
 
     if not noticias:
-        st.info("No hay noticias disponibles en este momento. Intente en unos minutos.")
+        st.info("No hay noticias recientes disponibles para esta selección.")
     else:
-        for n in noticias[:12]:
+        # Mostramos los top 15 titulares
+        for n in noticias[:15]:
             try:
-                # Si la noticia viene corrupta desde Yahoo, la saltamos sin congelar la app
                 if not isinstance(n, dict):
                     continue
                 
@@ -970,17 +1008,19 @@ with tab_noticias:
                 publisher = n.get("publisher", "—")
                 link      = n.get("link", "#")
                 ts        = n.get("providerPublishTime", None)
+                origen    = n.get("origen_ticker", "")
                 
-                # Blindaje contra errores de timestamp
                 try:
                     fecha = datetime.fromtimestamp(int(ts)).strftime("%d %b %Y  %H:%M") if ts else "—"
                 except Exception:
                     fecha = "—"
 
                 with st.container():
-                    col_txt, col_btn = st.columns([4, 1])
+                    col_txt, col_btn = st.columns([5, 1])
                     with col_txt:
-                        st.markdown(f"**{titulo}**")
+                        # Si la noticia viene de un activo del portafolio, le ponemos un tag visual
+                        etiqueta = f"**[{origen}]** " if origen else ""
+                        st.markdown(f"{etiqueta}**{titulo}**")
                         st.caption(f"{publisher}  ·  {fecha}")
                     with col_btn:
                         url_destino = link if link and str(link).startswith("http") else "#"
@@ -988,7 +1028,6 @@ with tab_noticias:
                 st.markdown("---")
             except Exception:
                 continue
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — GLOSARIO TÉCNICO
