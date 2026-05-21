@@ -176,7 +176,7 @@ if st.session_state["usuario_premium"] is None:
         - **Monte Carlo t-Student** — Simulaciones calibradas con fat tails (gl ≈ 4) para escenarios adversos realistas.
         - ** walk-forward** — Metodología sin look-ahead bias, neto de comisiones operativas.
         - **Modelos Ocultos de Markov** — Detección automática de regímenes de mercado integrada al proceso de rebalanceo.
-        - **Reporte PDF institucional** — Documento de 6 páginas exportable con todas las métricas y gráficas.
+        - **Reporte PDF** — Documento de 6 páginas exportable con todas las métricas y gráficas.
         """)
 
         st.markdown("")
@@ -798,7 +798,7 @@ with tab_motor:
 
     # ── Riesgo institucional ───────────────────────────────────────────────────
     st.markdown("---")
-    st.subheader("Análisis de Riesgo Institucional")
+    st.subheader("Análisis de Riesgo")
     capital_riesgo      = st.number_input("Capital de referencia (USD)", value=200_000, step=10_000)
     retorno_port_diario = retornos_diarios @ pesos_opt
 
@@ -909,7 +909,7 @@ with tab_motor:
 
     # ── Reporte PDF ────────────────────────────────────────────────────────────
     st.markdown("---")
-    st.subheader("Exportar Reporte Institucional")
+    st.subheader("Exportar Reporte")
     if st.button("Generar reporte PDF", type="primary"):
         with st.spinner("Generando reporte..."):
             try:
@@ -1218,6 +1218,6 @@ if tiene_lite:
     st.sidebar.caption("Acceso GaLa Lite — descuento aplicado")
 st.sidebar.markdown("---")
 st.sidebar.caption(
-    "Motor GaLa Premium · Sistema Institucional de Gestión de Capital. "
+    "Motor GaLa Premium · Sistema de Gestión de Capital. "
     "Los resultados son producto de modelos matemáticos y no constituyen asesoría de inversión."
 )
