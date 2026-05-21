@@ -954,9 +954,7 @@ with tab_noticias:
 
     # 3. Si hay activos cargados, inyectamos opciones personalizadas al inicio del menú
     if tickers_usuario:
-        # Agregamos la opción agregada
         opciones_noticias = {"🌟 Mi Portafolio (Resumen)": "PORTAFOLIO"} | opciones_noticias
-        # Opcional: Agregamos cada ticker individual por si quiere profundizar en uno solo
         for t in tickers_usuario:
             opciones_noticias[f"Activo específico: {t}"] = t
 
@@ -968,26 +966,32 @@ with tab_noticias:
         noticias_agregadas = []
         try:
             if ticker_query == "PORTAFOLIO":
-                # Tomamos máximo los primeros 5 activos para no saturar la API ni al usuario
+                # Tomamos máximo los primeros 5 activos para no saturar
                 top_tickers = lista_portafolio[:5]
                 for t in top_tickers:
-                    data = yf.Ticker(t).news
-                    if isinstance(data, list):
-                        # Le inyectamos el nombre del ticker a cada noticia
-                        for n in data:
-                            n['origen_ticker'] = t
-                        noticias_agregadas.extend(data)
+                    try:
+                        data = yf.Ticker(t).news
+                        if isinstance(data, list):
+                            for n in data:
+                                if isinstance(n, dict):
+                                    n['origen_ticker'] = t
+                            noticias_agregadas.extend([n for n in data if isinstance(n, dict)])
+                    except Exception:
+                        continue
                 
-                # Ordenamos la ensalada de noticias por fecha (de la más nueva a la más vieja)
-                noticias_agregadas.sort(key=lambda x: x.get("providerPublishTime", 0), reverse=True)
+                # Función segura para extraer la fecha y ordenar
+                def extract_time(item):
+                    return item.get("providerPublishTime", 0)
+                    
+                noticias_agregadas.sort(key=extract_time, reverse=True)
                 return noticias_agregadas
             else:
-                # Búsqueda normal para un solo índice o un solo activo
                 data = yf.Ticker(ticker_query).news
                 if isinstance(data, list):
                     for n in data:
-                        n['origen_ticker'] = ticker_query if ticker_query not in ["^GSPC", "QQQ", "BTC-USD", "^MXX"] else ""
-                    return data
+                        if isinstance(n, dict):
+                            n['origen_ticker'] = ticker_query if ticker_query not in ["^GSPC", "QQQ", "BTC-USD", "^MXX"] else ""
+                    return [n for n in data if isinstance(n, dict)]
                 return []
         except Exception:
             return noticias_agregadas
@@ -1001,29 +1005,61 @@ with tab_noticias:
         # Mostramos los top 15 titulares
         for n in noticias[:15]:
             try:
-                if not isinstance(n, dict):
-                    continue
+                # ── EXTRACCIÓN PROFUNDA (Caza a los nuevos diccionarios de Yahoo) ──
                 
-                titulo    = n.get("title", "Sin título")
-                publisher = n.get("publisher", "—")
-                link      = n.get("link", "#")
-                ts        = n.get("providerPublishTime", None)
-                origen    = n.get("origen_ticker", "")
+                # 1. Título
+                titulo = n.get("title") or n.get("headline")
+                if not titulo and "content" in n and isinstance(n["content"], dict):
+                    titulo = n["content"].get("title")
+                titulo = titulo or "Actualización de mercado"
                 
+                # 2. Publicador
+                publisher = n.get("publisher") or n.get("source")
+                if not publisher and "content" in n and isinstance(n["content"], dict):
+                    provider = n["content"].get("provider", {})
+                    if isinstance(provider, dict):
+                        publisher = provider.get("displayName")
+                publisher = publisher or "Yahoo Finance"
+                
+                # 3. Link original
+                link_crudo = n.get("link") or n.get("url")
+                if not link_crudo and "content" in n and isinstance(n["content"], dict):
+                    click_url = n["content"].get("clickThroughUrl", {})
+                    if isinstance(click_url, dict):
+                        link_crudo = click_url.get("url")
+                
+                # 🔥 SANITIZACIÓN ESTRICTA DEL URL 🔥
+                if isinstance(link_crudo, str) and link_crudo.startswith("http"):
+                    url_destino = link_crudo
+                elif isinstance(link_crudo, str) and link_crudo.startswith("/"):
+                    # Si Yahoo manda una ruta relativa, le pegamos el dominio base
+                    url_destino = f"https://finance.yahoo.com{link_crudo}"
+                else:
+                    # Fallback infalible si el link viene roto o vacío
+                    ticker_url = origen if origen else (ticker_objetivo if ticker_objetivo != "PORTAFOLIO" else "SPY")
+                    ticker_url = str(ticker_url).replace("^", "%5E")
+                    url_destino = f"https://finance.yahoo.com/quote/{ticker_url}/news"
+                
+                # 4. Fecha de publicación
+                ts = n.get("providerPublishTime")
                 try:
-                    fecha = datetime.fromtimestamp(int(ts)).strftime("%d %b %Y  %H:%M") if ts else "—"
+                    if ts:
+                        fecha = datetime.fromtimestamp(int(ts)).strftime("%d %b %Y  %H:%M")
+                    else:
+                        fecha = "Reciente"
                 except Exception:
-                    fecha = "—"
+                    fecha = "Reciente"
+
+                origen = n.get("origen_ticker", "")
 
                 with st.container():
                     col_txt, col_btn = st.columns([5, 1])
                     with col_txt:
-                        # Si la noticia viene de un activo del portafolio, le ponemos un tag visual
                         etiqueta = f"**[{origen}]** " if origen else ""
                         st.markdown(f"{etiqueta}**{titulo}**")
                         st.caption(f"{publisher}  ·  {fecha}")
                     with col_btn:
-                        url_destino = link if link and str(link).startswith("http") else "#"
+                        # El botón ahora está 100% garantizado de tener un http válido
                         st.link_button("Leer", url_destino, use_container_width=True)
                 st.markdown("---")
             except Exception:
