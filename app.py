@@ -697,10 +697,7 @@ with tab_motor:
     st.plotly_chart(fig_bt, use_container_width=True, key="chart_bt")
 
     anuales   = cached_retornos_anuales(retorno_port, retorno_bench)
-    # ── DIAGNÓSTICO DE TOPO (Inspección visual) ──
-    st.write("Debug - Primeras 5 filas del DataFrame 'anuales':")
-    st.dataframe(anuales.head())
-    # ──────────────────────────────────────────
+
     fig_anuales = go.Figure()
     fig_anuales.add_trace(go.Bar(x=anuales.index.astype(str), y=anuales["Portafolio GaLa"],
         name="Motor GaLa", marker_color="#4488ff"))
