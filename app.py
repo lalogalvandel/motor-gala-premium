@@ -729,7 +729,7 @@ with tab_motor:
         st.markdown("---")
         st.subheader("Proyección de Capital — Monte Carlo")
         retorno_port_mc = retornos_diarios @ pesos_opt
-        escenarios, p5, p50, p95, benchmark_fijo, df_t = simular_capital(
+        escenarios, p5, p25, p50, p75, p95, benchmark_fijo, df_t = simular_capital(
             capital_inicial=capital_inicial, aportacion_periodica=aportacion_mensual,
             rendimiento_anual=ret_opt, volatilidad_anual=vol_opt,
             meses=horizonte_años*12, frecuencia_aportacion=frecuencia_aportacion,
@@ -743,6 +743,10 @@ with tab_motor:
         for i in range(min(20, escenarios.shape[1])):
             fig_mc.add_trace(go.Scatter(y=escenarios[:,i], mode="lines",
                 line=dict(width=1, color="rgba(0,150,255,0.08)"), showlegend=False, hoverinfo="skip"))
+        fig_mc.add_trace(go.Scatter(y=p75, mode="lines", 
+            line=dict(width=1.5, color="rgba(23,195,123,0.4)", dash="dash"), name="Mod. Favorable (P75)"))
+        fig_mc.add_trace(go.Scatter(y=p25, mode="lines", 
+            line=dict(width=1.5, color="rgba(255,75,75,0.4)", dash="dash"), name="Mod. Adverso (P25)"))
         fig_mc.add_trace(go.Scatter(y=p50, mode="lines", line=dict(width=3, color="#17C37B"),
             name="Base (P50)"))
         fig_mc.add_trace(go.Scatter(y=p95, mode="lines",
