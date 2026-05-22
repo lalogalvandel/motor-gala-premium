@@ -121,12 +121,13 @@ def guardar_feedback(data: dict):
     except Exception:
         return False
 
-def guardar_post(data: dict):
+def guardar_post(data: dict) -> tuple[bool, str]:
     try:
         db.table("comunidad").insert(data).execute()
-        return True
-    except Exception:
-        return False
+        return True, ""
+    except Exception as e:
+        # Ahora sí atrapamos el grito de ayuda de Supabase
+        return False, str(e)
 
 def obtener_posts_aprobados():
     try:
@@ -954,7 +955,7 @@ with tab_noticias:
 
     # 3. Si hay activos cargados, inyectamos opciones personalizadas al inicio del menú
     if tickers_usuario:
-        opciones_noticias = {"🌟 Mi Portafolio (Resumen)": "PORTAFOLIO"} | opciones_noticias
+        opciones_noticias = {"Mi Portafolio (Resumen)": "PORTAFOLIO"} | opciones_noticias
         for t in tickers_usuario:
             opciones_noticias[f"Activo específico: {t}"] = t
 
@@ -1216,7 +1217,9 @@ with tab_comunidad:
         elif len(contenido_post.strip()) < 50:
             st.warning("El contenido debe tener al menos 50 caracteres.")
         else:
-            ok = guardar_post({
+            else:
+            # Recibimos el booleano y el mensaje de error
+            ok, error_db = guardar_post({
                 "id_usuario":     usuario["id"],
                 "nombre_display": nombre_display,
                 "titulo":         titulo_post.strip(),
@@ -1227,7 +1230,8 @@ with tab_comunidad:
             if ok:
                 st.success("Post enviado para revisión. Aparecerá en la comunidad una vez aprobado.")
             else:
-                st.error("No fue posible enviar el post. Intente nuevamente.")
+                # Mostramos el error crudo en pantalla para diagnosticar
+                st.error(f"Choque en la base de datos. Detalle técnico: {error_db}")
 
     st.markdown("---")
     st.markdown("**Posts de la comunidad**")
