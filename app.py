@@ -114,12 +114,12 @@ def verificar_y_resetear(email: str, token: str, nueva_pass: str) -> tuple[bool,
     except Exception as e:
         return False, str(e)
 
-def guardar_feedback(data: dict):
+def guardar_feedback(data: dict) -> tuple[bool, str]:
     try:
         db.table("feedback_premium").insert(data).execute()
-        return True
-    except Exception:
-        return False
+        return True, ""
+    except Exception as e:
+        return False, str(e)
 
 def guardar_post(data: dict) -> tuple[bool, str]:
     try:
@@ -1299,7 +1299,8 @@ with tab_feedback:
 
     if enviado:
         if comentario_fb.strip():
-            ok = guardar_feedback({
+            # Ahora recibimos el booleano y el mensaje de error técnico
+            ok, error_db = guardar_feedback({
                 "id_usuario":     usuario["id"],
                 "nombre_display": nombre_display,
                 "contacto":       contacto_fb,
@@ -1310,7 +1311,8 @@ with tab_feedback:
             if ok:
                 st.success("Comentario registrado. Gracias por contribuir al desarrollo del sistema.")
             else:
-                st.warning("No fue posible guardar el comentario. Intente nuevamente.")
+                # Mostramos el error real
+                st.error(f"Choque en la base de datos (Feedback). Detalle técnico: {error_db}")
         else:
             st.warning("Incluya un comentario antes de enviar.")
 
