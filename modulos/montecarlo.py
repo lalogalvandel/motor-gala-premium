@@ -82,8 +82,10 @@ def simular_capital(
         # Simulación del Banco / Aseguradora
         benchmark_fijo[t] = (benchmark_fijo[t - 1] + inyeccion_hoy) * (1 + tasa_bench_mensual)
 
-    p5  = np.percentile(escenarios, 5,  axis=1)
+    p5  = np.percentile(escenarios, 5, axis=1)
+    p25 = np.percentile(escenarios, 25, axis=1)  
     p50 = np.percentile(escenarios, 50, axis=1)
+    p75 = np.percentile(escenarios, 75, axis=1) 
     p95 = np.percentile(escenarios, 95, axis=1)
 
-    return escenarios, p5, p50, p95, benchmark_fijo, df_t
+    return escenarios, p5, p25, p50, p75, p95, benchmark_fijo, df_t
