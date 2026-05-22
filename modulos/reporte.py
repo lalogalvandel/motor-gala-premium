@@ -146,8 +146,8 @@ def generar_reporte(
     # Riesgo
     var_cvar, max_dd, duracion_dd, inicio_dd, fin_dd,
     df_stress, capital_riesgo,
-    # Monte Carlo
-    p5_final, p50_final, p95_final,
+    # Monte Carlo (Inclusión de P25 y P75)
+    p5_final, p25_final, p50_final, p75_final, p95_final,
     horizonte_años, capital_inicial, aportacion_mensual, num_sims,
     # Backtesting
     metricas_bt, benchmark_ticker,
@@ -433,7 +433,7 @@ def generar_reporte(
     story.append(PageBreak())
 
     # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 6 — PROYECCIÓN MONTE CARLO
+    # PÁGINA 6 — PROYECCIÓN MONTE CARLO (MÓDULO MODIFICADO)
     # ══════════════════════════════════════════════════════════════════════════
     story.append(Spacer(1, 0.3 * inch))
     story += _seccion("6. Proyección de Capital — Monte Carlo", E['seccion'])
@@ -446,11 +446,14 @@ def generar_reporte(
     ))
     story.append(Spacer(1, 0.12 * inch))
 
+    # Matriz expandida con cuartiles intermedios P25 y P75
     mc_data = [
         ['Escenario', 'Capital Final (MXN)', 'Crecimiento total'],
-        ['Adverso (P5)',    f"${p5_final:,.0f}",  f"{((p5_final/capital_inicial)-1)*100:.1f}%"],
-        ['Base (P50)',      f"${p50_final:,.0f}",  f"{((p50_final/capital_inicial)-1)*100:.1f}%"],
-        ['Favorable (P95)',f"${p95_final:,.0f}",  f"{((p95_final/capital_inicial)-1)*100:.1f}%"],
+        ['Adverso (P5)',          f"${p5_final:,.0f}",   f"{((p5_final/capital_inicial)-1)*100:.1f}%"],
+        ['Mod. Adverso (P25)',    f"${p25_final:,.0f}",  f"{((p25_final/capital_inicial)-1)*100:.1f}%"],
+        ['Base (P50)',            f"${p50_final:,.0f}",  f"{((p50_final/capital_inicial)-1)*100:.1f}%"],
+        ['Mod. Favorable (P75)',  f"${p75_final:,.0f}",  f"{((p75_final/capital_inicial)-1)*100:.1f}%"],
+        ['Favorable (P95)',       f"${p95_final:,.0f}",  f"{((p95_final/capital_inicial)-1)*100:.1f}%"],
     ]
     t_mc = Table(mc_data, colWidths=[2.0 * inch, 2.5 * inch, 2.2 * inch])
     t_mc.setStyle(TableStyle([
@@ -460,16 +463,22 @@ def generar_reporte(
         ('FONTSIZE',      (0, 0), (-1, -1), 10),
         ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
         ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-        ('BACKGROUND',    (0, 1), (-1, 1), colors.HexColor('#fff5f5')),
-        ('BACKGROUND',    (0, 2), (-1, 2), colors.HexColor('#f0fff4')),
-        ('BACKGROUND',    (0, 3), (-1, 3), colors.HexColor('#ebf8ff')),
+        # Colores de filas en gradiente de riesgo
+        ('BACKGROUND',    (0, 1), (-1, 1), colors.HexColor('#fff5f5')), # P5 (Rojo tenue)
+        ('BACKGROUND',    (0, 2), (-1, 2), colors.HexColor('#fffaf0')), # P25 (Crema/Naranja)
+        ('BACKGROUND',    (0, 3), (-1, 3), colors.HexColor('#f0fff4')), # P50 (Verde tenue)
+        ('BACKGROUND',    (0, 4), (-1, 4), colors.HexColor('#f5faff')), # P75 (Azul muy tenue)
+        ('BACKGROUND',    (0, 5), (-1, 5), colors.HexColor('#ebf8ff')), # P95 (Azul claro)
+        # Colores de texto estratégicos
         ('TEXTCOLOR',     (2, 1), (2, 1), ROJO),
-        ('TEXTCOLOR',     (2, 2), (2, 2), VERDE),
-        ('TEXTCOLOR',     (2, 3), (2, 3), AZUL_ACENTO),
+        ('TEXTCOLOR',     (2, 2), (2, 2), colors.HexColor('#b45309')), # Ocre/Marrón para P25
+        ('TEXTCOLOR',     (2, 3), (2, 3), VERDE),
+        ('TEXTCOLOR',     (2, 4), (2, 4), colors.HexColor('#1d4ed8')), # Azul corporativo para P75
+        ('TEXTCOLOR',     (2, 5), (2, 5), AZUL_ACENTO),
         ('FONTNAME',      (1, 1), (-1, -1), 'Helvetica-Bold'),
         ('GRID',          (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d8e8')),
-        ('TOPPADDING',    (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('TOPPADDING',    (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
     ]))
     story.append(t_mc)
 
