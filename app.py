@@ -1330,42 +1330,82 @@ st.sidebar.caption(
 # ══════════════════════════════════════════════════════════════════════════════
 if es_admin and tab_admin:
     with tab_admin:
-        st.subheader("Panel de Control de Fundador")
-        st.caption("Modera y aprueba las publicaciones de la comunidad de Motor GaLa.")
+        st.subheader("Centro de Comando Motor GaLa")
         
-        try:
-            # Consultamos exclusivamente los posts que tienen aprobado=False
-            r_pendientes = db.table("comunidad").select("*").eq("aprobado", False).order("created_at", desc=False).execute()
-            posts_pendientes = r_pendientes.data or []
-        except Exception as e:
-            posts_pendientes = []
-            st.error(f"Error al conectar con la base de datos: {e}")
+        # Sub-navegación dentro del panel de admin
+        sub_mod, sub_feed, sub_users = st.tabs(["Moderación", "Buzón de Sugerencias", "Métricas de Usuarios"])
         
-        if not posts_pendientes:
-            st.success("Bandeja limpia. No hay publicaciones pendientes de revisión.")
-        else:
-            st.warning(f"Tienes {len(posts_pendientes)} post(s) pendiente(s).")
+        # ── 1. MODERACIÓN ───────────────────────────────────────────────────────
+        with sub_mod:
+            st.markdown("**Publicaciones pendientes de revisión**")
+            try:
+                r_pendientes = db.table("comunidad").select("*").eq("aprobado", False).order("created_at", desc=False).execute()
+                posts_pendientes = r_pendientes.data or []
+            except Exception as e:
+                posts_pendientes = []
+                st.error(f"Error DB: {e}")
             
-            for p in posts_pendientes:
-                fecha_post = datetime.fromisoformat(p["created_at"].replace("Z","")).strftime("%d %b %Y %H:%M")
-                
-                with st.expander(f"{p['titulo']} (Autor: {p['nombre_display']}) - {fecha_post}", expanded=True):
-                    st.markdown(f"**Categoría:** {p.get('categoria', 'General')}")
-                    st.info(p["contenido"])
-                    
-                    col_aprobar, col_rechazar = st.columns([1, 4])
-                    with col_aprobar:
-                        if st.button("Aprobar publicación", key=f"aprobar_{p['id']}", type="primary"):
-                            try:
+            if not posts_pendientes:
+                st.success("Bandeja limpia. No hay publicaciones pendientes.")
+            else:
+                for p in posts_pendientes:
+                    fecha_post = datetime.fromisoformat(p["created_at"].replace("Z","")).strftime("%d %b %H:%M")
+                    with st.expander(f" {p['titulo']} (Autor: {p['nombre_display']})"):
+                        st.caption(f"Categoría: {p.get('categoria', 'General')} | Fecha: {fecha_post}")
+                        st.write(p["contenido"])
+                        c1, c2 = st.columns([1, 4])
+                        with c1:
+                            if st.button("Aprobar", key=f"ap_{p['id']}", type="primary"):
                                 db.table("comunidad").update({"aprobado": True}).eq("id", p["id"]).execute()
-                                st.rerun() # Refresca la pantalla al instante
-                            except Exception as e:
-                                st.error(f"Error al aprobar: {e}")
-                    with col_rechazar:
-                        # Si no te gusta, simplemente lo eliminas de la base de datos
-                        if st.button("Rechazar y eliminar 🗑️", key=f"rechazar_{p['id']}"):
-                            try:
+                                st.rerun()
+                        with c2:
+                            if st.button("Eliminar 🗑️", key=f"re_{p['id']}"):
                                 db.table("comunidad").delete().eq("id", p["id"]).execute()
                                 st.rerun()
-                            except Exception as e:
-                                st.error(f"Error al eliminar: {e}")
+
+        # ── 2. FEEDBACK / SUGERENCIAS ───────────────────────────────────────────
+        with sub_feed:
+            st.markdown("**Retroalimentación directa de los usuarios**")
+            try:
+                r_feed = db.table("feedback_premium").select("*").order("created_at", desc=True).limit(20).execute()
+                feedbacks = r_feed.data or []
+            except Exception:
+                feedbacks = []
+                
+            if not feedbacks:
+                st.info("Aún no hay comentarios en la base de datos.")
+            else:
+                for f in feedbacks:
+                    val = f.get('valoracion', 'N/A')
+                    color = "🟢" if "Excelente" in val or "Bueno" in val else "🟠" if "Aceptable" in val else "🔴"
+                    with st.container():
+                        st.markdown(f"**{color} {f.get('tipo', 'Comentario')}** — {f['nombre_display']}")
+                        st.caption(f"Contacto: {f.get('contacto', 'Anónimo')} | Valoración: {val}")
+                        st.info(f['comentario'])
+                        st.markdown("---")
+
+        # ── 3. MÉTRICAS DE USUARIOS ─────────────────────────────────────────────
+        with sub_users:
+            st.markdown("**Base de datos de adopción**")
+            try:
+                r_users = db.table("usuarios_premium").select("id, nombre_display, email, tiene_lite, created_at").execute()
+                usuarios_totales = r_users.data or []
+            except Exception:
+                usuarios_totales = []
+                
+            if usuarios_totales:
+                df_users = pd.DataFrame(usuarios_totales)
+                total_registrados = len(df_users)
+                total_lite = df_users['tiene_lite'].sum() if 'tiene_lite' in df_users else 0
+                
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Usuarios Totales", total_registrados)
+                c2.metric("Conversiones GaLa Lite", total_lite)
+                c3.metric("Tasa de Conversión Lite", f"{(total_lite/total_registrados)*100:.1f}%" if total_registrados>0 else "0%")
+                
+                st.dataframe(
+                    df_users[["nombre_display", "email", "tiene_lite"]],
+                    use_container_width=True
+                )
+            else:
+                st.info("No se pudieron cargar los datos de usuarios.")
