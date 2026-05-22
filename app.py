@@ -1217,7 +1217,6 @@ with tab_comunidad:
         elif len(contenido_post.strip()) < 50:
             st.warning("El contenido debe tener al menos 50 caracteres.")
         else:
-            else:
             # Recibimos el booleano y el mensaje de error
             ok, error_db = guardar_post({
                 "id_usuario":     usuario["id"],
