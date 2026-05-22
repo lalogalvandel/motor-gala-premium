@@ -287,6 +287,7 @@ if st.session_state["usuario_premium"] is None:
 usuario        = st.session_state["usuario_premium"]
 nombre_display = usuario["nombre_display"]
 tiene_lite     = usuario.get("tiene_lite", False)
+es_admin       = (usuario["email"] == "gal259148@gmail.com")
 
 # ── Encabezado ─────────────────────────────────────────────────────────────────
 col_enc, col_salir = st.columns([4, 1])
@@ -305,16 +306,31 @@ with col_salir:
 st.markdown("---")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# NAVEGACIÓN POR TABS
+# NAVEGACIÓN POR TABS (DINÁMICA)
 # ══════════════════════════════════════════════════════════════════════════════
-tab_motor, tab_noticias, tab_glosario, tab_comunidad, tab_feedback = st.tabs([
+tabs_nombres = [
     "Motor Cuantitativo",
     "Noticias del Mercado",
     "Glosario Técnico",
     "Comunidad",
-    "Sugerencias",
-])
+    "Sugerencias"
+]
 
+# Si el usuario es el admin, agregamos la pestaña secreta
+if es_admin:
+    tabs_nombres.append("Admin")
+
+# Desempaquetamos dinámicamente
+tabs_objetos = st.tabs(tabs_nombres)
+
+tab_motor     = tabs_objetos[0]
+tab_noticias  = tabs_objetos[1]
+tab_glosario  = tabs_objetos[2]
+tab_comunidad = tabs_objetos[3]
+tab_feedback  = tabs_objetos[4]
+
+# Asignamos el tab de admin solo si existe en la lista
+tab_admin     = tabs_objetos[5] if es_admin else None
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — MOTOR CUANTITATIVO (código original intacto)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1309,3 +1325,47 @@ st.sidebar.caption(
     "Motor GaLa Premium · Sistema de Gestión de Capital. "
     "Los resultados son producto de modelos matemáticos y no constituyen asesoría de inversión."
 )
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 6 — PANEL DE ADMINISTRADOR (OCULTO)
+# ══════════════════════════════════════════════════════════════════════════════
+if es_admin and tab_admin:
+    with tab_admin:
+        st.subheader("Panel de Control de Fundador")
+        st.caption("Modera y aprueba las publicaciones de la comunidad de Motor GaLa.")
+        
+        try:
+            # Consultamos exclusivamente los posts que tienen aprobado=False
+            r_pendientes = db.table("comunidad").select("*").eq("aprobado", False).order("created_at", desc=False).execute()
+            posts_pendientes = r_pendientes.data or []
+        except Exception as e:
+            posts_pendientes = []
+            st.error(f"Error al conectar con la base de datos: {e}")
+        
+        if not posts_pendientes:
+            st.success("Bandeja limpia. No hay publicaciones pendientes de revisión.")
+        else:
+            st.warning(f"Tienes {len(posts_pendientes)} post(s) pendiente(s).")
+            
+            for p in posts_pendientes:
+                fecha_post = datetime.fromisoformat(p["created_at"].replace("Z","")).strftime("%d %b %Y %H:%M")
+                
+                with st.expander(f"{p['titulo']} (Autor: {p['nombre_display']}) - {fecha_post}", expanded=True):
+                    st.markdown(f"**Categoría:** {p.get('categoria', 'General')}")
+                    st.info(p["contenido"])
+                    
+                    col_aprobar, col_rechazar = st.columns([1, 4])
+                    with col_aprobar:
+                        if st.button("Aprobar publicación", key=f"aprobar_{p['id']}", type="primary"):
+                            try:
+                                db.table("comunidad").update({"aprobado": True}).eq("id", p["id"]).execute()
+                                st.rerun() # Refresca la pantalla al instante
+                            except Exception as e:
+                                st.error(f"Error al aprobar: {e}")
+                    with col_rechazar:
+                        # Si no te gusta, simplemente lo eliminas de la base de datos
+                        if st.button("Rechazar y eliminar 🗑️", key=f"rechazar_{p['id']}"):
+                            try:
+                                db.table("comunidad").delete().eq("id", p["id"]).execute()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al eliminar: {e}")
