@@ -348,7 +348,13 @@ with tab_demo:
                 'threshold': {'line': {'color': color_gap, 'width': 2}, 'thickness': 0.8, 'value': gap},
             },
         ))
-        fig.update_layout(height=220, margin=dict(l=24, r=24, t=48, b=8), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font={'family': 'EB Garamond'})
+        fig.update_layout(
+            height=280,  
+            margin=dict(l=24, r=24, t=85, b=8), 
+            paper_bgcolor='rgba(0,0,0,0)', 
+            plot_bgcolor='rgba(0,0,0,0)', 
+            font={'family': 'EB Garamond'}
+        )
         st.plotly_chart(fig, use_container_width=True)
 
     # ── BLOQUE INFERIOR: Optimizador SLSQP ──
