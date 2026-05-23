@@ -1,8 +1,13 @@
 import streamlit as st
-from modulos.utilidades import db
-from datetime import datetime
+from supabase import create_client
 
-# ── Configuración de página Institucional ──────────────────────────────────────
+try:
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    db = create_client(url, key)
+except Exception as e:
+    st.error(f"Error al inicializar la base de datos: {e}")from datetime import datetime
+
 st.set_page_config(
     page_title="GaLa Institutional Solutions",
     page_icon="🏛️",
