@@ -370,13 +370,25 @@ with tab_demo:
     '>Motor de Inmunización (SLSQP)</div>
     """, unsafe_allow_html=True)
 
-    if st.button("Generar Portafolio Óptimo de Cobertura", type="primary"):
-        nombres_mercado = ["Cetes 28d", "Cetes 364d", "Mbono 3A", "Mbono 10A", "Corp 5A"]
-        duraciones_mercado = np.array([0.08, 0.95, 2.8, 8.1, 4.2])
-        yields_mercado = np.array([0.11, 0.105, 0.09, 0.085, 0.115])
+   if st.button("Generar Portafolio Óptimo de Cobertura", type="primary"):
+        # Alineamos los activos con el motor shock-proof que probaste en el backend
+        nombres_mercado = ["CETES 1A", "Mbono 3A", "Mbono 10A", "Deuda Corp 5A"]
+        duraciones_mercado = np.array([0.9, 2.8, 8.1, 4.2])
+        convexidades_mercado = np.array([1.2, 9.5, 78.4, 22.1]) 
+        yields_mercado = np.array([0.10, 0.09, 0.085, 0.11])
+        
+        # Estimación de la convexidad del pasivo basada en la duración introducida
+        conv_pasivo = (d_pasivos ** 2) * 1.33
         
         with st.spinner("Ejecutando algoritmo de calce estocástico..."):
-            resultado = optimizar_inmunizacion(duraciones_mercado, yields_mercado, d_pasivos)
+            # Pasamos los 5 parámetros requeridos al nuevo motor
+            resultado = optimizar_inmunizacion(
+                duraciones_mercado, 
+                convexidades_mercado, 
+                yields_mercado, 
+                d_pasivos, 
+                conv_pasivo
+            )
             
             if resultado["exito"]:
                 col_res_txt, col_res_plot = st.columns([1, 1.5], gap="large")
@@ -384,6 +396,7 @@ with tab_demo:
                 with col_res_txt:
                     st.success(f"✅ **Calce Logrado:** {resultado['duracion_lograda']:.2f} años")
                     st.info(f"📈 **Yield Optimizado:** {resultado['rendimiento_esperado']*100:.2f}%")
+                    st.metric("Convexidad del Portafolio", f"{resultado['convexidad_lograda']:.2f}")
                     
                     st.markdown("<br><span style='color:#B0BACA; font-size:14px;'>Estructura del portafolio:</span>", unsafe_allow_html=True)
                     for nombre, peso in zip(nombres_mercado, resultado["pesos"]):
@@ -391,7 +404,6 @@ with tab_demo:
                             st.markdown(f"- **{nombre}:** {peso*100:.1f}%")
                             
                 with col_res_plot:
-                    # Filtramos los activos con peso 0 para limpiar la gráfica
                     labels_f = [n for n, p in zip(nombres_mercado, resultado["pesos"]) if p > 0.01]
                     valores_f = [p for p in resultado["pesos"] if p > 0.01]
                     
@@ -400,7 +412,7 @@ with tab_demo:
                         values=valores_f, 
                         hole=.5,
                         textinfo='label+percent',
-                        marker=dict(colors=['#4488FF', '#17C37B', '#d4a017', '#FF4B4B', '#9b59b6'])
+                        marker=dict(colors=['#4488FF', '#17C37B', '#d4a017', '#FF4B4B'])
                     )])
                     fig_pie.update_layout(
                         showlegend=False,
@@ -412,7 +424,7 @@ with tab_demo:
                     )
                     st.plotly_chart(fig_pie, use_container_width=True)
             else:
-                st.error("⚠️ Riesgo estructural: No hay instrumentos disponibles para calzar una duración tan extrema en el pasivo.")
+                st.error("⚠️ Riesgo estructural: No hay instrumentos disponibles para calzar una duración o convexidad tan extrema.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
