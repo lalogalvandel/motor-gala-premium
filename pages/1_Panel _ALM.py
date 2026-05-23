@@ -8,7 +8,7 @@ if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
 # ── Configuración de página ────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Panel ALM | Motor GaLa",
-    page_icon="",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -28,10 +28,6 @@ html, body, [class*="css"] {
 
 .stApp {
     background-color: #0C0F14;
-    background-image:
-        linear-gradient(rgba(68,136,255,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(68,136,255,0.03) 1px, transparent 1px);
-    background-size: 48px 48px;
 }
 
 h1, h2, h3 {
@@ -46,7 +42,6 @@ hr {
     margin: 2rem 0 !important;
 }
 
-/* Métricas */
 [data-testid="stMetric"] {
     background: linear-gradient(135deg, #0F1420 0%, #111827 100%);
     border: 0.5px solid rgba(68,136,255,0.15);
@@ -67,7 +62,6 @@ hr {
     letter-spacing: -0.02em !important;
 }
 
-/* File uploader */
 [data-testid="stFileUploadDropzone"] {
     background-color: rgba(68,136,255,0.03) !important;
     border: 0.5px dashed rgba(68,136,255,0.3) !important;
@@ -79,13 +73,11 @@ hr {
     border-color: rgba(68,136,255,0.55) !important;
 }
 
-/* Dataframe */
 [data-testid="stDataFrame"] {
     border: 0.5px solid rgba(68,136,255,0.12) !important;
     border-radius: 6px !important;
 }
 
-/* Botón */
 .stButton > button {
     background: transparent !important;
     border: 0.5px solid rgba(68,136,255,0.3) !important;
@@ -113,118 +105,43 @@ col_header, col_session = st.columns([3, 1])
 with col_header:
     st.markdown(f"""
     <div style='padding: 1.5rem 0 1.25rem;'>
-        <div style='
-            font-family: "DM Mono", monospace;
-            font-size: 10px;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            color: #4488FF;
-            margin-bottom: 0.6rem;
-        '>Motor GaLa &nbsp;·&nbsp; Panel Institucional</div>
-        <div style='
-            font-family: "EB Garamond", Georgia, serif;
-            font-size: clamp(22px, 3vw, 32px);
-            font-weight: 400;
-            color: #E8EDF5;
-            letter-spacing: 0.01em;
-            line-height: 1.2;
-        '>{empresa_cliente}</div>
+        <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #4488FF; margin-bottom: 0.6rem;'>Motor GaLa &nbsp;·&nbsp; Panel Institucional</div>
+        <div style='font-family: "EB Garamond", Georgia, serif; font-size: clamp(22px, 3vw, 32px); font-weight: 400; color: #E8EDF5; letter-spacing: 0.01em; line-height: 1.2;'>{empresa_cliente}</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col_session:
     st.markdown("""
-    <div style='
-        display: flex;
-        justify-content: flex-end;
-        align-items: flex-start;
-        padding-top: 2rem;
-    '>
-        <div style='
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            font-family: "DM Mono", monospace;
-            font-size: 10px;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: #17C37B;
-        '>
-            <span style='
-                width: 6px; height: 6px;
-                background: #17C37B;
-                border-radius: 50%;
-                display: inline-block;
-                box-shadow: 0 0 6px rgba(23,195,123,0.5);
-            '></span>
+    <div style='display: flex; justify-content: flex-end; align-items: flex-start; padding-top: 2rem;'>
+        <div style='display: flex; align-items: center; gap: 7px; font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #17C37B;'>
+            <span style='width: 6px; height: 6px; background: #17C37B; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px rgba(23,195,123,0.5);'></span>
             Sesión activa
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-st.markdown(
-    "<div style='border-bottom: 0.5px solid rgba(68,136,255,0.15); margin-bottom: 2.5rem;'></div>",
-    unsafe_allow_html=True
-)
+st.markdown("<div style='border-bottom: 0.5px solid rgba(68,136,255,0.15); margin-bottom: 2.5rem;'></div>", unsafe_allow_html=True)
 
 # ── Ingesta de pasivos ─────────────────────────────────────────────────────────
 col_info, col_upload = st.columns([1, 1.5], gap="large")
 
 with col_info:
     st.markdown("""
-    <div style='
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        letter-spacing: 0.15em;
-        text-transform: uppercase;
-        color: #4488FF;
-        margin-bottom: 1rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 0.5px solid rgba(68,136,255,0.15);
-    '>Ingesta de Pasivos</div>
-    <div style='
-        font-family: "EB Garamond", Georgia, serif;
-        font-size: 22px;
-        color: #E8EDF5;
-        margin-bottom: 0.75rem;
-        font-weight: 400;
-    '>Proyección de Flujos de Salida</div>
-    <div style='
-        font-family: "EB Garamond", Georgia, serif;
-        font-size: 15px;
-        font-style: italic;
-        color: #5A6780;
-        line-height: 1.65;
-        margin-bottom: 1.5rem;
-    '>
+    <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #4488FF; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 0.5px solid rgba(68,136,255,0.15);'>Ingesta de Pasivos</div>
+    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 22px; color: #E8EDF5; margin-bottom: 0.75rem; font-weight: 400;'>Proyección de Flujos de Salida</div>
+    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 15px; font-style: italic; color: #5A6780; line-height: 1.65; margin-bottom: 1.5rem;'>
         Cargue la matriz de flujos de salida correspondiente a sus reservas técnicas:
         siniestros esperados, vencimientos de pólizas y rescates proyectados.
     </div>
-    <div style='
-        padding: 1rem 1.25rem;
-        background: rgba(68,136,255,0.03);
-        border: 0.5px solid rgba(68,136,255,0.12);
-        border-radius: 4px;
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        color: #5A6780;
-        line-height: 2;
-        letter-spacing: 0.04em;
-    '>
+    <div style='padding: 1rem 1.25rem; background: rgba(68,136,255,0.03); border: 0.5px solid rgba(68,136,255,0.12); border-radius: 4px; font-family: "DM Mono", monospace; font-size: 10px; color: #5A6780; line-height: 2; letter-spacing: 0.04em;'>
         Formatos &nbsp;·&nbsp; .xlsx &nbsp;/&nbsp; .csv<br>
-        Columnas requeridas &nbsp;·&nbsp;
-        <span style='color: #B0BACA;'>Año</span> &nbsp;/&nbsp;
-        <span style='color: #B0BACA;'>Flujo_Esperado</span>
+        Columnas requeridas &nbsp;·&nbsp; <span style='color: #B0BACA;'>Año</span> &nbsp;/&nbsp; <span style='color: #B0BACA;'>Flujo_Esperado</span>
     </div>
     """, unsafe_allow_html=True)
 
 with col_upload:
     st.markdown("<div style='padding-top: 2.5rem;'></div>", unsafe_allow_html=True)
-    archivo_pasivos = st.file_uploader(
-        "Matriz de flujos",
-        type=["xlsx", "csv"],
-        label_visibility="collapsed"
-    )
+    archivo_pasivos = st.file_uploader("Matriz de flujos", type=["xlsx", "csv"], label_visibility="collapsed")
 
 # ── Procesamiento y vista previa ───────────────────────────────────────────────
 if archivo_pasivos is not None:
@@ -238,20 +155,8 @@ if archivo_pasivos is not None:
 
         st.markdown("""
         <div style='margin-bottom: 1.5rem;'>
-            <div style='
-                font-family: "DM Mono", monospace;
-                font-size: 10px;
-                letter-spacing: 0.15em;
-                text-transform: uppercase;
-                color: #5A6780;
-                margin-bottom: 0.4rem;
-            '>Validación</div>
-            <div style='
-                font-family: "EB Garamond", Georgia, serif;
-                font-size: 22px;
-                color: #E8EDF5;
-                font-weight: 400;
-            '>Auditoría de Flujos</div>
+            <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #5A6780; margin-bottom: 0.4rem;'>Validación</div>
+            <div style='font-family: "EB Garamond", Georgia, serif; font-size: 22px; color: #E8EDF5; font-weight: 400;'>Auditoría de Flujos</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -273,10 +178,7 @@ if archivo_pasivos is not None:
         )
 
     except Exception as e:
-        st.error(
-            f"Error al procesar el archivo. Verifique que contenga las columnas "
-            f"'Año' y 'Flujo_Esperado' con el formato esperado. Detalle: {e}"
-        )
+        st.error(f"Error al procesar el archivo. Verifique que contenga las columnas 'Año' y 'Flujo_Esperado' con el formato esperado. Detalle: {e}")
 
 # ── Cierre de sesión ───────────────────────────────────────────────────────────
 st.markdown("---")
