@@ -21,7 +21,7 @@ from modulos.regimenes   import entrenar_modelo_markov
 # ── Configuración de página ────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Motor GaLa Premium",
-    page_icon="📈",
+    page_icon="🏛️",
     layout="wide"
 )
 
