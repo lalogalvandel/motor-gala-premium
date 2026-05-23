@@ -191,34 +191,43 @@ if archivo_pasivos is not None and archivo_activos is not None:
         ratio = valor_total_activos / valor_total_pasivos
         c3.metric("Ratio de Cobertura", f"{ratio*100:.1f}%")
 
-        # Visualización de datos crudos cargados
-        st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
-        st.dataframe(
-            df_pasivos,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Año":            st.column_config.NumberColumn(format="%d"),
-                "Flujo_Esperado": st.column_config.NumberColumn(format="$%f M"),
-            }
-        )
-
-        # Botón para detonar el motor de optimización
-        st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+        # ── NUEVO: MÓDULO DE STRESS TESTING (SHOCKS MACROECONÓMICOS) ──
+        st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
+        st.markdown("""
+        <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #FF4B4B; margin-bottom: 0.4rem;'>Stress Test Macro (Solvencia II)</div>
+        <div style='font-family: "EB Garamond", Georgia, serif; font-size: 22px; color: #E8EDF5; font-weight: 400; margin-bottom: 1rem;'>Shock en Curva de Tasas de Interés</div>
+        <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; font-style: italic; color: #5A6780; line-height: 1.6; margin-bottom: 1.5rem;'>
+            Desplace el control para simular un escenario adverso de política monetaria (movimiento paralelo de la curva) y reestructurar bajo estrés.
+        </div>
+        """, unsafe_allow_html=True)
         
-        if st.button("Ejecutar Inmunización SLSQP", type="primary"):
-            with st.spinner("Ejecutando algoritmo de calce estocástico..."):
-                tasa_descuento = 0.065 
+        col_slider, col_esp = st.columns([1.5, 1])
+        with col_slider:
+            shock_bps = st.slider("Desplazamiento de Tasa (Puntos Base)", min_value=-300, max_value=300, value=0, step=25)
+        
+        # ── MOTOR DE OPTIMIZACIÓN ──
+        st.markdown("<div style='margin-top: 2.5rem;'></div>", unsafe_allow_html=True)
+        
+        if st.button("Ejecutar Inmunización Estocástica (SLSQP)", type="primary"):
+            with st.spinner("Modelando escenarios y calculando calce óptimo..."):
+                
+                # Inyectamos el shock de estrés a la tasa libre de riesgo y a los yields de mercado
+                tasa_base = 0.065
+                tasa_estresada = tasa_base + (shock_bps / 10000.0)
+                yields_estresados = df_activos['Tasa_YTM'].values + (shock_bps / 10000.0)
+                
+                # Exigencia del pasivo bajo el nuevo escenario
                 valor_pasivo, dur_pasivo, conv_pasivo = calcular_duracion_convexidad(
                     df_pasivos['Flujo_Esperado'].values, 
                     df_pasivos['Año'].values, 
-                    tasa_descuento
+                    tasa_estresada
                 )
                 
+                # Optimización de cartera
                 resultado = optimizar_inmunizacion(
                     df_activos['Duracion'].values, 
                     df_activos['Convexidad'].values, 
-                    df_activos['Tasa_YTM'].values, 
+                    yields_estresados, 
                     dur_pasivo, 
                     conv_pasivo
                 )
@@ -233,15 +242,16 @@ if archivo_pasivos is not None and archivo_activos is not None:
                     col_res_txt, col_res_plot = st.columns([1, 1.5], gap="large")
                     
                     with col_res_txt:
-                        st.success(f"**Calce Logrado:** {resultado['duracion_lograda']:.2f} años")
-                        st.info(f"**Yield Optimizado:** {resultado['rendimiento_esperado']*100:.2f}%")
-                        st.metric("Convexidad del Portafolio", f"{resultado['convexidad_lograda']:.2f}")
+                        st.success(f"**Calce de Duración:** {resultado['duracion_lograda']:.2f} años")
+                        st.info(f"**Yield Esperado:** {resultado['rendimiento_esperado']*100:.2f}%")
+                        st.metric("Cobertura de Convexidad", f"{resultado['convexidad_lograda']:.2f}")
                         
-                        st.markdown("<br><div style='font-family: \"DM Mono\", monospace; font-size: 10px; letter-spacing: 0.1em; color: #5A6780; text-transform: uppercase; margin-bottom: 0.5rem;'>Nueva Estructura de Inversión</div>", unsafe_allow_html=True)
+                        st.markdown("<br><div style='font-family: \"DM Mono\", monospace; font-size: 10px; letter-spacing: 0.1em; color: #5A6780; text-transform: uppercase; margin-bottom: 0.5rem;'>Estructura Exigida</div>", unsafe_allow_html=True)
                         
+                        # Corrección UI: Reemplazo de asteriscos por etiqueta <b> de HTML
                         for nombre, peso in zip(df_activos['Instrumento'].values, resultado["pesos"]):
                             if peso > 0.01:
-                                st.markdown(f"<div style='color:#B0BACA; font-family: \"EB Garamond\", serif; font-size: 15px;'>• **{nombre}:** {peso*100:.1f}%</div>", unsafe_allow_html=True)
+                                st.markdown(f"<div style='color:#B0BACA; font-family: \"EB Garamond\", serif; font-size: 15px;'>&bull; <b>{nombre}:</b> {peso*100:.1f}%</div>", unsafe_allow_html=True)
                                 
                     with col_res_plot:
                         labels_f = [n for n, p in zip(df_activos['Instrumento'].values, resultado["pesos"]) if p > 0.01]
@@ -264,7 +274,7 @@ if archivo_pasivos is not None and archivo_activos is not None:
                         )
                         st.plotly_chart(fig_pie, use_container_width=True)
                 else:
-                    st.error("Riesgo estructural crítico: Los activos en balance no cuentan con la duración o convexidad suficiente para calzar el pasivo.")
+                    st.error("Riesgo estructural crítico: La cartera de activos cargada no cuenta con la liquidez, duración o convexidad suficiente para inmunizar el balance bajo este nivel de estrés.")
     except Exception as e:
         st.error(f"Error de formato. Columnas requeridas ausentes o estructura de datos inválida. Detalle técnico: {e}")
 elif archivo_pasivos is not None or archivo_activos is not None:
@@ -274,7 +284,7 @@ elif archivo_pasivos is not None or archivo_activos is not None:
 st.markdown("---")
 col_btn, col_esp = st.columns([1, 4])
 with col_btn:
-    if st.button("Cerrar sesión", use_container_width=True):
+    if st.button("Cerrar sesión / Desconectar", use_container_width=True):
         st.session_state["autenticado"] = False
         st.session_state["empresa"]     = ""
         st.switch_page("app_institucional.py")
