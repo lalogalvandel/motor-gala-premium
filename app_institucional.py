@@ -193,6 +193,89 @@ def obtener_tasa_libre_riesgo():
         pass
     return 0.065
 
+# ── GESTIÓN DE SESIÓN ─────────────────────────────────────────────────────────
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+ 
+if st.session_state["autenticado"]:
+    st.markdown("""
+    <div style='
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 0 0.5rem;
+        border-bottom: 0.5px solid rgba(68,136,255,0.12);
+        margin-bottom: 2.5rem;
+    '>
+        <div style='
+            font-family: "DM Mono", monospace;
+            font-size: 10px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #2E3A4E;
+        '>Motor GaLa &nbsp;·&nbsp; Área Restringida</div>
+        <div style='
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: "DM Mono", monospace;
+            font-size: 10px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #17C37B;
+        '>
+            <span style='
+                width: 6px; height: 6px;
+                background: #17C37B;
+                border-radius: 50%;
+                display: inline-block;
+                box-shadow: 0 0 6px rgba(23,195,123,0.6);
+            '></span>
+            Sesión activa
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+ 
+    st.markdown("""
+    <div style='margin-bottom: 0.25rem;'>
+        <div style='
+            font-family: "DM Mono", monospace;
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #4488FF;
+            margin-bottom: 0.6rem;
+        '>Acceso Institucional</div>
+        <div style='
+            font-family: "EB Garamond", Georgia, serif;
+            font-size: 32px;
+            font-weight: 400;
+            color: #E8EDF5;
+            letter-spacing: 0.01em;
+            line-height: 1.2;
+        '>Panel de Riesgos</div>
+    </div>
+    """, unsafe_allow_html=True)
+ 
+    st.markdown("""
+    <div style='
+        font-family: "EB Garamond", Georgia, serif;
+        font-size: 16px;
+        font-style: italic;
+        color: #5A6780;
+        margin-bottom: 2rem;
+    '>
+        Área privada. Las carteras y análisis de la institución residen en este entorno.
+    </div>
+    """, unsafe_allow_html=True)
+ 
+    col_btn, col_esp = st.columns([1, 3])
+    with col_btn:
+        if st.button("Cerrar sesión", use_container_width=True):
+            st.session_state["autenticado"] = False
+            st.rerun()
+ 
+    st.stop()
 # ── Encabezado institucional ───────────────────────────────────────────────────
 st.markdown("""
 <div style='text-align: center; padding: 3rem 0 1.5rem;'>
@@ -559,24 +642,74 @@ with tab_contacto:
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3: LOGIN INSTITUCIONAL
 # ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3: ACCESO INSTITUCIONAL
+# ══════════════════════════════════════════════════════════════════════════════
 with tab_login:
-
-    st.markdown("""
-    <div style='
-        max-width: 420px;
-        margin: 3rem auto 0;
-        text-align: center;
-    '>
+ 
+    col_esp1, col_log, col_esp2 = st.columns([1, 1.2, 1])
+ 
+    with col_log:
+        st.markdown("""
         <div style='
+            margin: 2.5rem 0 2rem;
+            text-align: center;
+        '>
+            <div style='
+                font-family: "DM Mono", monospace;
+                font-size: 10px;
+                letter-spacing: 0.2em;
+                text-transform: uppercase;
+                color: #5A6780;
+                margin-bottom: 0.75rem;
+            '>Autenticación</div>
+            <div style='
+                font-family: "EB Garamond", Georgia, serif;
+                font-size: 22px;
+                color: #E8EDF5;
+                font-weight: 400;
+            '>Acceso Institucional</div>
+        </div>
+        """, unsafe_allow_html=True)
+ 
+        st.markdown("""
+        <div style='
+            padding: 2.5rem;
+            border: 0.5px solid rgba(68,136,255,0.2);
+            border-radius: 6px;
+            background: linear-gradient(160deg, #0F1420 0%, #0C1019 100%);
+        '>
+        """, unsafe_allow_html=True)
+ 
+        id_corp   = st.text_input("ID Corporativo",          placeholder="Identificador de institución")
+        pass_corp = st.text_input("Clave de acceso",         placeholder="Token de autenticación", type="password")
+ 
+        st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
+ 
+        if st.button("Iniciar sesión", use_container_width=True, type="primary"):
+            if id_corp == "demo_gala" and pass_corp == "admin2026":
+                st.session_state["autenticado"] = True
+                st.rerun()
+            else:
+                st.error("Credenciales inválidas. Verifique su ID corporativo y clave de acceso.")
+ 
+        st.markdown("""
+        <div style='
+            margin-top: 1.75rem;
+            padding-top: 1.25rem;
+            border-top: 0.5px solid rgba(68,136,255,0.08);
             font-family: "DM Mono", monospace;
             font-size: 10px;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            color: #5A6780;
-            margin-bottom: 2.5rem;
-        '>Portal de Acceso Institucional</div>
-    </div>
-    """, unsafe_allow_html=True)
+            letter-spacing: 0.06em;
+            color: #2E3A4E;
+            text-align: center;
+            line-height: 1.8;
+        '>
+            Acceso exclusivo para clientes licenciados.<br>
+            Para solicitar credenciales, contacte al equipo técnico.
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     col_esp1, col_log, col_esp2 = st.columns([1, 1.2, 1])
     
