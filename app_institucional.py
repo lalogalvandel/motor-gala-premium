@@ -668,19 +668,11 @@ with tab_login:
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("""
-        <div style='
-            padding: 2.5rem;
-            border: 0.5px solid rgba(68,136,255,0.2);
-            border-radius: 6px;
-            background: linear-gradient(160deg, #0F1420 0%, #0C1019 100%);
-        '>
-        """, unsafe_allow_html=True)
-
+        # ── Inputs Nativos (Sin envolturas de HTML para evitar el rectángulo fantasma) ──
         id_corp   = st.text_input("ID Corporativo",          placeholder="Identificador de institución")
         pass_corp = st.text_input("Clave de acceso",         placeholder="Token de autenticación", type="password")
 
-        st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
 
         if st.button("Iniciar sesión", use_container_width=True, type="primary"):
             if id_corp == "demo_gala" and pass_corp == "admin2026":
@@ -703,7 +695,6 @@ with tab_login:
         '>
             Acceso exclusivo para clientes licenciados.<br>
             Para solicitar credenciales, contacte al equipo técnico.
-        </div>
         </div>
         """, unsafe_allow_html=True)
 
