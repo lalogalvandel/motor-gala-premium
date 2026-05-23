@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ── CSS ────────────────────────────────────────────────────────────────────────
+# ── CSS Institucional y Componentes ────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400;500&display=swap');
@@ -45,6 +45,7 @@ hr {
     margin: 2rem 0 !important;
 }
 
+/* Componente de Métricas Globales */
 [data-testid="stMetric"] {
     background: linear-gradient(135deg, #0F1420 0%, #111827 100%);
     border: 0.5px solid rgba(68,136,255,0.15);
@@ -65,6 +66,7 @@ hr {
     letter-spacing: -0.02em !important;
 }
 
+/* Área Ingesta - File Uploader Refinado */
 [data-testid="stFileUploadDropzone"] {
     background-color: rgba(68,136,255,0.03) !important;
     border: 0.5px dashed rgba(68,136,255,0.3) !important;
@@ -76,11 +78,13 @@ hr {
     border-color: rgba(68,136,255,0.55) !important;
 }
 
+/* Tablas Corporativas */
 [data-testid="stDataFrame"] {
     border: 0.5px solid rgba(68,136,255,0.12) !important;
     border-radius: 6px !important;
 }
 
+/* Botonera de Acción */
 .stButton > button {
     background: transparent !important;
     border: 0.5px solid rgba(68,136,255,0.3) !important;
@@ -100,7 +104,7 @@ hr {
 </style>
 """, unsafe_allow_html=True)
 
-# ── Encabezado ─────────────────────────────────────────────────────────────────
+# ── Encabezado de Dos Columnas Consistente ─────────────────────────────────────
 empresa_cliente = st.session_state.get("empresa", "Institución Financiera")
 
 col_header, col_session = st.columns([3, 1])
@@ -125,10 +129,11 @@ with col_session:
 
 st.markdown("<div style='border-bottom: 0.5px solid rgba(68,136,255,0.15); margin-bottom: 2.5rem;'></div>", unsafe_allow_html=True)
 
-# ── MÓDULOS DE INGESTA (ACTIVOS Y PASIVOS) ─────────────────────────────────────
+
+# ── MÓDULOS DE INGESTA (CON JERARQUÍA PROFESIONAL DE TRES NIVELES) ──────────────
 st.markdown("""
 <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #4488FF; margin-bottom: 0.4rem;'>Paso 1: Mapeo de Balance</div>
-<div style='font-family: "EB Garamond", Georgia, serif; font-size: 22px; color: #E8EDF5; font-weight: 400; margin-bottom: 1.5rem;'>Carga de Información Financiera</div>
+<div style='font-family: "EB Garamond", Georgia, serif; font-size: 22px; color: #E8EDF5; font-weight: 400; margin-bottom: 1.5rem;'>Carga de Information Financiera</div>
 """, unsafe_allow_html=True)
 
 col_pasivos, col_activos = st.columns(2, gap="large")
@@ -138,7 +143,7 @@ with col_pasivos:
     <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #FF6B6B; margin-bottom: 0.4rem;'>Obligaciones</div>
     <div style='font-family: "EB Garamond", Georgia, serif; font-size: 18px; color: #E8EDF5; font-weight: 400; margin-bottom: 0.5rem;'>Matriz de Pasivos</div>
     <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; font-style: italic; color: #5A6780; line-height: 1.6; margin-bottom: 1.25rem;'>
-        Proyección de flujos de salida (siniestros esperados, rescates).
+        Proyección de flujos de salida correspondientes a las deudas y reservas técnicas.
     </div>
     <div style='padding: 0.8rem 1rem; background: rgba(255,107,107,0.03); border: 0.5px solid rgba(255,107,107,0.15); border-radius: 4px; font-family: "DM Mono", monospace; font-size: 10px; color: #5A6780; line-height: 1.8; margin-bottom: 1rem;'>
         Formatos admitidos &nbsp;·&nbsp; .xlsx &nbsp;/&nbsp; .csv<br>
@@ -152,7 +157,7 @@ with col_activos:
     <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #4488FF; margin-bottom: 0.4rem;'>Inversiones</div>
     <div style='font-family: "EB Garamond", Georgia, serif; font-size: 18px; color: #E8EDF5; font-weight: 400; margin-bottom: 0.5rem;'>Cartera de Activos</div>
     <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; font-style: italic; color: #5A6780; line-height: 1.6; margin-bottom: 1.25rem;'>
-        Inventario actual de instrumentos de deuda en balance.
+        Inventario actual de instrumentos de deuda elegibles dentro del balance corporativo.
     </div>
     <div style='padding: 0.8rem 1rem; background: rgba(68,136,255,0.03); border: 0.5px solid rgba(68,136,255,0.15); border-radius: 4px; font-family: "DM Mono", monospace; font-size: 10px; color: #5A6780; line-height: 1.8; margin-bottom: 1rem;'>
         Formatos admitidos &nbsp;·&nbsp; .xlsx &nbsp;/&nbsp; .csv<br>
@@ -161,16 +166,16 @@ with col_activos:
     """, unsafe_allow_html=True)
     archivo_activos = st.file_uploader("Cargar Activos", type=["xlsx", "csv"], label_visibility="collapsed", key="up_act")
 
-# ── PROCESAMIENTO ESTOCÁSTICO ──────────────────────────────────────────────────
+
+# ── PROCESAMIENTO ACTUARIAL Y DIAGNÓSTICO DE RIESGO ────────────────────────────
 st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
 
 if archivo_pasivos is not None and archivo_activos is not None:
     try:
-        # Lectura segura de ambos archivos
         df_pasivos = pd.read_csv(archivo_pasivos) if archivo_pasivos.name.endswith('.csv') else pd.read_excel(archivo_pasivos)
         df_activos = pd.read_csv(archivo_activos) if archivo_activos.name.endswith('.csv') else pd.read_excel(archivo_activos)
 
-        # Diagnóstico del Balance
+        # Encabezado técnico de auditoría
         st.markdown("""
         <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #5A6780; margin-bottom: 0.4rem;'>Validación</div>
         <div style='font-family: "EB Garamond", Georgia, serif; font-size: 22px; color: #E8EDF5; font-weight: 400; margin-bottom: 1.5rem;'>Auditoría de Brecha Estructural</div>
@@ -180,23 +185,88 @@ if archivo_pasivos is not None and archivo_activos is not None:
         valor_total_pasivos = df_pasivos['Flujo_Esperado'].sum()
         valor_total_activos = df_activos['Valor_Mercado'].sum()
         
-        # Ponderación de duración de activos (Promedio ponderado)
-        df_activos['Peso'] = df_activos['Valor_Mercado'] / valor_total_activos
-        duracion_activos_cartera = (df_activos['Duracion'] * df_activos['Peso']).sum()
-
         c1.metric("Valor Total Activos", f"${valor_total_activos:,.2f} M")
         c2.metric("Valor Total Pasivos", f"${valor_total_pasivos:,.2f} M")
         
         ratio = valor_total_activos / valor_total_pasivos
         c3.metric("Ratio de Cobertura", f"{ratio*100:.1f}%")
 
-        # Botón de Optimización
-        st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
-        if st.button("Ejecutar Inmunización SLSQP", type="primary"):
-            st.info("Módulo cuantitativo en espera de conexión para reestructuración de cartera.")
+        # Visualización de datos crudos cargados
+        st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+        st.dataframe(
+            df_pasivos,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Año":            st.column_config.NumberColumn(format="%d"),
+                "Flujo_Esperado": st.column_config.NumberColumn(format="$%f M"),
+            }
+        )
 
+        # Botón para detonar el motor de optimización
+        st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+        
+        if st.button("Ejecutar Inmunización SLSQP", type="primary"):
+            with st.spinner("Ejecutando algoritmo de calce estocástico..."):
+                tasa_descuento = 0.065 
+                valor_pasivo, dur_pasivo, conv_pasivo = calcular_duracion_convexidad(
+                    df_pasivos['Flujo_Esperado'].values, 
+                    df_pasivos['Año'].values, 
+                    tasa_descuento
+                )
+                
+                resultado = optimizar_inmunizacion(
+                    df_activos['Duracion'].values, 
+                    df_activos['Convexidad'].values, 
+                    df_activos['Tasa_YTM'].values, 
+                    dur_pasivo, 
+                    conv_pasivo
+                )
+                
+                if resultado["exito"]:
+                    st.markdown("---")
+                    st.markdown("""
+                    <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #17C37B; margin-bottom: 0.4rem;'>Paso 3: Reestructuración</div>
+                    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 22px; color: #E8EDF5; font-weight: 400; margin-bottom: 1.5rem;'>Portafolio Óptimo de Cobertura</div>
+                    """, unsafe_allow_html=True)
+
+                    col_res_txt, col_res_plot = st.columns([1, 1.5], gap="large")
+                    
+                    with col_res_txt:
+                        st.success(f"**Calce Logrado:** {resultado['duracion_lograda']:.2f} años")
+                        st.info(f"**Yield Optimizado:** {resultado['rendimiento_esperado']*100:.2f}%")
+                        st.metric("Convexidad del Portafolio", f"{resultado['convexidad_lograda']:.2f}")
+                        
+                        st.markdown("<br><div style='font-family: \"DM Mono\", monospace; font-size: 10px; letter-spacing: 0.1em; color: #5A6780; text-transform: uppercase; margin-bottom: 0.5rem;'>Nueva Estructura de Inversión</div>", unsafe_allow_html=True)
+                        
+                        for nombre, peso in zip(df_activos['Instrumento'].values, resultado["pesos"]):
+                            if peso > 0.01:
+                                st.markdown(f"<div style='color:#B0BACA; font-family: \"EB Garamond\", serif; font-size: 15px;'>• **{nombre}:** {peso*100:.1f}%</div>", unsafe_allow_html=True)
+                                
+                    with col_res_plot:
+                        labels_f = [n for n, p in zip(df_activos['Instrumento'].values, resultado["pesos"]) if p > 0.01]
+                        valores_f = [p for p in resultado["pesos"] if p > 0.01]
+                        
+                        fig_pie = go.Figure(data=[go.Pie(
+                            labels=labels_f, 
+                            values=valores_f, 
+                            hole=.5,
+                            textinfo='label+percent',
+                            marker=dict(colors=['#4488FF', '#17C37B', '#d4a017', '#FF4B4B', '#9D4EDD'])
+                        )])
+                        fig_pie.update_layout(
+                            showlegend=False,
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            margin=dict(t=10, b=10, l=10, r=10),
+                            height=280,
+                            font={'family': 'DM Mono', 'color': '#B0BACA', 'size': 11}
+                        )
+                        st.plotly_chart(fig_pie, use_container_width=True)
+                else:
+                    st.error("Riesgo estructural crítico: Los activos en balance no cuentan con la duración o convexidad suficiente para calzar el pasivo.")
     except Exception as e:
-        st.error(f"Error de formato. Columnas requeridas ausentes o estructura inválida. Detalle técnico: {e}")
+        st.error(f"Error de formato. Columnas requeridas ausentes o estructura de datos inválida. Detalle técnico: {e}")
 elif archivo_pasivos is not None or archivo_activos is not None:
     st.info("Aguardando ingesta del archivo complementario para inicializar diagnóstico ALM.")
 
