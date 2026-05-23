@@ -1,6 +1,33 @@
 import streamlit as st
 from supabase import create_client
 
+@st.cache_data(ttl=21600)  # Cacheamos por 6 horas para no saturar la API de Banxico
+def obtener_tasa_libre_riesgo():
+    """
+    Consulta la tasa de rendimiento actual de los CETES 28 días (o TIIE) 
+    directamente desde la API del Banco de México.
+    """
+    try:
+        token = st.secrets["TOKEN_BANXICO"]
+        # Serie SF43936: Tasa de rendimiento de los CETES a 28 días en mercado secundario
+        # (Puedes cambiar la serie por la TIIE de Fondeo si lo prefieres)
+        url = f"https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43936/datos/oportuno?token={token}"
+        
+        headers = {"Accept": "application/json"}
+        response = requests.get(url, headers=headers, timeout=5)
+        
+        if response.status_code == 200:
+            datos = response.json()
+            # Extraemos el valor del dato oportuno
+            str_valor = datos["series"][0]["datos"][0]["dato"]
+            tasa = float(str_valor) / 100  # Convertimos de porcentaje (6.50) a decimal (0.065)
+            st.toast(f"📡 Tasa Banxico actualizada: {tasa*100:.2f}%", icon="")
+            return tasa
+    except Exception as e:
+        # Si la API de Banxico falla (algo común), usamos un fallback seguro para no tirar la app
+        st.sidebar.error(f"Error API Banxico: {e}. Usando tasa de respaldo.")
+    
+    return 0.065  # Fallback histórico de seguridad AJUSTAR DE SER NECESARIO
 try:
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
