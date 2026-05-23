@@ -31,10 +31,6 @@ html, body, [class*="css"] {
 
 .stApp {
     background-color: #0C0F14;
-    background-image:
-        linear-gradient(rgba(68,136,255,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(68,136,255,0.03) 1px, transparent 1px);
-    background-size: 48px 48px;
 }
 
 /* ── Tipografía ───────────────────────────────────────────────────────── */
@@ -535,16 +531,9 @@ with tab_login:
     """, unsafe_allow_html=True)
 
     col_esp1, col_log, col_esp2 = st.columns([1, 1.2, 1])
+    
     with col_log:
-        st.markdown("""
-        <div style='
-            padding: 2.5rem;
-            border: 0.5px solid rgba(68,136,255,0.2);
-            border-radius: 6px;
-            background: linear-gradient(135deg, #0F1420 0%, #111827 100%);
-        '>
-        """, unsafe_allow_html=True)
-
+        # Eliminamos el HTML conflictivo y dejamos los inputs directos
         st.text_input("ID Corporativo",              key="log_id")
         st.text_input("Llave de Acceso (Token)",     type="password", key="log_pass")
 
@@ -563,7 +552,6 @@ with tab_login:
         '>
             Acceso exclusivo para clientes licenciados.<br>
             Para solicitar credenciales, contacte al equipo técnico.
-        </div>
         </div>
         """, unsafe_allow_html=True)
 
