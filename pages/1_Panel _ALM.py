@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 # ── Control de acceso ──────────────────────────────────────────────────────────
 if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
@@ -45,6 +46,46 @@ hr {
     margin: 2rem 0 !important;
 }
 
+/* Métricas */
+[data-testid="stMetric"] {
+    background: linear-gradient(135deg, #0F1420 0%, #111827 100%);
+    border: 0.5px solid rgba(68,136,255,0.15);
+    border-radius: 6px;
+    padding: 1.1rem 1.4rem;
+}
+[data-testid="stMetricLabel"] {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 10px !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+    color: #5A6780 !important;
+}
+[data-testid="stMetricValue"] {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 1.4rem !important;
+    color: #E8EDF5 !important;
+    letter-spacing: -0.02em !important;
+}
+
+/* File uploader */
+[data-testid="stFileUploadDropzone"] {
+    background-color: rgba(68,136,255,0.03) !important;
+    border: 0.5px dashed rgba(68,136,255,0.3) !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease !important;
+}
+[data-testid="stFileUploadDropzone"]:hover {
+    background-color: rgba(68,136,255,0.06) !important;
+    border-color: rgba(68,136,255,0.55) !important;
+}
+
+/* Dataframe */
+[data-testid="stDataFrame"] {
+    border: 0.5px solid rgba(68,136,255,0.12) !important;
+    border-radius: 6px !important;
+}
+
+/* Botón */
 .stButton > button {
     background: transparent !important;
     border: 0.5px solid rgba(68,136,255,0.3) !important;
@@ -57,7 +98,6 @@ hr {
     border-radius: 3px !important;
     transition: all 0.2s ease !important;
 }
-
 .stButton > button:hover {
     background: rgba(68,136,255,0.06) !important;
     border-color: #4488FF !important;
@@ -97,9 +137,8 @@ with col_session:
     <div style='
         display: flex;
         justify-content: flex-end;
-        align-items: center;
-        height: 100%;
-        padding-top: 1.5rem;
+        align-items: flex-start;
+        padding-top: 2rem;
     '>
         <div style='
             display: flex;
@@ -123,52 +162,124 @@ with col_session:
     </div>
     """, unsafe_allow_html=True)
 
-st.markdown("<div style='border-bottom: 0.5px solid rgba(68,136,255,0.15); margin-bottom: 2.5rem;'></div>",
-            unsafe_allow_html=True)
+st.markdown(
+    "<div style='border-bottom: 0.5px solid rgba(68,136,255,0.15); margin-bottom: 2.5rem;'></div>",
+    unsafe_allow_html=True
+)
 
-# ── Sección principal ──────────────────────────────────────────────────────────
-st.markdown("""
-<div style='margin-bottom: 0.4rem;'>
+# ── Ingesta de pasivos ─────────────────────────────────────────────────────────
+col_info, col_upload = st.columns([1, 1.5], gap="large")
+
+with col_info:
+    st.markdown("""
     <div style='
         font-family: "DM Mono", monospace;
         font-size: 10px;
         letter-spacing: 0.15em;
         text-transform: uppercase;
-        color: #5A6780;
-        margin-bottom: 0.5rem;
-    '>Asset & Liability Management</div>
+        color: #4488FF;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 0.5px solid rgba(68,136,255,0.15);
+    '>Ingesta de Pasivos</div>
     <div style='
         font-family: "EB Garamond", Georgia, serif;
-        font-size: 24px;
+        font-size: 22px;
         color: #E8EDF5;
+        margin-bottom: 0.75rem;
         font-weight: 400;
-    '>Panel de Control Estocástico</div>
-</div>
-""", unsafe_allow_html=True)
+    '>Proyección de Flujos de Salida</div>
+    <div style='
+        font-family: "EB Garamond", Georgia, serif;
+        font-size: 15px;
+        font-style: italic;
+        color: #5A6780;
+        line-height: 1.65;
+        margin-bottom: 1.5rem;
+    '>
+        Cargue la matriz de flujos de salida correspondiente a sus reservas técnicas:
+        siniestros esperados, vencimientos de pólizas y rescates proyectados.
+    </div>
+    <div style='
+        padding: 1rem 1.25rem;
+        background: rgba(68,136,255,0.03);
+        border: 0.5px solid rgba(68,136,255,0.12);
+        border-radius: 4px;
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        color: #5A6780;
+        line-height: 2;
+        letter-spacing: 0.04em;
+    '>
+        Formatos &nbsp;·&nbsp; .xlsx &nbsp;/&nbsp; .csv<br>
+        Columnas requeridas &nbsp;·&nbsp;
+        <span style='color: #B0BACA;'>Año</span> &nbsp;/&nbsp;
+        <span style='color: #B0BACA;'>Flujo_Esperado</span>
+    </div>
+    """, unsafe_allow_html=True)
 
-st.markdown("""
-<div style='
-    margin: 1.5rem 0 2.5rem;
-    padding: 1.25rem 1.5rem;
-    border: 0.5px solid rgba(68,136,255,0.15);
-    border-left: 2px solid rgba(68,136,255,0.4);
-    border-radius: 4px;
-    background: rgba(68,136,255,0.03);
-    font-family: "EB Garamond", Georgia, serif;
-    font-size: 15px;
-    font-style: italic;
-    color: #5A6780;
-    line-height: 1.65;
-'>
-    Este entorno alojará las tablas de pasivos, la cartera de inversiones institucional
-    y el optimizador SLSQP operando sobre los datos en producción de la aseguradora.
-    Los módulos se activarán conforme avance el despliegue.
-</div>
-""", unsafe_allow_html=True)
+with col_upload:
+    st.markdown("<div style='padding-top: 2.5rem;'></div>", unsafe_allow_html=True)
+    archivo_pasivos = st.file_uploader(
+        "Matriz de flujos",
+        type=["xlsx", "csv"],
+        label_visibility="collapsed"
+    )
+
+# ── Procesamiento y vista previa ───────────────────────────────────────────────
+if archivo_pasivos is not None:
+    try:
+        if archivo_pasivos.name.endswith('.csv'):
+            df_pasivos = pd.read_csv(archivo_pasivos)
+        else:
+            df_pasivos = pd.read_excel(archivo_pasivos)
+
+        st.markdown("---")
+
+        st.markdown("""
+        <div style='margin-bottom: 1.5rem;'>
+            <div style='
+                font-family: "DM Mono", monospace;
+                font-size: 10px;
+                letter-spacing: 0.15em;
+                text-transform: uppercase;
+                color: #5A6780;
+                margin-bottom: 0.4rem;
+            '>Validación</div>
+            <div style='
+                font-family: "EB Garamond", Georgia, serif;
+                font-size: 22px;
+                color: #E8EDF5;
+                font-weight: 400;
+            '>Auditoría de Flujos</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Períodos proyectados",      f"{len(df_pasivos)}")
+        c2.metric("Pasivos nominales totales", f"${df_pasivos['Flujo_Esperado'].sum():,.2f} M")
+        c3.metric("Estado del archivo",        "Validado")
+
+        st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+
+        st.dataframe(
+            df_pasivos,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Año":            st.column_config.NumberColumn(format="%d"),
+                "Flujo_Esperado": st.column_config.NumberColumn(format="$%f M"),
+            }
+        )
+
+    except Exception as e:
+        st.error(
+            f"Error al procesar el archivo. Verifique que contenga las columnas "
+            f"'Año' y 'Flujo_Esperado' con el formato esperado. Detalle: {e}"
+        )
 
 # ── Cierre de sesión ───────────────────────────────────────────────────────────
 st.markdown("---")
-
 col_btn, col_esp = st.columns([1, 4])
 with col_btn:
     if st.button("Cerrar sesión", use_container_width=True):
