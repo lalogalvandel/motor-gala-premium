@@ -1343,7 +1343,9 @@ if es_admin and tab_admin:
         st.subheader("Centro de Comando Motor GaLa")
         
         # Sub-navegación dentro del panel de admin
-        sub_mod, sub_feed, sub_users = st.tabs(["Moderación", "Buzón de Sugerencias", "Métricas de Usuarios"])
+        sub_mod, sub_feed, sub_users, sub_leads = st.tabs([
+            "Moderación", "Buzón de Sugerencias", "Métricas de Usuarios", "Leads Institucionales 🏛️"
+        ])
         
         # ── 1. MODERACIÓN ───────────────────────────────────────────────────────
         with sub_mod:
@@ -1419,3 +1421,44 @@ if es_admin and tab_admin:
                 )
             else:
                 st.info("No se pudieron cargar los datos de usuarios.")
+
+        with sub_leads:
+            st.markdown("**Embudo de Ventas — Prospectos Corporativos**")
+            try:
+                # Traemos los leads, ordenados para que los más nuevos salgan arriba
+                r_leads = db.table("leads_b2b").select("*").order("id", desc=True).execute()
+                leads = r_leads.data or []
+            except Exception as e:
+                leads = []
+                st.error(f"Error al conectar con la base de datos B2B: {e}")
+            
+            if not leads:
+                st.info("La bandeja de prospectos corporativos está vacía.")
+            else:
+                pendientes = sum(1 for l in leads if not l.get("contactado"))
+                if pendientes > 0:
+                    st.warning(f"Tienes {pendientes} prospecto(s) pendiente(s) de contactar.")
+                else:
+                    st.success("Todos los prospectos han sido contactados. ¡Buen trabajo!")
+                
+                for l in leads:
+                    # Diseño visual dependiendo del estatus
+                    estatus = "🟢 Contactado" if l.get("contactado") else "🔴 Pendiente"
+                    
+                    with st.expander(f"{estatus} | {l['empresa']} — {l['nombre']}", expanded=not l.get("contactado")):
+                        col_info, col_accion = st.columns([3, 1])
+                        
+                        with col_info:
+                            st.markdown(f"**Cargo:** {l.get('cargo', 'N/A')}")
+                            st.markdown(f"**Email:** `{l.get('email', 'N/A')}`")
+                            st.markdown(f"**Área de interés:** {l.get('interes', 'N/A')}")
+                        
+                        with col_accion:
+                            if not l.get("contactado"):
+                                # Botón para actualizar el estatus de ventas
+                                if st.button("Marcar contactado ", key=f"lead_{l['id']}", type="primary"):
+                                    try:
+                                        db.table("leads_b2b").update({"contactado": True}).eq("id", l["id"]).execute()
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Error: {e}")
