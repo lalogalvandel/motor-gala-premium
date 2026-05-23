@@ -370,7 +370,7 @@ with tab_demo:
     '>Motor de Inmunización (SLSQP)</div>
     """, unsafe_allow_html=True)
 
-   if st.button("Generar Portafolio Óptimo de Cobertura", type="primary"):
+    if st.button("Generar Portafolio Óptimo de Cobertura", type="primary"):
         # Alineamos los activos con el motor shock-proof que probaste en el backend
         nombres_mercado = ["CETES 1A", "Mbono 3A", "Mbono 10A", "Deuda Corp 5A"]
         duraciones_mercado = np.array([0.9, 2.8, 8.1, 4.2])
