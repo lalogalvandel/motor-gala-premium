@@ -4,8 +4,8 @@ from datetime import datetime
 import plotly.graph_objects as go
 from supabase import create_client
 
-# Importamos el nuevo cerebro actuarial
-from modulos.actuaria_alm import simular_brecha_duracion, calcular_rcs_mercado
+from modulos.actuaria_alm import simular_brecha_duracion, calcular_rcs_mercado, optimizar_inmunizacion
+import numpy as np 
 
 # ── Configuración de página Institucional ──────────────────────────────────────
 st.set_page_config(
@@ -390,6 +390,38 @@ with tab_demo:
             Estado normativo: <span style='color:{color_gap}'>{estado_gap}</span>
         </div>
         """, unsafe_allow_html=True)
+
+        st.markdown("---")
+        st.markdown("""
+        <div style='
+            font-family: "DM Mono", monospace;
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: #4488FF;
+            margin-bottom: 1rem;
+        '>Optimizador de Inmunización (SLSQP)</div>
+        """, unsafe_allow_html=True)
+
+        if st.button("Generar Portafolio Óptimo de Cobertura", type="primary", use_container_width=True):
+            # Simulamos las opciones de renta fija disponibles en el mercado
+            nombres_mercado = ["Cetes 28d", "Cetes 364d", "Mbono 3A", "Mbono 10A", "Corp 5A"]
+            duraciones_mercado = np.array([0.08, 0.95, 2.8, 8.1, 4.2])
+            yields_mercado = np.array([0.11, 0.105, 0.09, 0.085, 0.115])
+            
+            with st.spinner("Ejecutando algoritmo de calce estocástico..."):
+                resultado = optimizar_inmunizacion(duraciones_mercado, yields_mercado, d_pasivos)
+                
+                if resultado["exito"]:
+                    st.success(f"✅ Inmunización lograda: {resultado['duracion_lograda']:.2f} años")
+                    st.info(f"📈 Rendimiento esperado: {resultado['rendimiento_esperado']*100:.2f}%")
+                    
+                    # Mostramos los pesos óptimos
+                    for nombre, peso in zip(nombres_mercado, resultado["pesos"]):
+                        if peso > 0.01: # Solo mostramos si asignó más del 1%
+                            st.write(f"**{nombre}:** {peso*100:.1f}%")
+                else:
+                    st.error("⚠️ Riesgo de mercado: No hay instrumentos disponibles para calzar una duración tan extrema.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
