@@ -184,7 +184,6 @@ if archivo_pasivos is not None and archivo_activos is not None:
         c1.metric("Valor Total Activos", f"${valor_total_activos:,.2f} M")
         c2.metric("Valor Total Pasivos", f"${valor_total_pasivos:,.2f} M")
         
-        # Estado de Cobertura (Sin delta redundante, puro dato crudo)
         ratio = valor_total_activos / valor_total_pasivos
         c3.metric("Ratio de Cobertura", f"{ratio*100:.1f}%")
 
