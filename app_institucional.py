@@ -196,86 +196,10 @@ def obtener_tasa_libre_riesgo():
 # ── GESTIÓN DE SESIÓN ─────────────────────────────────────────────────────────
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
- 
+
+# Si el usuario ya está autenticado, lo teletransportamos a su bóveda privada
 if st.session_state["autenticado"]:
-    st.markdown("""
-    <div style='
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 1rem 0 0.5rem;
-        border-bottom: 0.5px solid rgba(68,136,255,0.12);
-        margin-bottom: 2.5rem;
-    '>
-        <div style='
-            font-family: "DM Mono", monospace;
-            font-size: 10px;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            color: #2E3A4E;
-        '>Motor GaLa &nbsp;·&nbsp; Área Restringida</div>
-        <div style='
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-family: "DM Mono", monospace;
-            font-size: 10px;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: #17C37B;
-        '>
-            <span style='
-                width: 6px; height: 6px;
-                background: #17C37B;
-                border-radius: 50%;
-                display: inline-block;
-                box-shadow: 0 0 6px rgba(23,195,123,0.6);
-            '></span>
-            Sesión activa
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
- 
-    st.markdown("""
-    <div style='margin-bottom: 0.25rem;'>
-        <div style='
-            font-family: "DM Mono", monospace;
-            font-size: 10px;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            color: #4488FF;
-            margin-bottom: 0.6rem;
-        '>Acceso Institucional</div>
-        <div style='
-            font-family: "EB Garamond", Georgia, serif;
-            font-size: 32px;
-            font-weight: 400;
-            color: #E8EDF5;
-            letter-spacing: 0.01em;
-            line-height: 1.2;
-        '>Panel de Riesgos</div>
-    </div>
-    """, unsafe_allow_html=True)
- 
-    st.markdown("""
-    <div style='
-        font-family: "EB Garamond", Georgia, serif;
-        font-size: 16px;
-        font-style: italic;
-        color: #5A6780;
-        margin-bottom: 2rem;
-    '>
-        Área privada. Las carteras y análisis de la institución residen en este entorno.
-    </div>
-    """, unsafe_allow_html=True)
- 
-    col_btn, col_esp = st.columns([1, 3])
-    with col_btn:
-        if st.button("Cerrar sesión", use_container_width=True):
-            st.session_state["autenticado"] = False
-            st.rerun()
- 
-    st.stop()
+    st.switch_page("pages/1_Panel_ALM.py")
 # ── Encabezado institucional ───────────────────────────────────────────────────
 st.markdown("""
 <div style='text-align: center; padding: 3rem 0 1.5rem;'>
