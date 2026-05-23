@@ -458,7 +458,7 @@ with tab_contacto:
             c1, c2 = st.columns(2, gap="medium")
             with c1:
                 nombre_demo = st.text_input("Nombre completo")
-                cargo_demo  = st.text_input("Cargo", placeholder="Ej. Director de Riesgos (CRO), CFO, Actuario Jefe")
+                cargo_demo  = st.text_input("Cargo", placeholder="Ej. Director de Riesgos (CRO), CFO, etc.")
             with c2:
                 empresa_demo = st.text_input("Institución")
                 email_demo   = st.text_input("Correo corporativo")
