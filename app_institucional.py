@@ -675,22 +675,22 @@ with tab_login:
         st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
 
         if st.button("Iniciar sesión", use_container_width=True, type="primary"):
-    if id_corp and pass_corp:
-        with st.spinner("Validando credenciales..."):
-            try:
-                respuesta = db.table("usuarios_b2b").select("*").eq("id_corp", id_corp.strip()).eq("token", pass_corp.strip()).execute()
-
-                if len(respuesta.data) > 0:
-                    cliente = respuesta.data[0]
-                    st.session_state["autenticado"] = True
-                    st.session_state["empresa"]     = cliente["empresa"]
-                    st.rerun()
-                else:
-                    st.error("Credenciales inválidas o acceso revocado. Contacte al equipo técnico.")
-            except Exception as e:
-                st.error(f"Error de conexión con el servidor de autenticación. Detalle: {e}")
-    else:
-        st.warning("Ingrese su ID corporativo y clave de acceso para continuar.")
+            if id_corp and pass_corp:
+                with st.spinner("Validando credenciales..."):
+                    try:
+                        respuesta = db.table("usuarios_b2b").select("*").eq("id_corp", id_corp.strip()).eq("token", pass_corp.strip()).execute()
+        
+                        if len(respuesta.data) > 0:
+                            cliente = respuesta.data[0]
+                            st.session_state["autenticado"] = True
+                            st.session_state["empresa"]     = cliente["empresa"]
+                            st.rerun()
+                        else:
+                            st.error("Credenciales inválidas o acceso revocado. Contacte al equipo técnico.")
+                    except Exception as e:
+                        st.error(f"Error de conexión con el servidor de autenticación. Detalle: {e}")
+            else:
+                st.warning("Ingrese su ID corporativo y clave de acceso para continuar.")
 
         st.markdown("""
         <div style='
