@@ -10,7 +10,7 @@ from modulos.actuaria_alm import simular_brecha_duracion, calcular_rcs_mercado
 # ── Configuración de página Institucional ──────────────────────────────────────
 st.set_page_config(
     page_title="GaLa Institutional Solutions",
-    page_icon="",
+    page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
