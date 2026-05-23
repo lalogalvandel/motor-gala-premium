@@ -45,24 +45,27 @@ def simular_brecha_duracion(d_activos: float, d_pasivos: float, v_activos: float
     return gap
 
 
-def calcular_rcs_mercado(exposicion: float, volatilidad: float, nivel_confianza: float = 0.995) -> float:
+def calcular_rcs_mercado(exposicion: float, volatilidad_anual: float, nivel_confianza: float = 0.995) -> float:
     """
     Calcula el Requerimiento de Capital de Solvencia (RCS / SCR) bajo la fórmula estándar.
-    Solvencia II exige cubrir el VaR a 1 año con un nivel de confianza del 99.5%.
+    Solvencia II (CUSF) exige cubrir el VaR a 1 año con un nivel de confianza del 99.5%.
     """
     z_score = norm.ppf(nivel_confianza)
     # Pérdida máxima esperada en 1 año (Capital que debe tener en reserva líquida)
-    scr = exposicion * volatilidad * z_score
+    scr = exposicion * volatilidad_anual * z_score
     return scr
 
-# ── Pruebas unitarias internas (Se ignoran al importar) ──
+# ── Pruebas unitarias internas (Se ignoran al importar desde app_institucional.py) ──
 if __name__ == "__main__":
     # Ejemplo: Aseguradora tiene que pagar 100M anuales por 5 años (Pasivos)
     flujos_pasivos = np.array([100, 100, 100, 100, 1100]) # 1100 en el año 5 por vencimientos
     tiempos = np.array([1, 2, 3, 4, 5])
-    tasa_libre_riesgo = 0.065 # Banxico actual aprox
     
-    valor_pasivo, dur_pasivo, conv_pasivo = calcular_duracion_convexidad(flujos_pasivos, tiempos, tasa_libre_riesgo)
+    # NOTA ARCHITECTURE: Dejamos la tasa estática aquí para pruebas locales offline. 
+    # En producción, app_institucional.py se encarga de inyectar la tasa en vivo de Banxico.
+    tasa_libre_riesgo_dummy = 0.065 
+    
+    valor_pasivo, dur_pasivo, conv_pasivo = calcular_duracion_convexidad(flujos_pasivos, tiempos, tasa_libre_riesgo_dummy)
     
     print(f"Valor Presente de Pasivos: ${valor_pasivo:,.2f}")
     print(f"Duración Modificada Exigida: {dur_pasivo:.2f} años")
