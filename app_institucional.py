@@ -477,8 +477,8 @@ with tab_demo:
                 col_res_txt, col_res_plot = st.columns([1, 1.5], gap="large")
                 
                 with col_res_txt:
-                    st.success(f"✅ **Calce Logrado:** {resultado['duracion_lograda']:.2f} años")
-                    st.info(f"📈 **Yield Optimizado:** {resultado['rendimiento_esperado']*100:.2f}%")
+                    st.success(f"**Calce Logrado:** {resultado['duracion_lograda']:.2f} años")
+                    st.info(f"**Yield Optimizado:** {resultado['rendimiento_esperado']*100:.2f}%")
                     st.metric("Convexidad del Portafolio", f"{resultado['convexidad_lograda']:.2f}")
                     
                     st.markdown("<br><span style='color:#B0BACA; font-size:14px;'>Estructura del portafolio:</span>", unsafe_allow_html=True)
@@ -507,7 +507,7 @@ with tab_demo:
                     )
                     st.plotly_chart(fig_pie, use_container_width=True)
             else:
-                st.error("⚠️ Riesgo estructural: No hay instrumentos disponibles para calzar una duración o convexidad tan extrema.")
+                st.error("Riesgo estructural: No hay instrumentos disponibles para calzar una duración o convexidad tan extrema.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -638,10 +638,6 @@ with tab_contacto:
         </div>
         """, unsafe_allow_html=True)
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 3: LOGIN INSTITUCIONAL
-# ══════════════════════════════════════════════════════════════════════════════
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3: ACCESO INSTITUCIONAL
 # ══════════════════════════════════════════════════════════════════════════════
