@@ -122,63 +122,81 @@ with col_session:
 
 st.markdown("<div style='border-bottom: 0.5px solid rgba(68,136,255,0.15); margin-bottom: 2.5rem;'></div>", unsafe_allow_html=True)
 
-# ── Ingesta de pasivos ─────────────────────────────────────────────────────────
-col_info, col_upload = st.columns([1, 1.5], gap="large")
+# ── MÓDULOS DE INGESTA (ACTIVOS Y PASIVOS) ─────────────────────────────────────
+st.markdown("""
+<div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #4488FF; margin-bottom: 0.4rem;'>Paso 1: Mapeo de Balance</div>
+<div style='font-family: "EB Garamond", Georgia, serif; font-size: 22px; color: #E8EDF5; font-weight: 400; margin-bottom: 1.5rem;'>Carga de Información Financiera</div>
+""", unsafe_allow_html=True)
 
-with col_info:
+col_pasivos, col_activos = st.columns(2, gap="large")
+
+with col_pasivos:
     st.markdown("""
-    <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #4488FF; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 0.5px solid rgba(68,136,255,0.15);'>Ingesta de Pasivos</div>
-    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 22px; color: #E8EDF5; margin-bottom: 0.75rem; font-weight: 400;'>Proyección de Flujos de Salida</div>
-    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 15px; font-style: italic; color: #5A6780; line-height: 1.65; margin-bottom: 1.5rem;'>
-        Cargue la matriz de flujos de salida correspondiente a sus reservas técnicas:
-        siniestros esperados, vencimientos de pólizas y rescates proyectados.
+    <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #FF6B6B; margin-bottom: 0.4rem;'>Obligaciones</div>
+    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 18px; color: #E8EDF5; font-weight: 400; margin-bottom: 0.5rem;'>Matriz de Pasivos</div>
+    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; font-style: italic; color: #5A6780; line-height: 1.6; margin-bottom: 1.25rem;'>
+        Proyección de flujos de salida (siniestros esperados, rescates).
     </div>
-    <div style='padding: 1rem 1.25rem; background: rgba(68,136,255,0.03); border: 0.5px solid rgba(68,136,255,0.12); border-radius: 4px; font-family: "DM Mono", monospace; font-size: 10px; color: #5A6780; line-height: 2; letter-spacing: 0.04em;'>
-        Formatos &nbsp;·&nbsp; .xlsx &nbsp;/&nbsp; .csv<br>
-        Columnas requeridas &nbsp;·&nbsp; <span style='color: #B0BACA;'>Año</span> &nbsp;/&nbsp; <span style='color: #B0BACA;'>Flujo_Esperado</span>
+    <div style='padding: 0.8rem 1rem; background: rgba(255,107,107,0.03); border: 0.5px solid rgba(255,107,107,0.15); border-radius: 4px; font-family: "DM Mono", monospace; font-size: 10px; color: #5A6780; line-height: 1.8; margin-bottom: 1rem;'>
+        Formatos admitidos &nbsp;·&nbsp; .xlsx &nbsp;/&nbsp; .csv<br>
+        Columnas exigidas &nbsp;·&nbsp; <span style='color: #B0BACA;'>Año</span> &nbsp;/&nbsp; <span style='color: #B0BACA;'>Flujo_Esperado</span>
     </div>
     """, unsafe_allow_html=True)
+    archivo_pasivos = st.file_uploader("Cargar Pasivos", type=["xlsx", "csv"], label_visibility="collapsed", key="up_pas")
 
-with col_upload:
-    st.markdown("<div style='padding-top: 2.5rem;'></div>", unsafe_allow_html=True)
-    archivo_pasivos = st.file_uploader("Matriz de flujos", type=["xlsx", "csv"], label_visibility="collapsed")
+with col_activos:
+    st.markdown("""
+    <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #4488FF; margin-bottom: 0.4rem;'>Inversiones</div>
+    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 18px; color: #E8EDF5; font-weight: 400; margin-bottom: 0.5rem;'>Cartera de Activos</div>
+    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; font-style: italic; color: #5A6780; line-height: 1.6; margin-bottom: 1.25rem;'>
+        Inventario actual de instrumentos de deuda en balance.
+    </div>
+    <div style='padding: 0.8rem 1rem; background: rgba(68,136,255,0.03); border: 0.5px solid rgba(68,136,255,0.15); border-radius: 4px; font-family: "DM Mono", monospace; font-size: 10px; color: #5A6780; line-height: 1.8; margin-bottom: 1rem;'>
+        Formatos admitidos &nbsp;·&nbsp; .xlsx &nbsp;/&nbsp; .csv<br>
+        Columnas exigidas &nbsp;·&nbsp; <span style='color: #B0BACA;'>Instrumento</span> &nbsp;/&nbsp; <span style='color: #B0BACA;'>Valor_Mercado</span> &nbsp;/&nbsp; <span style='color: #B0BACA;'>Duracion</span> &nbsp;/&nbsp; <span style='color: #B0BACA;'>Convexidad</span> &nbsp;/&nbsp; <span style='color: #B0BACA;'>Tasa_YTM</span>
+    </div>
+    """, unsafe_allow_html=True)
+    archivo_activos = st.file_uploader("Cargar Activos", type=["xlsx", "csv"], label_visibility="collapsed", key="up_act")
 
-# ── Procesamiento y vista previa ───────────────────────────────────────────────
-if archivo_pasivos is not None:
+# ── PROCESAMIENTO ESTOCÁSTICO ──────────────────────────────────────────────────
+st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
+
+if archivo_pasivos is not None and archivo_activos is not None:
     try:
-        if archivo_pasivos.name.endswith('.csv'):
-            df_pasivos = pd.read_csv(archivo_pasivos)
-        else:
-            df_pasivos = pd.read_excel(archivo_pasivos)
+        # Lectura segura de ambos archivos
+        df_pasivos = pd.read_csv(archivo_pasivos) if archivo_pasivos.name.endswith('.csv') else pd.read_excel(archivo_pasivos)
+        df_activos = pd.read_csv(archivo_activos) if archivo_activos.name.endswith('.csv') else pd.read_excel(archivo_activos)
 
-        st.markdown("---")
-
+        # Diagnóstico del Balance
         st.markdown("""
-        <div style='margin-bottom: 1.5rem;'>
-            <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #5A6780; margin-bottom: 0.4rem;'>Validación</div>
-            <div style='font-family: "EB Garamond", Georgia, serif; font-size: 22px; color: #E8EDF5; font-weight: 400;'>Auditoría de Flujos</div>
-        </div>
+        <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #5A6780; margin-bottom: 0.4rem;'>Validación</div>
+        <div style='font-family: "EB Garamond", Georgia, serif; font-size: 22px; color: #E8EDF5; font-weight: 400; margin-bottom: 1.5rem;'>Auditoría de Brecha Estructural</div>
         """, unsafe_allow_html=True)
 
         c1, c2, c3 = st.columns(3)
-        c1.metric("Períodos proyectados",      f"{len(df_pasivos)}")
-        c2.metric("Pasivos nominales totales", f"${df_pasivos['Flujo_Esperado'].sum():,.2f} M")
-        c3.metric("Estado del archivo",        "Validado")
+        valor_total_pasivos = df_pasivos['Flujo_Esperado'].sum()
+        valor_total_activos = df_activos['Valor_Mercado'].sum()
+        
+        # Ponderación de duración de activos (Promedio ponderado)
+        df_activos['Peso'] = df_activos['Valor_Mercado'] / valor_total_activos
+        duracion_activos_cartera = (df_activos['Duracion'] * df_activos['Peso']).sum()
 
-        st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+        c1.metric("Valor Total Activos", f"${valor_total_activos:,.2f} M")
+        c2.metric("Valor Total Pasivos", f"${valor_total_pasivos:,.2f} M")
+        
+        # Estado de Cobertura (Sin delta redundante, puro dato crudo)
+        ratio = valor_total_activos / valor_total_pasivos
+        c3.metric("Ratio de Cobertura", f"{ratio*100:.1f}%")
 
-        st.dataframe(
-            df_pasivos,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Año":            st.column_config.NumberColumn(format="%d"),
-                "Flujo_Esperado": st.column_config.NumberColumn(format="$%f M"),
-            }
-        )
+        # Botón de Optimización
+        st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+        if st.button("Ejecutar Inmunización SLSQP", type="primary"):
+            st.info("Módulo cuantitativo en espera de conexión para reestructuración de cartera.")
 
     except Exception as e:
-        st.error(f"Error al procesar el archivo. Verifique que contenga las columnas 'Año' y 'Flujo_Esperado' con el formato esperado. Detalle: {e}")
+        st.error(f"Error de formato. Columnas requeridas ausentes o estructura inválida. Detalle técnico: {e}")
+elif archivo_pasivos is not None or archivo_activos is not None:
+    st.info("Aguardando ingesta del archivo complementario para inicializar diagnóstico ALM.")
 
 # ── Cierre de sesión ───────────────────────────────────────────────────────────
 st.markdown("---")
