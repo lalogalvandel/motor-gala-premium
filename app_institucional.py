@@ -440,14 +440,20 @@ with tab_contacto:
                 empresa_demo = st.text_input("Institución")
                 email_demo   = st.text_input("Correo corporativo")
 
-            interes = st.selectbox(
-                "Área de interés principal",
+            intereses_lista = st.multiselect(
+                "Áreas de interés (Puede seleccionar varias)",
                 [
+                    "Análisis Integral (Suite Completa)",
                     "Optimización de Reservas (Solvencia II)",
                     "Calce de Activos y Pasivos (ALM)",
                     "Proyecciones de Capital Estocásticas",
+                    "Otro requerimiento específico"
                 ],
+                default=["Análisis Integral (Suite Completa)"] # Nudge comercial
             )
+            
+            # Un campo extra para contexto de alto valor
+            comentarios = st.text_area("Detalles del requerimiento o comentarios (Opcional)", height=68)
 
             submit_demo = st.form_submit_button(
                 "Solicitar demostración técnica",
@@ -456,14 +462,21 @@ with tab_contacto:
             )
 
             if submit_demo:
-                if nombre_demo and empresa_demo and email_demo:
+                if nombre_demo and empresa_demo and email_demo and intereses_lista:
                     try:
+                        # Convertimos la lista en un solo texto separado por comas
+                        str_intereses = ", ".join(intereses_lista)
+                        
+                        # Si dejaron comentarios, se los pegamos al final del string
+                        if comentarios.strip():
+                            str_intereses += f" | Notas: {comentarios.strip()}"
+
                         db.table("leads_b2b").insert({
                             "nombre":     nombre_demo.strip(),
                             "cargo":      cargo_demo.strip(),
                             "empresa":    empresa_demo.strip(),
                             "email":      email_demo.strip().lower(),
-                            "interes":    interes,
+                            "interes":    str_intereses, # Mandamos el texto ensamblado
                             "contactado": False,
                         }).execute()
                         st.success(
@@ -473,7 +486,7 @@ with tab_contacto:
                     except Exception as e:
                         st.error(f"Error de conexión: {e}")
                 else:
-                    st.warning("Complete los campos obligatorios antes de continuar.")
+                    st.warning("Complete los campos obligatorios (Nombre, Institución, Correo y al menos un Interés).")
 
     with col_esp:
         st.markdown("""
