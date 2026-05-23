@@ -1,124 +1,595 @@
 import streamlit as st
+import requests
+from datetime import datetime
+import plotly.graph_objects as go
 from supabase import create_client
 
-@st.cache_data(ttl=21600)  # Cacheamos por 6 horas para no saturar la API de Banxico
-def obtener_tasa_libre_riesgo():
-    """
-    Consulta la tasa de rendimiento actual de los CETES 28 días (o TIIE) 
-    directamente desde la API del Banco de México.
-    """
-    try:
-        token = st.secrets["TOKEN_BANXICO"]
-        # Serie SF43936: Tasa de rendimiento de los CETES a 28 días en mercado secundario
-        # (Puedes cambiar la serie por la TIIE de Fondeo si lo prefieres)
-        url = f"https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43936/datos/oportuno?token={token}"
-        
-        headers = {"Accept": "application/json"}
-        response = requests.get(url, headers=headers, timeout=5)
-        
-        if response.status_code == 200:
-            datos = response.json()
-            # Extraemos el valor del dato oportuno
-            str_valor = datos["series"][0]["datos"][0]["dato"]
-            tasa = float(str_valor) / 100  # Convertimos de porcentaje (6.50) a decimal (0.065)
-            st.toast(f"📡 Tasa Banxico actualizada: {tasa*100:.2f}%", icon="")
-            return tasa
-    except Exception as e:
-        # Si la API de Banxico falla (algo común), usamos un fallback seguro para no tirar la app
-        st.sidebar.error(f"Error API Banxico: {e}. Usando tasa de respaldo.")
-    
-    return 0.065  # Fallback histórico de seguridad AJUSTAR DE SER NECESARIO
+# Importamos el nuevo cerebro actuarial
+from modulos.actuaria_alm import simular_brecha_duracion, calcular_rcs_mercado
+
+# ── Configuración de página Institucional ──────────────────────────────────────
+st.set_page_config(
+    page_title="GaLa Institutional Solutions",
+    page_icon="",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# ── CSS Institucional ──────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400;500&display=swap');
+
+/* ── Reset y base ─────────────────────────────────────────────────────── */
+#MainMenu {visibility: hidden;}
+footer     {visibility: hidden;}
+header     {visibility: hidden;}
+
+html, body, [class*="css"] {
+    font-family: 'EB Garamond', Georgia, serif;
+}
+
+.stApp {
+    background-color: #0C0F14;
+    background-image:
+        linear-gradient(rgba(68,136,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(68,136,255,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+}
+
+/* ── Tipografía ───────────────────────────────────────────────────────── */
+h1, h2, h3 {
+    font-family: 'EB Garamond', Georgia, serif !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.01em !important;
+    color: #E8EDF5 !important;
+}
+
+p, div, label, span {
+    font-family: 'EB Garamond', Georgia, serif;
+    color: #B0BACA;
+}
+
+/* ── Tabs ─────────────────────────────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {
+    justify-content: center;
+    background: transparent;
+    border-bottom: 0.5px solid rgba(68,136,255,0.2);
+    gap: 2rem;
+}
+
+.stTabs [data-baseweb="tab"] {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 11px !important;
+    font-weight: 400 !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase !important;
+    color: #5A6780 !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0.75rem 0.5rem !important;
+}
+
+.stTabs [aria-selected="true"] {
+    color: #4488FF !important;
+    border-bottom: 1px solid #4488FF !important;
+}
+
+/* ── Inputs ───────────────────────────────────────────────────────────── */
+[data-testid="stNumberInput"] input,
+[data-testid="stTextInput"] input,
+[data-testid="stSelectbox"] > div > div {
+    background-color: #0F1420 !important;
+    border: 0.5px solid rgba(68,136,255,0.2) !important;
+    border-radius: 4px !important;
+    color: #E8EDF5 !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: 13px !important;
+}
+
+[data-testid="stNumberInput"] input:focus,
+[data-testid="stTextInput"] input:focus {
+    border-color: rgba(68,136,255,0.6) !important;
+    box-shadow: 0 0 0 1px rgba(68,136,255,0.15) !important;
+}
+
+/* ── Slider ───────────────────────────────────────────────────────────── */
+[data-testid="stSlider"] > div > div > div {
+    background: linear-gradient(90deg, #4488FF, #4488FF) !important;
+}
+
+/* ── Métricas ─────────────────────────────────────────────────────────── */
+[data-testid="stMetric"] {
+    background: linear-gradient(135deg, #0F1420 0%, #111827 100%);
+    border: 0.5px solid rgba(68,136,255,0.15);
+    border-radius: 6px;
+    padding: 1.25rem 1.5rem;
+}
+
+[data-testid="stMetricLabel"] {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 10px !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+    color: #5A6780 !important;
+}
+
+[data-testid="stMetricValue"] {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 1.6rem !important;
+    color: #E8EDF5 !important;
+    letter-spacing: -0.02em !important;
+}
+
+/* ── Botones ──────────────────────────────────────────────────────────── */
+.stButton > button, .stFormSubmitButton > button {
+    background: transparent !important;
+    border: 0.5px solid rgba(68,136,255,0.5) !important;
+    color: #4488FF !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: 11px !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+    padding: 0.6rem 1.5rem !important;
+    border-radius: 3px !important;
+    transition: all 0.2s ease !important;
+    width: 100%;
+}
+
+.stButton > button:hover, .stFormSubmitButton > button:hover {
+    background: rgba(68,136,255,0.08) !important;
+    border-color: #4488FF !important;
+}
+
+[data-testid="baseButton-primary"] {
+    background: #4488FF !important;
+    color: #0C0F14 !important;
+    border: none !important;
+    font-weight: 500 !important;
+}
+
+[data-testid="baseButton-primary"]:hover {
+    background: #5594FF !important;
+}
+
+/* ── Divisor ──────────────────────────────────────────────────────────── */
+hr {
+    border: none !important;
+    border-top: 0.5px solid rgba(68,136,255,0.15) !important;
+    margin: 2rem 0 !important;
+}
+
+/* ── Dataframe / tabla ────────────────────────────────────────────────── */
+[data-testid="stDataFrame"] {
+    border: 0.5px solid rgba(68,136,255,0.15) !important;
+    border-radius: 6px !important;
+}
+
+/* ── Alertas ──────────────────────────────────────────────────────────── */
+[data-testid="stAlert"] {
+    border-radius: 4px !important;
+    border-left-width: 2px !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: 13px !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ── Conexión a Base de Datos ───────────────────────────────────────────────────
 try:
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
     db = create_client(url, key)
 except Exception as e:
     st.error(f"Error al inicializar la base de datos: {e}")
-from datetime import datetime
 
-st.set_page_config(
-    page_title="GaLa Institutional Solutions",
-    page_icon="🏛️",
-    layout="centered", # Centrado para que el login se vea elegante y minimalista
-    initial_sidebar_state="collapsed"
-)
+# ── Conexión API Banxico ───────────────────────────────────────────────────────
+@st.cache_data(ttl=21600)
+def obtener_tasa_libre_riesgo():
+    try:
+        token = st.secrets["TOKEN_BANXICO"]
+        url = f"https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43936/datos/oportuno?token={token}"
+        response = requests.get(url, headers={"Accept": "application/json"}, timeout=5)
+        if response.status_code == 200:
+            str_valor = response.json()["series"][0]["datos"][0]["dato"]
+            return float(str_valor) / 100
+    except:
+        pass
+    return 0.065
 
-# ── Estilos CSS Minimalistas ───────────────────────────────────────────────────
+# ── Encabezado institucional ───────────────────────────────────────────────────
 st.markdown("""
-<style>
-    /* Ocultar menú de Streamlit y footer para dar look de software privado */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-</style>
+<div style='text-align: center; padding: 3rem 0 1.5rem;'>
+    <div style='
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        color: #4488FF;
+        margin-bottom: 1.25rem;
+    '>Motor GaLa · Soluciones Institucionales</div>
+    <div style='
+        font-family: "EB Garamond", Georgia, serif;
+        font-size: clamp(28px, 4vw, 42px);
+        font-weight: 400;
+        color: #E8EDF5;
+        letter-spacing: 0.02em;
+        margin-bottom: 0.75rem;
+        line-height: 1.2;
+    '>Asset &amp; Liability Management</div>
+    <div style='
+        font-family: "EB Garamond", Georgia, serif;
+        font-size: 17px;
+        font-style: italic;
+        color: #5A6780;
+        margin-bottom: 0.5rem;
+    '>Plataforma cuantitativa para aseguradoras bajo normativa Solvencia II</div>
+</div>
 """, unsafe_allow_html=True)
 
-# ── Encabezado B2B ─────────────────────────────────────────────────────────────
-st.markdown("<div style='text-align: center; margin-top: 3rem;'>", unsafe_allow_html=True)
-st.title("Motor GaLa")
-st.markdown("### Institutional Asset & Liability Management")
-st.markdown("*Plataforma cuantitativa avanzada para Aseguradoras y Fondos de Inversión.*")
-st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("---")
 
-# ── Sistema de Acceso / Demo ───────────────────────────────────────────────────
-# Usamos tabs limpios para separar el Login del formulario de ventas
-tab_login, tab_demo = st.tabs(["Acceso a Clientes", "Solicitar Demo Corporativa"])
+# ── Navegación Principal ───────────────────────────────────────────────────────
+tab_demo, tab_contacto, tab_login = st.tabs([
+    "Simulador ALM",
+    "Solicitar Evaluación",
+    "Acceso Institucional",
+])
 
-with tab_login:
-    st.subheader("Portal de Acceso")
-    email_inst = st.text_input("Correo corporativo", key="login_email")
-    pass_inst = st.text_input("Contraseña", type="password", key="login_pass")
-    
-    if st.button("Ingresar al Sistema", use_container_width=True, type="primary"):
-        if email_inst and pass_inst:
-            # Aquí conectaremos con la tabla usuarios_institucionales después
-            st.warning("El módulo de autenticación B2B está en construcción.")
-        else:
-            st.error("Ingrese credenciales corporativas válidas.")
-
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 1: SIMULADOR ALM
+# ══════════════════════════════════════════════════════════════════════════════
 with tab_demo:
-    st.subheader("Contacto Comercial")
-    st.markdown("Motor GaLa opera bajo licenciamiento exclusivo. Solicite una evaluación técnica de nuestra arquitectura para su institución.")
-    
-    with st.form("form_demo"):
-        col1, col2 = st.columns(2)
-        with col1:
-            nombre_demo = st.text_input("Nombre completo del solicitante")
-            cargo_demo = st.text_input("Cargo (Ej. Actuario Jefe, CRO)")
-        with col2:
-            empresa_demo = st.text_input("Institución / Aseguradora")
-            email_demo = st.text_input("Correo corporativo")
-            
-        interes = st.selectbox("Área de interés principal", [
-            "Optimización de Reservas (Solvencia II)",
-            "Calce de Activos y Pasivos (ALM)",
-            "Proyecciones de Capital Estocásticas",
-            "Otro"
-        ])
-        
-        submit_demo = st.form_submit_button("Agendar demostración técnica", use_container_width=True)
-        
-        if submit_demo:
-            if nombre_demo and empresa_demo and email_demo:
-                try:
-                    # Empaquetamos la info y la mandamos a Supabase
-                    db.table("leads_b2b").insert({
-                        "nombre": nombre_demo.strip(),
-                        "cargo": cargo_demo.strip(),
-                        "empresa": empresa_demo.strip(),
-                        "email": email_demo.strip().lower(),
-                        "interes": interes,
-                        "contactado": False
-                    }).execute()
-                    
-                    st.success("Solicitud recibida con éxito. Nuestro equipo de arquitectura cuantitativa se pondrá en contacto a la brevedad para agendar la evaluación.")
-                except Exception as e:
-                    st.error(f"Error de conexión con el servidor. Detalle técnico: {e}")
-            else:
-                st.warning("Por favor, complete los campos obligatorios (Nombre, Institución y Correo).")
 
-# ── Pie de página corporativo ──────────────────────────────────────────────────
-st.markdown("<div style='margin-top: 5rem; text-align: center; color: gray; font-size: 0.8rem;'>", unsafe_allow_html=True)
-st.markdown(f"&copy; {datetime.now().year} Motor GaLa Quant Solutions. Todos los derechos reservados.")
-st.markdown("</div>", unsafe_allow_html=True)
+    tasa_mercado = obtener_tasa_libre_riesgo()
+
+    st.markdown(f"""
+    <div style='
+        text-align: center;
+        font-family: "DM Mono", monospace;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        color: #5A6780;
+        margin: 1.5rem 0 2.5rem;
+    '>
+        Tasa Libre de Riesgo &nbsp;·&nbsp; CETES 28d (Banxico)
+        &nbsp;&nbsp;
+        <span style='
+            color: #17C37B;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+        '>{tasa_mercado*100:.2f}%</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_act, col_pas, col_res = st.columns([1, 1, 1.5], gap="large")
+
+    with col_act:
+        st.markdown("""
+        <div style='
+            font-family: "DM Mono", monospace;
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: #4488FF;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 0.5px solid rgba(68,136,255,0.2);
+        '>Activos — Inversiones</div>
+        """, unsafe_allow_html=True)
+
+        v_activos   = st.number_input("Valor de Activos (M MXN)",           value=1000.0, step=50.0)
+        d_activos   = st.number_input("Duración de Activos (Años)",          value=4.5,   step=0.1)
+        vol_activos = st.slider("Volatilidad Anual del Portafolio",          0.0, 0.3, 0.08, format="%.2f")
+
+    with col_pas:
+        st.markdown("""
+        <div style='
+            font-family: "DM Mono", monospace;
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: #FF6B6B;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 0.5px solid rgba(255,107,107,0.2);
+        '>Pasivos — Reservas</div>
+        """, unsafe_allow_html=True)
+
+        v_pasivos = st.number_input("Valor de Pasivos (M MXN)",   value=920.0, step=50.0)
+        d_pasivos = st.number_input("Duración de Pasivos (Años)", value=6.2,   step=0.1)
+
+    with col_res:
+        st.markdown("""
+        <div style='
+            font-family: "DM Mono", monospace;
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: #B0BACA;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 0.5px solid rgba(176,186,202,0.15);
+        '>Análisis de Riesgo</div>
+        """, unsafe_allow_html=True)
+
+        # Matemáticas en acción
+        gap = simular_brecha_duracion(d_activos, d_pasivos, v_activos, v_pasivos)
+        scr = calcular_rcs_mercado(v_activos, vol_activos)
+
+        # Formateo visual
+        color_gap = "#17C37B" if abs(gap) < 0.5 else ("#d4a017" if abs(gap) < 1.5 else "#FF4B4B")
+        estado_gap = "Inmunizado" if abs(gap) < 0.5 else ("Riesgo Moderado" if abs(gap) < 1.5 else "Riesgo Crítico")
+
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=gap,
+            number={
+                'font': {'family': 'DM Mono', 'size': 32, 'color': color_gap},
+                'suffix': ' años',
+            },
+            title={
+                'text': (
+                    f"Brecha de Duración<br>"
+                    f"<span style='font-size:11px; font-family:DM Mono; "
+                    f"color:{color_gap}; letter-spacing:0.1em; text-transform:uppercase;'>"
+                    f"{estado_gap}</span>"
+                ),
+                'font': {'family': 'EB Garamond', 'size': 15, 'color': '#B0BACA'},
+            },
+            gauge={
+                'axis': {
+                    'range': [-5, 5],
+                    'tickfont': {'family': 'DM Mono', 'size': 9, 'color': '#5A6780'},
+                    'tickwidth': 1,
+                    'tickcolor': '#1E2535',
+                },
+                'bar': {'color': color_gap, 'thickness': 0.2},
+                'bgcolor': '#0C0F14',
+                'borderwidth': 0,
+                'steps': [
+                    {'range': [-5.0, -1.5], 'color': 'rgba(255,75,75,0.12)'},
+                    {'range': [-1.5, -0.5], 'color': 'rgba(212,160,23,0.12)'},
+                    {'range': [-0.5,  0.5], 'color': 'rgba(23,195,123,0.12)'},
+                    {'range': [ 0.5,  1.5], 'color': 'rgba(212,160,23,0.12)'},
+                    {'range': [ 1.5,  5.0], 'color': 'rgba(255,75,75,0.12)'},
+                ],
+                'threshold': {
+                    'line': {'color': color_gap, 'width': 2},
+                    'thickness': 0.8,
+                    'value': gap,
+                },
+            },
+        ))
+        fig.update_layout(
+            height=260,
+            margin=dict(l=24, r=24, t=48, b=8),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font={'family': 'EB Garamond'},
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.metric(
+            label="RCS Exigido — Solvencia II (99.5%)",
+            value=f"${scr:,.1f} M MXN",
+        )
+
+        st.markdown(f"""
+        <div style='
+            margin-top: 1rem;
+            padding: 1rem 1.25rem;
+            background: rgba(68,136,255,0.04);
+            border: 0.5px solid rgba(68,136,255,0.15);
+            border-radius: 4px;
+            font-family: "DM Mono", monospace;
+            font-size: 11px;
+            color: #5A6780;
+            line-height: 1.7;
+        '>
+            <span style='color:#4488FF; letter-spacing:0.08em;'>DIAGNÓSTICO</span><br>
+            Duration Gap: <span style='color:{color_gap}'>{gap:+.2f} años</span><br>
+            Ratio A/P: <span style='color:#B0BACA'>{v_activos/v_pasivos:.3f}x</span><br>
+            Estado normativo: <span style='color:{color_gap}'>{estado_gap}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 2: FORMULARIO DE CONTACTO
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_contacto:
+
+    st.markdown("""
+    <div style='max-width: 680px; margin: 2rem auto 2.5rem;'>
+        <div style='
+            font-family: "DM Mono", monospace;
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #4488FF;
+            margin-bottom: 0.75rem;
+        '>Licenciamiento Exclusivo</div>
+        <div style='
+            font-family: "EB Garamond", Georgia, serif;
+            font-size: 22px;
+            color: #E8EDF5;
+            margin-bottom: 1rem;
+            line-height: 1.4;
+        '>Solicite una evaluación técnica</div>
+        <div style='
+            font-family: "EB Garamond", Georgia, serif;
+            font-size: 16px;
+            font-style: italic;
+            color: #5A6780;
+            line-height: 1.65;
+        '>
+            Motor GaLa opera bajo licenciamiento institucional. Nuestra arquitectura incluye
+            modelado estocástico de escenarios de tasas, calce de convexidad activo-pasivo y
+            cumplimiento normativo CUSF / Solvencia II.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_form, col_esp = st.columns([1.4, 1], gap="large")
+
+    with col_form:
+        with st.form("form_demo"):
+            c1, c2 = st.columns(2, gap="medium")
+            with c1:
+                nombre_demo = st.text_input("Nombre completo")
+                cargo_demo  = st.text_input("Cargo", placeholder="Actuario Jefe, CRO, CFO")
+            with c2:
+                empresa_demo = st.text_input("Institución")
+                email_demo   = st.text_input("Correo corporativo")
+
+            interes = st.selectbox(
+                "Área de interés principal",
+                [
+                    "Optimización de Reservas (Solvencia II)",
+                    "Calce de Activos y Pasivos (ALM)",
+                    "Proyecciones de Capital Estocásticas",
+                ],
+            )
+
+            submit_demo = st.form_submit_button(
+                "Solicitar demostración técnica",
+                type="primary",
+                use_container_width=True,
+            )
+
+            if submit_demo:
+                if nombre_demo and empresa_demo and email_demo:
+                    try:
+                        db.table("leads_b2b").insert({
+                            "nombre":     nombre_demo.strip(),
+                            "cargo":      cargo_demo.strip(),
+                            "empresa":    empresa_demo.strip(),
+                            "email":      email_demo.strip().lower(),
+                            "interes":    interes,
+                            "contactado": False,
+                        }).execute()
+                        st.success(
+                            "Solicitud registrada. Nuestro equipo de arquitectura cuantitativa "
+                            "se pondrá en contacto en las próximas 24 horas hábiles."
+                        )
+                    except Exception as e:
+                        st.error(f"Error de conexión: {e}")
+                else:
+                    st.warning("Complete los campos obligatorios antes de continuar.")
+
+    with col_esp:
+        st.markdown("""
+        <div style='
+            padding: 2rem;
+            border: 0.5px solid rgba(68,136,255,0.15);
+            border-radius: 6px;
+            background: linear-gradient(135deg, rgba(15,20,32,0.8) 0%, rgba(17,24,39,0.8) 100%);
+            margin-top: 0.25rem;
+        '>
+            <div style='
+                font-family: "DM Mono", monospace;
+                font-size: 10px;
+                letter-spacing: 0.15em;
+                text-transform: uppercase;
+                color: #4488FF;
+                margin-bottom: 1.25rem;
+            '>Módulos disponibles</div>
+            <div style='
+                font-family: "EB Garamond", Georgia, serif;
+                font-size: 15px;
+                color: #B0BACA;
+                line-height: 2;
+            '>
+                <div style='color:#E8EDF5; margin-bottom: 0.25rem;'>Análisis de Brecha de Duración</div>
+                <div style='color:#E8EDF5; margin-bottom: 0.25rem;'>RCS — Requerimiento de Capital de Solvencia</div>
+                <div style='color:#E8EDF5; margin-bottom: 0.25rem;'>Optimización de Frontera Eficiente ALM</div>
+                <div style='color:#E8EDF5; margin-bottom: 0.25rem;'>Monte Carlo bajo escenarios de tasas</div>
+                <div style='color:#E8EDF5; margin-bottom: 0.25rem;'>Cumplimiento CUSF / Solvencia II</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3: LOGIN INSTITUCIONAL
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_login:
+
+    st.markdown("""
+    <div style='
+        max-width: 420px;
+        margin: 3rem auto 0;
+        text-align: center;
+    '>
+        <div style='
+            font-family: "DM Mono", monospace;
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #5A6780;
+            margin-bottom: 2.5rem;
+        '>Portal de Acceso Institucional</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_esp1, col_log, col_esp2 = st.columns([1, 1.2, 1])
+    with col_log:
+        st.markdown("""
+        <div style='
+            padding: 2.5rem;
+            border: 0.5px solid rgba(68,136,255,0.2);
+            border-radius: 6px;
+            background: linear-gradient(135deg, #0F1420 0%, #111827 100%);
+        '>
+        """, unsafe_allow_html=True)
+
+        st.text_input("ID Corporativo",              key="log_id")
+        st.text_input("Llave de Acceso (Token)",     type="password", key="log_pass")
+
+        if st.button("Autenticar Terminal", use_container_width=True):
+            st.info("Módulo de autenticación corporativa en fase de despliegue.")
+
+        st.markdown("""
+        <div style='
+            margin-top: 1.5rem;
+            font-family: "DM Mono", monospace;
+            font-size: 10px;
+            letter-spacing: 0.06em;
+            color: #2E3A4E;
+            text-align: center;
+            line-height: 1.6;
+        '>
+            Acceso exclusivo para clientes licenciados.<br>
+            Para solicitar credenciales, contacte al equipo técnico.
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+# ── Footer ─────────────────────────────────────────────────────────────────────
+st.markdown(f"""
+<div style='
+    margin-top: 6rem;
+    padding: 1.5rem 0;
+    border-top: 0.5px solid rgba(68,136,255,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+'>
+    <div style='
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        color: #2E3A4E;
+        text-transform: uppercase;
+    '>Motor GaLa Quant Solutions</div>
+    <div style='
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        color: #2E3A4E;
+    '>&copy; {datetime.now().year} &nbsp;·&nbsp; Todos los derechos reservados</div>
+</div>
+""", unsafe_allow_html=True)
