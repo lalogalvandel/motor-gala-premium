@@ -642,9 +642,9 @@ with tab_contacto:
 # TAB 3: ACCESO INSTITUCIONAL
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_login:
- 
+
     col_esp1, col_log, col_esp2 = st.columns([1, 1.2, 1])
- 
+
     with col_log:
         st.markdown("""
         <div style='
@@ -667,7 +667,7 @@ with tab_login:
             '>Acceso Institucional</div>
         </div>
         """, unsafe_allow_html=True)
- 
+
         st.markdown("""
         <div style='
             padding: 2.5rem;
@@ -676,19 +676,19 @@ with tab_login:
             background: linear-gradient(160deg, #0F1420 0%, #0C1019 100%);
         '>
         """, unsafe_allow_html=True)
- 
+
         id_corp   = st.text_input("ID Corporativo",          placeholder="Identificador de institución")
         pass_corp = st.text_input("Clave de acceso",         placeholder="Token de autenticación", type="password")
- 
+
         st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
- 
+
         if st.button("Iniciar sesión", use_container_width=True, type="primary"):
             if id_corp == "demo_gala" and pass_corp == "admin2026":
                 st.session_state["autenticado"] = True
                 st.rerun()
             else:
                 st.error("Credenciales inválidas. Verifique su ID corporativo y clave de acceso.")
- 
+
         st.markdown("""
         <div style='
             margin-top: 1.75rem;
@@ -706,32 +706,6 @@ with tab_login:
         </div>
         </div>
         """, unsafe_allow_html=True)
-
-    col_esp1, col_log, col_esp2 = st.columns([1, 1.2, 1])
-    
-    with col_log:
-        # Eliminamos el HTML conflictivo y dejamos los inputs directos
-        st.text_input("ID Corporativo",              key="log_id")
-        st.text_input("Llave de Acceso (Token)",     type="password", key="log_pass")
-
-        if st.button("Autenticar Terminal", use_container_width=True):
-            st.info("Módulo de autenticación corporativa en fase de despliegue.")
-
-        st.markdown("""
-        <div style='
-            margin-top: 1.5rem;
-            font-family: "DM Mono", monospace;
-            font-size: 10px;
-            letter-spacing: 0.06em;
-            color: #2E3A4E;
-            text-align: center;
-            line-height: 1.6;
-        '>
-            Acceso exclusivo para clientes licenciados.<br>
-            Para solicitar credenciales, contacte al equipo técnico.
-        </div>
-        """, unsafe_allow_html=True)
-
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown(f"""
