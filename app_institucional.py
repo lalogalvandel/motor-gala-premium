@@ -6,7 +6,8 @@ try:
     key = st.secrets["SUPABASE_KEY"]
     db = create_client(url, key)
 except Exception as e:
-    st.error(f"Error al inicializar la base de datos: {e}")from datetime import datetime
+    st.error(f"Error al inicializar la base de datos: {e}")
+from datetime import datetime
 
 st.set_page_config(
     page_title="GaLa Institutional Solutions",
