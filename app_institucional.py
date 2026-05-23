@@ -259,6 +259,7 @@ with tab_demo:
     </div>
     """, unsafe_allow_html=True)
 
+    # ── BLOQUE SUPERIOR: Inputs y Diagnóstico ──
     col_act, col_pas, col_res = st.columns([1, 1, 1.5], gap="large")
 
     with col_act:
@@ -275,9 +276,9 @@ with tab_demo:
         '>Activos — Inversiones</div>
         """, unsafe_allow_html=True)
 
-        v_activos   = st.number_input("Valor de Activos (M MXN)",           value=1000.0, step=50.0)
-        d_activos   = st.number_input("Duración de Activos (Años)",          value=4.5,   step=0.1)
-        vol_activos = st.slider("Volatilidad Anual del Portafolio",          0.0, 0.3, 0.08, format="%.2f")
+        v_activos   = st.number_input("Valor de Activos (M MXN)",          value=1000.0, step=50.0)
+        d_activos   = st.number_input("Duración de Activos (Años)",        value=4.5,    step=0.1)
+        vol_activos = st.slider("Volatilidad Anual del Portafolio",        0.0, 0.3, 0.08, format="%.2f")
 
     with col_pas:
         st.markdown("""
@@ -307,14 +308,12 @@ with tab_demo:
             margin-bottom: 1.25rem;
             padding-bottom: 0.5rem;
             border-bottom: 0.5px solid rgba(176,186,202,0.15);
-        '>Análisis de Riesgo</div>
+        '>Análisis de Riesgo ALM</div>
         """, unsafe_allow_html=True)
 
-        # Matemáticas en acción
         gap = simular_brecha_duracion(d_activos, d_pasivos, v_activos, v_pasivos)
         scr = calcular_rcs_mercado(v_activos, vol_activos)
 
-        # Formateo visual
         color_gap = "#17C37B" if abs(gap) < 0.5 else ("#d4a017" if abs(gap) < 1.5 else "#FF4B4B")
         estado_gap = "Inmunizado" if abs(gap) < 0.5 else ("Riesgo Moderado" if abs(gap) < 1.5 else "Riesgo Crítico")
 
@@ -335,12 +334,7 @@ with tab_demo:
                 'font': {'family': 'EB Garamond', 'size': 15, 'color': '#B0BACA'},
             },
             gauge={
-                'axis': {
-                    'range': [-5, 5],
-                    'tickfont': {'family': 'DM Mono', 'size': 9, 'color': '#5A6780'},
-                    'tickwidth': 1,
-                    'tickcolor': '#1E2535',
-                },
+                'axis': {'range': [-5, 5], 'tickfont': {'family': 'DM Mono', 'size': 9, 'color': '#5A6780'}, 'tickwidth': 1, 'tickcolor': '#1E2535'},
                 'bar': {'color': color_gap, 'thickness': 0.2},
                 'bgcolor': '#0C0F14',
                 'borderwidth': 0,
@@ -351,77 +345,68 @@ with tab_demo:
                     {'range': [ 0.5,  1.5], 'color': 'rgba(212,160,23,0.12)'},
                     {'range': [ 1.5,  5.0], 'color': 'rgba(255,75,75,0.12)'},
                 ],
-                'threshold': {
-                    'line': {'color': color_gap, 'width': 2},
-                    'thickness': 0.8,
-                    'value': gap,
-                },
+                'threshold': {'line': {'color': color_gap, 'width': 2}, 'thickness': 0.8, 'value': gap},
             },
         ))
-        fig.update_layout(
-            height=260,
-            margin=dict(l=24, r=24, t=48, b=8),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font={'family': 'EB Garamond'},
-        )
+        fig.update_layout(height=220, margin=dict(l=24, r=24, t=48, b=8), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font={'family': 'EB Garamond'})
         st.plotly_chart(fig, use_container_width=True)
 
-        st.metric(
-            label="RCS Exigido — Solvencia II (99.5%)",
-            value=f"${scr:,.1f} M MXN",
-        )
+    # ── BLOQUE INFERIOR: Optimizador SLSQP ──
+    st.markdown("---")
+    st.markdown("""
+    <div style='
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: #4488FF;
+        margin-bottom: 1rem;
+    '>Motor de Inmunización (SLSQP)</div>
+    """, unsafe_allow_html=True)
 
-        st.markdown(f"""
-        <div style='
-            margin-top: 1rem;
-            padding: 1rem 1.25rem;
-            background: rgba(68,136,255,0.04);
-            border: 0.5px solid rgba(68,136,255,0.15);
-            border-radius: 4px;
-            font-family: "DM Mono", monospace;
-            font-size: 11px;
-            color: #5A6780;
-            line-height: 1.7;
-        '>
-            <span style='color:#4488FF; letter-spacing:0.08em;'>DIAGNÓSTICO</span><br>
-            Duration Gap: <span style='color:{color_gap}'>{gap:+.2f} años</span><br>
-            Ratio A/P: <span style='color:#B0BACA'>{v_activos/v_pasivos:.3f}x</span><br>
-            Estado normativo: <span style='color:{color_gap}'>{estado_gap}</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("---")
-        st.markdown("""
-        <div style='
-            font-family: "DM Mono", monospace;
-            font-size: 10px;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-            color: #4488FF;
-            margin-bottom: 1rem;
-        '>Optimizador de Inmunización (SLSQP)</div>
-        """, unsafe_allow_html=True)
-
-        if st.button("Generar Portafolio Óptimo de Cobertura", type="primary", use_container_width=True):
-            # Simulamos las opciones de renta fija disponibles en el mercado
-            nombres_mercado = ["Cetes 28d", "Cetes 364d", "Mbono 3A", "Mbono 10A", "Corp 5A"]
-            duraciones_mercado = np.array([0.08, 0.95, 2.8, 8.1, 4.2])
-            yields_mercado = np.array([0.11, 0.105, 0.09, 0.085, 0.115])
+    if st.button("Generar Portafolio Óptimo de Cobertura", type="primary"):
+        nombres_mercado = ["Cetes 28d", "Cetes 364d", "Mbono 3A", "Mbono 10A", "Corp 5A"]
+        duraciones_mercado = np.array([0.08, 0.95, 2.8, 8.1, 4.2])
+        yields_mercado = np.array([0.11, 0.105, 0.09, 0.085, 0.115])
+        
+        with st.spinner("Ejecutando algoritmo de calce estocástico..."):
+            resultado = optimizar_inmunizacion(duraciones_mercado, yields_mercado, d_pasivos)
             
-            with st.spinner("Ejecutando algoritmo de calce estocástico..."):
-                resultado = optimizar_inmunizacion(duraciones_mercado, yields_mercado, d_pasivos)
+            if resultado["exito"]:
+                col_res_txt, col_res_plot = st.columns([1, 1.5], gap="large")
                 
-                if resultado["exito"]:
-                    st.success(f"✅ Inmunización lograda: {resultado['duracion_lograda']:.2f} años")
-                    st.info(f"📈 Rendimiento esperado: {resultado['rendimiento_esperado']*100:.2f}%")
+                with col_res_txt:
+                    st.success(f"✅ **Calce Logrado:** {resultado['duracion_lograda']:.2f} años")
+                    st.info(f"📈 **Yield Optimizado:** {resultado['rendimiento_esperado']*100:.2f}%")
                     
-                    # Mostramos los pesos óptimos
+                    st.markdown("<br><span style='color:#B0BACA; font-size:14px;'>Estructura del portafolio:</span>", unsafe_allow_html=True)
                     for nombre, peso in zip(nombres_mercado, resultado["pesos"]):
-                        if peso > 0.01: # Solo mostramos si asignó más del 1%
-                            st.write(f"**{nombre}:** {peso*100:.1f}%")
-                else:
-                    st.error("⚠️ Riesgo de mercado: No hay instrumentos disponibles para calzar una duración tan extrema.")
+                        if peso > 0.01:
+                            st.markdown(f"- **{nombre}:** {peso*100:.1f}%")
+                            
+                with col_res_plot:
+                    # Filtramos los activos con peso 0 para limpiar la gráfica
+                    labels_f = [n for n, p in zip(nombres_mercado, resultado["pesos"]) if p > 0.01]
+                    valores_f = [p for p in resultado["pesos"] if p > 0.01]
+                    
+                    fig_pie = go.Figure(data=[go.Pie(
+                        labels=labels_f, 
+                        values=valores_f, 
+                        hole=.5,
+                        textinfo='label+percent',
+                        marker=dict(colors=['#4488FF', '#17C37B', '#d4a017', '#FF4B4B', '#9b59b6'])
+                    )])
+                    fig_pie.update_layout(
+                        showlegend=False,
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        margin=dict(t=10, b=10, l=10, r=10),
+                        height=250,
+                        font={'family': 'DM Mono', 'color': '#B0BACA', 'size': 11}
+                    )
+                    st.plotly_chart(fig_pie, use_container_width=True)
+            else:
+                st.error("⚠️ Riesgo estructural: No hay instrumentos disponibles para calzar una duración tan extrema en el pasivo.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
