@@ -1,4 +1,5 @@
 import streamlit as st
+from modulos.utilidades import db
 from datetime import datetime
 
 # ── Configuración de página Institucional ──────────────────────────────────────
@@ -67,10 +68,22 @@ with tab_demo:
         
         if submit_demo:
             if nombre_demo and empresa_demo and email_demo:
-                # Aquí enviaremos los datos a la tabla leads_b2b en Supabase
-                st.success("Solicitud recibida. Nuestro equipo se pondrá en contacto para agendar la evaluación.")
+                try:
+                    # Empaquetamos la info y la mandamos a Supabase
+                    db.table("leads_b2b").insert({
+                        "nombre": nombre_demo.strip(),
+                        "cargo": cargo_demo.strip(),
+                        "empresa": empresa_demo.strip(),
+                        "email": email_demo.strip().lower(),
+                        "interes": interes,
+                        "contactado": False
+                    }).execute()
+                    
+                    st.success("Solicitud recibida con éxito. Nuestro equipo de arquitectura cuantitativa se pondrá en contacto a la brevedad para agendar la evaluación.")
+                except Exception as e:
+                    st.error(f"Error de conexión con el servidor. Detalle técnico: {e}")
             else:
-                st.error("Por favor, complete los campos obligatorios.")
+                st.warning("Por favor, complete los campos obligatorios (Nombre, Institución y Correo).")
 
 # ── Pie de página corporativo ──────────────────────────────────────────────────
 st.markdown("<div style='margin-top: 5rem; text-align: center; color: gray; font-size: 0.8rem;'>", unsafe_allow_html=True)
