@@ -73,6 +73,14 @@ hr {
     letter-spacing: 0.1em !important;
     text-transform: uppercase !important;
     color: #5A6780 !important;
+    
+    /* ── EL ARREGLO MÁGICO ── */
+    white-space: normal !important;   
+    overflow: visible !important;   
+    text-overflow: clip !important;  
+    line-height: 1.4 !important;     
+    display: block !important;       
+    width: 100% !important;      
 }
 [data-testid="stMetricValue"] {
     font-family: 'DM Mono', monospace !important;
