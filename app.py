@@ -677,9 +677,6 @@ def _header(eyebrow: str, titulo: str, color: str = "#5A6780"):
     """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# NAVEGACIÓN POR TABS
-# ══════════════════════════════════════════════════════════════════════════════
-# ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR GLOBAL (CONTROLES)
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
@@ -753,7 +750,7 @@ with st.sidebar:
     st.caption("Motor GaLa Premium · Sistema Institucional")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# NAVEGACIÓN POR TABS Y CACHÉ DE FUNCIONES
+# CACHÉ DE FUNCIONES Y SETUP DE TABS
 # ══════════════════════════════════════════════════════════════════════════════
 
 @st.cache_data(show_spinner=False, ttl=86400)
@@ -831,45 +828,9 @@ with tab_motor:
                     with c2:
                         st.markdown("**Selección óptima por cluster**")
                         st.dataframe(df_mejores[["Ticker","Nombre","Sector","Cluster",
-                                                  "Market Cap (B)","P/E Ratio","Profit Margin %"]],
+                                                 "Market Cap (B)","P/E Ratio","Profit Margin %"]],
                                      height=300, use_container_width=True)
                     st.info(f"Cartera sugerida: **{tickers_sugeridos}**")
-
-    # Sidebar: Módulo 2
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("2. Parámetros de Optimización")
-
-    tickers_default = st.session_state["tickers_screening"] \
-        if usar_screening and "tickers_screening" in st.session_state \
-        else "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"
-
-    with st.sidebar.form("optim_form"):
-        tickers_input         = st.text_area("Activos a optimizar", value=tickers_default, height=70, key="widget_tickers")
-        fecha_inicio          = st.date_input("Fecha de inicio", value=pd.Timestamp("2020-01-01"))
-        fecha_fin             = st.date_input("Fecha de cierre", value=pd.Timestamp("2026-05-08"))
-        st.markdown("---")
-        st.subheader("Restricciones de concentración")
-        peso_max              = st.slider("Exposición máxima por activo (%)", 10, 100, 40) / 100
-        peso_min              = st.slider("Exposición mínima por activo (%)", 0, 10, 2) / 100
-        comision_broker       = st.number_input("Comisión operativa (%)", value=0.15, step=0.05) / 100
-        st.markdown("---")
-        st.subheader("Proyección de capital")
-        capital_inicial       = st.number_input("Capital inicial (MXN)", min_value=0, value=100_000, step=10_000)
-        frecuencia_aportacion = st.selectbox("Frecuencia de aportación", ["Mensual", "Trimestral", "Anual"], index=2)
-        aportacion_mensual    = st.number_input("Aportación periódica (MXN)", min_value=0, value=100_000, step=10_000)
-        horizonte_años        = st.slider("Horizonte de inversión (años)", min_value=1, max_value=40, value=10)
-        num_sims              = st.slider("Simulaciones Monte Carlo", 500, 5000, 2000, step=500)
-        st.markdown("---")
-        st.subheader("Benchmark comparativo")
-        PERFILES_BENCHMARK = {
-            "Agresivo (S&P 500 — SPY)":           "SPY",
-            "Agresivo Tecnológico (Nasdaq — QQQ)": "QQQ",
-            "Moderado (Global 60/40 — AOR)":       "AOR",
-            "Conservador (Bonos Globales — AGG)":  "AGG",
-        }
-        benchmark_seleccion = st.selectbox("Perfil del benchmark", list(PERFILES_BENCHMARK.keys()),
-            help="El benchmark se descarga junto con los activos para que las dimensiones cuadren.")
-        ejecutar = st.form_submit_button("Ejecutar optimización", use_container_width=True)
 
     if not ejecutar and not st.session_state.optimizado:
         st.markdown("""
@@ -898,7 +859,6 @@ with tab_motor:
         tickers_lista        = [t.strip() for t in tickers_finales.split(",")]
         tickers_descarga     = tickers_lista + ([benchmark_elegido] if benchmark_elegido not in tickers_lista else [])
         tickers_descarga_key = ", ".join(tickers_descarga)
-
         try:
             with st.spinner("Descargando series históricas de precios..."):
                 datos_full, retornos_full, _, _ = obtener_datos(tickers_descarga_key, str(fecha_inicio), str(fecha_fin))
