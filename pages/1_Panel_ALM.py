@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from supabase import create_client
 from modulos.actuaria_alm import calcular_duracion_convexidad, optimizar_inmunizacion, calcular_rcs_mercado
 from modulos.reportes import generar_pdf_inmunizacion
-from modulos.estocastica import generar_escenarios_tasas
+from modulos.estocastica import generar_escenarios_tasas, calcular_var_estocastico
 
 # ── Control de acceso ──────────────────────────────────────────────────────────
 if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
