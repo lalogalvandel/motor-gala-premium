@@ -16,7 +16,7 @@ from modulos.estocastica import generar_escenarios_tasas, calcular_var_estocasti
 # ── Configuración de página ────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Panel ALM | Motor GaLa",
-    page_icon="logo_gala.png",
+    page_icon="logo_gala.jpg",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -154,7 +154,7 @@ empresa_cliente = st.session_state.get("empresa", "Institución Financiera")
 col_logo, col_texto, col_session = st.columns([0.6, 2.4, 1])
 
 with col_logo:
-    st.image("logo_gala.png", use_container_width=True)
+    st.image("logo_gala.jpg", use_container_width=True)
 
 with col_texto:
     st.markdown(f"""
