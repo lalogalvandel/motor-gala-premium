@@ -151,22 +151,24 @@ hr {
 # ── Encabezado ─────────────────────────────────────────────────────────────────
 empresa_cliente = st.session_state.get("empresa", "Institución Financiera")
 
-col_logo, col_texto, col_session = st.columns([0.6, 2.4, 1])
+# El secreto está aquí: vertical_alignment="center"
+col_logo, col_texto, col_session = st.columns([0.6, 2.4, 1], vertical_alignment="center")
 
 with col_logo:
     st.image("logo_gala.png", use_container_width=True)
 
 with col_texto:
+    # Usamos flexbox para centrar matemáticamente el texto respecto a su contenedor
     st.markdown(f"""
-    <div style='padding: 0.5rem 0 1.25rem; border-left: 1px solid rgba(68,136,255,0.2); padding-left: 1.5rem; margin-top: 0.2rem;'>
-        <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #4488FF; margin-bottom: 0.6rem;'>Terminal ALM Institucional</div>
+    <div style='display: flex; flex-direction: column; justify-content: center; border-left: 1px solid rgba(68,136,255,0.2); padding-left: 1.5rem; min-height: 70px;'>
+        <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #4488FF; margin-bottom: 0.4rem;'>Terminal ALM Institucional</div>
         <div style='font-family: "EB Garamond", Georgia, serif; font-size: clamp(22px, 3vw, 32px); font-weight: 400; color: #E8EDF5; letter-spacing: 0.01em; line-height: 1.2;'>{empresa_cliente}</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col_session:
     st.markdown("""
-    <div style='display: flex; justify-content: flex-end; align-items: flex-start; padding-top: 2rem;'>
+    <div style='display: flex; justify-content: flex-end; align-items: center; height: 100%;'>
         <div style='display: flex; align-items: center; gap: 7px; font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #17C37B;'>
             <span style='width: 6px; height: 6px; background: #17C37B; border-radius: 50%; box-shadow: 0 0 6px rgba(23,195,123,0.5);'></span>
             Sesión activa
@@ -174,7 +176,7 @@ with col_session:
     </div>
     """, unsafe_allow_html=True)
 
-st.markdown("<div style='border-bottom: 0.5px solid rgba(68,136,255,0.15); margin-bottom: 2.5rem;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='border-bottom: 0.5px solid rgba(68,136,255,0.15); margin-top: 1rem; margin-bottom: 2.5rem;'></div>", unsafe_allow_html=True)
 # ── Paso 1: Ingesta (Simétrica y Limpia) ───────────────────────────────────────
 st.markdown("""
 <div style='margin-bottom: 1.75rem;'>
