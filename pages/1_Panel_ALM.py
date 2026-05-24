@@ -400,6 +400,20 @@ if st.button("Ejecutar 1,000 Escenarios de Mercado"):
         )
         st.plotly_chart(fig_mc, use_container_width=True)
 
+var_95 = calcular_var_estocastico(escenarios, confianza=0.95)
+
+st.markdown("""
+<div style='background: rgba(68,136,255,0.05); padding: 1.5rem; border-radius: 6px; border: 0.5px solid rgba(68,136,255,0.2);'>
+    <div style='font-family: "DM Mono", monospace; font-size: 10px; text-transform: uppercase; color: #4488FF;'>Resultado del Análisis Estocástico</div>
+    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 20px; color: #E8EDF5;'>
+        VaR (95% confianza): <b>{:.2f} bps</b>
+    </div>
+    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; color: #5A6780; font-style: italic;'>
+        Existe un 5% de probabilidad de que el shock en la tasa de interés supere los {abs(var_95)*10000:.1f} puntos base.
+    </div>
+</div>
+""".format(abs(var_95)*10000), unsafe_allow_html=True)
+
 # ── Cierre de sesión ───────────────────────────────────────────────────────────
 st.markdown("---")
 col_btn, col_esp = st.columns([1, 4])
