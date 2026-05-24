@@ -13,6 +13,14 @@ from modulos.actuaria_alm import calcular_duracion_convexidad, optimizar_inmuniz
 from modulos.reportes import generar_pdf_inmunizacion
 from modulos.estocastica import generar_escenarios_tasas, calcular_var_estocastico
 
+# ── Configuración de página ────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="Panel ALM | Motor GaLa",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
 # ── Control de acceso ──────────────────────────────────────────────────────────
 if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
     st.switch_page("app_institucional.py")
@@ -24,14 +32,6 @@ try:
     db  = create_client(url, key)
 except:
     pass
-
-# ── Configuración de página ────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="Panel ALM | Motor GaLa",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
 
 # ── CSS ────────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -390,14 +390,12 @@ st.markdown("""
 
 if st.button("Ejecutar 1,000 Escenarios de Mercado"):
     with st.spinner("Proyectando caminos de tasas..."):
-        # Configuramos los parámetros del modelo
         escenarios = generar_escenarios_tasas(0.065, 1000, 12, 0.15, 0.065, 0.02)
         
-        # Graficamos el "cono" de incertidumbre
+        # Gráfico
         fig_mc = go.Figure()
-        for i in range(50): # Dibujamos solo 50 caminos para no saturar el navegador
+        for i in range(50):
             fig_mc.add_trace(go.Scatter(y=escenarios[:, i], line=dict(color='rgba(68,136,255,0.1)', width=1)))
-        
         fig_mc.update_layout(
             title="Proyección de Tasas (Vasicek)",
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
@@ -406,19 +404,19 @@ if st.button("Ejecutar 1,000 Escenarios de Mercado"):
         )
         st.plotly_chart(fig_mc, use_container_width=True)
 
-var_95 = calcular_var_estocastico(escenarios, confianza=0.95)
-
-st.markdown("""
-<div style='background: rgba(68,136,255,0.05); padding: 1.5rem; border-radius: 6px; border: 0.5px solid rgba(68,136,255,0.2);'>
-    <div style='font-family: "DM Mono", monospace; font-size: 10px; text-transform: uppercase; color: #4488FF;'>Resultado del Análisis Estocástico</div>
-    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 20px; color: #E8EDF5;'>
-        VaR (95% confianza): <b>{:.2f} bps</b>
-    </div>
-    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; color: #5A6780; font-style: italic;'>
-        Existe un 5% de probabilidad de que el shock en la tasa de interés supere los {abs(var_95)*10000:.1f} puntos base.
-    </div>
-</div>
-""".format(abs(var_95)*10000), unsafe_allow_html=True)
+        # VaR
+        var_95 = calcular_var_estocastico(escenarios, confianza=0.95)
+        st.markdown(f"""
+        <div style='background: rgba(68,136,255,0.05); padding: 1.5rem; border-radius: 6px; border: 0.5px solid rgba(68,136,255,0.2);'>
+            <div style='font-family: "DM Mono", monospace; font-size: 10px; text-transform: uppercase; color: #4488FF;'>Resultado del Análisis Estocástico</div>
+            <div style='font-family: "EB Garamond", Georgia, serif; font-size: 20px; color: #E8EDF5;'>
+                VaR (95% confianza): <b>{abs(var_95)*10000:.1f} bps</b>
+            </div>
+            <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; color: #5A6780; font-style: italic;'>
+                Existe un 5% de probabilidad de que el shock en la tasa de interés supere los {abs(var_95)*10000:.1f} puntos base.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ── Cierre de sesión ───────────────────────────────────────────────────────────
 st.markdown("---")
