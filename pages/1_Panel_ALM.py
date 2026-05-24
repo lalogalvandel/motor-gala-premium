@@ -158,9 +158,9 @@ with col_logo:
     st.image("logo_gala.png", use_container_width=True)
 
 with col_texto:
-    # Usamos flexbox para centrar matemáticamente el texto respecto a su contenedor
+    # Aumentamos el padding-left a 2.5rem para darle "aire" a la línea divisoria
     st.markdown(f"""
-    <div style='display: flex; flex-direction: column; justify-content: center; border-left: 1px solid rgba(68,136,255,0.2); padding-left: 1.5rem; min-height: 70px;'>
+    <div style='display: flex; flex-direction: column; justify-content: center; border-left: 1px solid rgba(68,136,255,0.2); padding-left: 2.5rem; margin-left: 0.5rem; min-height: 70px;'>
         <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #4488FF; margin-bottom: 0.4rem;'>Terminal ALM Institucional</div>
         <div style='font-family: "EB Garamond", Georgia, serif; font-size: clamp(22px, 3vw, 32px); font-weight: 400; color: #E8EDF5; letter-spacing: 0.01em; line-height: 1.2;'>{empresa_cliente}</div>
     </div>
