@@ -1,14 +1,17 @@
 import sys
 import os
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from modulos.estocastica import generar_escenarios_tasas, calcular_var_estocastico
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from supabase import create_client
+
 from modulos.actuaria_alm import calcular_duracion_convexidad, optimizar_inmunizacion, calcular_rcs_mercado
 from modulos.reportes import generar_pdf_inmunizacion
+from modulos.estocastica import generar_escenarios_tasas, calcular_var_estocastico
 
 # ── Control de acceso ──────────────────────────────────────────────────────────
 if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
