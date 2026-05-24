@@ -1,3 +1,4 @@
+import pytz
 from fpdf import FPDF
 from datetime import datetime
 
@@ -9,6 +10,10 @@ def generar_pdf_inmunizacion(empresa, val_activos, val_pasivos, ratio, dur_logra
     azul_gala = (68, 136, 255)
     gris_texto = (90, 103, 128)
     
+    # ── CONFIGURACIÓN DE HORA LOCAL (MÉXICO) ──
+    zona_mexico = pytz.timezone('America/Mexico_City')
+    hora_correcta = datetime.now(zona_mexico).strftime("%Y-%m-%d %H:%M")
+    
     # ── ENCABEZADO ──
     pdf.set_font('Arial', 'B', 16)
     pdf.set_text_color(*azul_gala)
@@ -17,10 +22,13 @@ def generar_pdf_inmunizacion(empresa, val_activos, val_pasivos, ratio, dur_logra
     pdf.set_font('Arial', '', 10)
     pdf.set_text_color(*gris_texto)
     pdf.cell(0, 6, f'Reporte de Auditoria ALM y Reestructuracion de Cartera', ln=True, align='L')
-    pdf.cell(0, 6, f'Fecha de emision: {datetime.now().strftime("%Y-%m-%d %H:%M")}', ln=True, align='L')
+    
+    # Aquí inyectamos la variable corregida
+    pdf.cell(0, 6, f'Fecha de emision: {hora_correcta}', ln=True, align='L') 
+    
     pdf.line(10, 35, 200, 35)
     pdf.ln(10)
-    
+      
     # ── DATOS DE LA INSTITUCIÓN ──
     pdf.set_font('Arial', 'B', 12)
     pdf.set_text_color(0, 0, 0)
