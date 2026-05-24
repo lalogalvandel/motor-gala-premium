@@ -198,20 +198,8 @@ st.markdown(
 # ── Paso 1: Ingesta ────────────────────────────────────────────────────────────
 st.markdown("""
 <div style='margin-bottom: 1.75rem;'>
-    <div style='
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        color: #5A6780;
-        margin-bottom: 0.4rem;
-    '>Paso 1 — Mapeo de Balance</div>
-    <div style='
-        font-family: "EB Garamond", Georgia, serif;
-        font-size: 24px;
-        color: #E8EDF5;
-        font-weight: 400;
-    '>Carga de Información Financiera</div>
+    <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #5A6780; margin-bottom: 0.4rem;'>Paso 1 — Mapeo de Balance</div>
+    <div style='font-family: "EB Garamond", Georgia, serif; font-size: 24px; color: #E8EDF5; font-weight: 400;'>Carga de Información Financiera</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -220,6 +208,7 @@ col_pasivos, col_activos = st.columns(2, gap="large")
 df_pasivos = None
 df_activos = None
 
+# 1. Recuperar memoria de la sesión
 if st.session_state.get("db_pasivos"):
     df_pasivos = pd.DataFrame(st.session_state["db_pasivos"])
 if st.session_state.get("db_activos"):
@@ -227,149 +216,64 @@ if st.session_state.get("db_activos"):
 
 def _badge_estado(sincronizado: bool) -> str:
     if sincronizado:
-        return (
-            "<span style='"
-            "display:inline-flex; align-items:center; gap:5px;"
-            "font-family:\"DM Mono\",monospace; font-size:10px;"
-            "letter-spacing:0.08em; text-transform:uppercase; color:#17C37B;'>"
-            "<span style='width:5px;height:5px;background:#17C37B;"
-            "border-radius:50%;box-shadow:0 0 5px rgba(23,195,123,0.5);'></span>"
-            "Sincronizado</span>"
-        )
-    return (
-        "<span style='"
-        "display:inline-flex; align-items:center; gap:5px;"
-        "font-family:\"DM Mono\",monospace; font-size:10px;"
-        "letter-spacing:0.08em; text-transform:uppercase; color:#5A6780;'>"
-        "<span style='width:5px;height:5px;background:#5A6780;"
-        "border-radius:50%;'></span>"
-        "Pendiente</span>"
-    )
+        return "<span style='display:inline-flex; align-items:center; gap:5px; font-family:\"DM Mono\",monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:#17C37B;'><span style='width:5px;height:5px;background:#17C37B; border-radius:50%;box-shadow:0 0 5px rgba(23,195,123,0.5);'></span>Sincronizado</span>"
+    return "<span style='display:inline-flex; align-items:center; gap:5px; font-family:\"DM Mono\",monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:#5A6780;'><span style='width:5px;height:5px;background:#5A6780; border-radius:50%;'></span>Pendiente</span>"
 
 with col_pasivos:
     st.markdown(f"""
-    <div style='
-        padding: 1.5rem 1.75rem 1.25rem;
-        background: rgba(255,107,107,0.02);
-        border: 0.5px solid rgba(255,107,107,0.15);
-        border-radius: 6px;
-        margin-bottom: 0.75rem;
-    '>
-        <div style='
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.6rem;
-        '>
-            <div style='
-                font-family: "DM Mono", monospace;
-                font-size: 10px;
-                letter-spacing: 0.15em;
-                text-transform: uppercase;
-                color: #FF6B6B;
-            '>Obligaciones</div>
+    <div style='padding: 1.5rem 1.75rem 1.25rem; background: rgba(255,107,107,0.02); border: 0.5px solid rgba(255,107,107,0.15); border-radius: 6px; margin-bottom: 0.75rem;'>
+        <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;'>
+            <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #FF6B6B;'>Obligaciones</div>
             {_badge_estado(df_pasivos is not None)}
         </div>
-        <div style='
-            font-family: "EB Garamond", Georgia, serif;
-            font-size: 18px;
-            color: #E8EDF5;
-            margin-bottom: 0.6rem;
-        '>Matriz de Pasivos</div>
-        <div style='
-            font-family: "EB Garamond", Georgia, serif;
-            font-size: 14px;
-            font-style: italic;
-            color: #5A6780;
-            line-height: 1.6;
-            margin-bottom: 1rem;
-        '>Proyección de flujos de salida correspondientes a las reservas técnicas.</div>
-        <div style='
-            font-family: "DM Mono", monospace;
-            font-size: 10px;
-            color: #2E3A4E;
-            letter-spacing: 0.04em;
-            line-height: 1.8;
-        '>Columnas &nbsp;·&nbsp;
-            <span style="color:#B0BACA;">Año</span> &nbsp;/&nbsp;
-            <span style="color:#B0BACA;">Flujo_Esperado</span>
-        </div>
+        <div style='font-family: "EB Garamond", Georgia, serif; font-size: 18px; color: #E8EDF5; margin-bottom: 0.6rem;'>Matriz de Pasivos</div>
+        <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; font-style: italic; color: #5A6780; line-height: 1.6; margin-bottom: 1rem;'>Proyección de flujos de salida correspondientes a las reservas técnicas.</div>
+        <div style='font-family: "DM Mono", monospace; font-size: 10px; color: #2E3A4E; letter-spacing: 0.04em; line-height: 1.8;'>Columnas &nbsp;·&nbsp; <span style="color:#B0BACA;">Año</span> &nbsp;/&nbsp; <span style="color:#B0BACA;">Flujo_Esperado</span></div>
     </div>
     """, unsafe_allow_html=True)
-    archivo_pasivos = st.file_uploader(
-        "Pasivos", type=["xlsx", "csv"],
-        label_visibility="collapsed", key="up_pas"
-    )
+    
+    archivo_pasivos = st.file_uploader("Pasivos", type=["xlsx", "csv"], label_visibility="collapsed", key="up_pas")
+    
     if archivo_pasivos is not None:
-        df_pasivos = pd.read_csv(archivo_pasivos) if archivo_pasivos.name.endswith('.csv') else pd.read_excel(archivo_pasivos)
-        datos_json = df_pasivos.to_dict(orient="records")
-        db.table("usuarios_b2b").update({"pasivos_json": datos_json}).eq("id_corp", st.session_state["id_corp"]).execute()
-        st.session_state["db_pasivos"] = datos_json
-        st.rerun()
+        df_temp = pd.read_csv(archivo_pasivos) if archivo_pasivos.name.endswith('.csv') else pd.read_excel(archivo_pasivos)
+        datos_json = df_temp.to_dict(orient="records")
+        
+        # EL SEGURO CONTRA BUCLES INFINITOS: Solo ejecuta si la info es nueva
+        if st.session_state.get("db_pasivos") != datos_json:
+            st.session_state["db_pasivos"] = datos_json
+            try:
+                db.table("usuarios_b2b").update({"pasivos_json": datos_json}).eq("id_corp", st.session_state.get("id_corp", "")).execute()
+            except:
+                pass
+            st.rerun()
 
 with col_activos:
     st.markdown(f"""
-    <div style='
-        padding: 1.5rem 1.75rem 1.25rem;
-        background: rgba(68,136,255,0.02);
-        border: 0.5px solid rgba(68,136,255,0.15);
-        border-radius: 6px;
-        margin-bottom: 0.75rem;
-    '>
-        <div style='
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.6rem;
-        '>
-            <div style='
-                font-family: "DM Mono", monospace;
-                font-size: 10px;
-                letter-spacing: 0.15em;
-                text-transform: uppercase;
-                color: #4488FF;
-            '>Inversiones</div>
+    <div style='padding: 1.5rem 1.75rem 1.25rem; background: rgba(68,136,255,0.02); border: 0.5px solid rgba(68,136,255,0.15); border-radius: 6px; margin-bottom: 0.75rem;'>
+        <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;'>
+            <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #4488FF;'>Inversiones</div>
             {_badge_estado(df_activos is not None)}
         </div>
-        <div style='
-            font-family: "EB Garamond", Georgia, serif;
-            font-size: 18px;
-            color: #E8EDF5;
-            margin-bottom: 0.6rem;
-        '>Cartera de Activos</div>
-        <div style='
-            font-family: "EB Garamond", Georgia, serif;
-            font-size: 14px;
-            font-style: italic;
-            color: #5A6780;
-            line-height: 1.6;
-            margin-bottom: 1rem;
-        '>Inventario actual de instrumentos de deuda elegibles dentro del balance.</div>
-        <div style='
-            font-family: "DM Mono", monospace;
-            font-size: 10px;
-            color: #2E3A4E;
-            letter-spacing: 0.04em;
-            line-height: 1.8;
-        '>Columnas &nbsp;·&nbsp;
-            <span style="color:#B0BACA;">Instrumento</span> &nbsp;/&nbsp;
-            <span style="color:#B0BACA;">Valor_Mercado</span> &nbsp;/&nbsp;
-            <span style="color:#B0BACA;">Duracion</span> &nbsp;/&nbsp;
-            <span style="color:#B0BACA;">Convexidad</span> &nbsp;/&nbsp;
-            <span style="color:#B0BACA;">Tasa_YTM</span>
-        </div>
+        <div style='font-family: "EB Garamond", Georgia, serif; font-size: 18px; color: #E8EDF5; margin-bottom: 0.6rem;'>Cartera de Activos</div>
+        <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; font-style: italic; color: #5A6780; line-height: 1.6; margin-bottom: 1rem;'>Inventario actual de instrumentos de deuda elegibles dentro del balance.</div>
+        <div style='font-family: "DM Mono", monospace; font-size: 10px; color: #2E3A4E; letter-spacing: 0.04em; line-height: 1.8;'>Columnas &nbsp;·&nbsp; <span style="color:#B0BACA;">Instrumento</span> &nbsp;/&nbsp; <span style="color:#B0BACA;">Valor_Mercado</span> &nbsp;/&nbsp; <span style="color:#B0BACA;">Duracion</span> &nbsp;/&nbsp; <span style="color:#B0BACA;">Convexidad</span> &nbsp;/&nbsp; <span style="color:#B0BACA;">Tasa_YTM</span></div>
     </div>
     """, unsafe_allow_html=True)
-    archivo_activos = st.file_uploader(
-        "Activos", type=["xlsx", "csv"],
-        label_visibility="collapsed", key="up_act"
-    )
+    
+    archivo_activos = st.file_uploader("Activos", type=["xlsx", "csv"], label_visibility="collapsed", key="up_act")
+    
     if archivo_activos is not None:
-        df_activos = pd.read_csv(archivo_activos) if archivo_activos.name.endswith('.csv') else pd.read_excel(archivo_activos)
-        datos_json = df_activos.to_dict(orient="records")
-        db.table("usuarios_b2b").update({"activos_json": datos_json}).eq("id_corp", st.session_state["id_corp"]).execute()
-        st.session_state["db_activos"] = datos_json
-        st.rerun()
+        df_temp = pd.read_csv(archivo_activos) if archivo_activos.name.endswith('.csv') else pd.read_excel(archivo_activos)
+        datos_json = df_temp.to_dict(orient="records")
+        
+        # EL SEGURO CONTRA BUCLES INFINITOS
+        if st.session_state.get("db_activos") != datos_json:
+            st.session_state["db_activos"] = datos_json
+            try:
+                db.table("usuarios_b2b").update({"activos_json": datos_json}).eq("id_corp", st.session_state.get("id_corp", "")).execute()
+            except:
+                pass
+            st.rerun()
 
 # ── Procesamiento actuarial ────────────────────────────────────────────────────
 st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
