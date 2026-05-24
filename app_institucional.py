@@ -391,7 +391,11 @@ with tab_login:
                         if len(respuesta.data) > 0:
                             cliente = respuesta.data[0]
                             st.session_state["autenticado"] = True
+                            st.session_state["id_corp"]     = cliente["id_corp"] 
                             st.session_state["empresa"]     = cliente["empresa"]
+                            
+                            st.session_state["db_pasivos"]  = cliente.get("pasivos_json")
+                            st.session_state["db_activos"]  = cliente.get("activos_json")
                             st.rerun()
                         else:
                             st.error("Credenciales inválidas o acceso revocado. Contacte al equipo técnico.")
