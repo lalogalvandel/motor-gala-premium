@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from modulos.actuaria_alm import calcular_duracion_convexidad, optimizar_inmunizacion
-
+from modulos.reportes import generar_pdf_inmunizacion
 # ── Control de acceso ──────────────────────────────────────────────────────────
 if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
     st.switch_page("app_institucional.py")
