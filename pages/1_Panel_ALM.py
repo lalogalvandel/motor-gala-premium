@@ -273,6 +273,31 @@ if archivo_pasivos is not None and archivo_activos is not None:
                             font={'family': 'DM Mono', 'color': '#B0BACA', 'size': 11}
                         )
                         st.plotly_chart(fig_pie, use_container_width=True)
+                        # ── BOTÓN DE DESCARGA PDF ──
+                        st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+                        
+                        # Generamos los bytes del reporte
+                        pdf_bytes = generar_pdf_inmunizacion(
+                            empresa=empresa_cliente,
+                            val_activos=valor_total_activos,
+                            val_pasivos=valor_total_pasivos,
+                            ratio=ratio,
+                            dur_lograda=resultado['duracion_lograda'],
+                            yield_opt=resultado['rendimiento_esperado'],
+                            conv_lograda=resultado['convexidad_lograda'],
+                            nombres_inst=df_activos['Instrumento'].values,
+                            pesos_inst=resultado['pesos'],
+                            shock=shock_bps
+                        )
+                        
+                        st.download_button(
+                            label="Exportar Reporte Regulatorio (PDF)",
+                            data=pdf_bytes,
+                            file_name=f"Reporte_ALM_{empresa_cliente.replace(' ', '_')}.pdf",
+                            mime="application/pdf",
+                            type="secondary",
+                            use_container_width=True
+                        )
                 else:
                     st.error("Riesgo estructural crítico: La cartera de activos cargada no cuenta con la liquidez, duración o convexidad suficiente para inmunizar el balance bajo este nivel de estrés.")
     except Exception as e:
