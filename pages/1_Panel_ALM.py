@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from supabase import create_client
 from modulos.actuaria_alm import calcular_duracion_convexidad, optimizar_inmunizacion, calcular_rcs_mercado
 from modulos.reportes import generar_pdf_inmunizacion
+from modulos.estocastica import generar_escenarios_tasas
 
 # ── Control de acceso ──────────────────────────────────────────────────────────
 if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
@@ -373,6 +374,31 @@ elif df_pasivos is None or df_activos is None:
         Pendiente &nbsp;·&nbsp; Cargue ambos archivos para inicializar el diagnóstico ALM.
     </div>
     """, unsafe_allow_html=True)
+
+st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
+st.markdown("""
+<div style='font-family: "EB Garamond", Georgia, serif; font-size: 24px; color: #E8EDF5; margin-bottom: 1.5rem;'>
+    Simulación Estocástica (Monte Carlo)
+</div>
+""", unsafe_allow_html=True)
+
+if st.button("Ejecutar 1,000 Escenarios de Mercado"):
+    with st.spinner("Proyectando caminos de tasas..."):
+        # Configuramos los parámetros del modelo
+        escenarios = generar_escenarios_tasas(0.065, 1000, 12, 0.15, 0.065, 0.02)
+        
+        # Graficamos el "cono" de incertidumbre
+        fig_mc = go.Figure()
+        for i in range(50): # Dibujamos solo 50 caminos para no saturar el navegador
+            fig_mc.add_trace(go.Scatter(y=escenarios[:, i], line=dict(color='rgba(68,136,255,0.1)', width=1)))
+        
+        fig_mc.update_layout(
+            title="Proyección de Tasas (Vasicek)",
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#1E2535'),
+            height=300, showlegend=False
+        )
+        st.plotly_chart(fig_mc, use_container_width=True)
 
 # ── Cierre de sesión ───────────────────────────────────────────────────────────
 st.markdown("---")
