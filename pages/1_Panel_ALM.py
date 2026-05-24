@@ -67,19 +67,19 @@ hr {
     border-radius: 6px;
     padding: 1.1rem 1.4rem;
 }
-[data-testid="stMetricLabel"] {
+[data-testid="stMetricLabel"],
+[data-testid="stMetricLabel"] * {
     font-family: 'DM Mono', monospace !important;
     font-size: 10px !important;
-    letter-spacing: 0.1em !important;
+    letter-spacing: 0.08em !important;
     text-transform: uppercase !important;
     color: #5A6780 !important;
     
-    white-space: normal !important;   
-    overflow: visible !important;   
-    text-overflow: clip !important;  
-    line-height: 1.4 !important;     
-    display: block !important;       
-    width: 100% !important;      
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    word-wrap: break-word !important;
+    line-height: 1.4 !important;
 }
 [data-testid="stMetricValue"] {
     font-family: 'DM Mono', monospace !important;
