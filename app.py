@@ -32,9 +32,12 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400;500&display=swap');
 
 #MainMenu, footer { visibility: hidden; }
+
+/* Ocultar menú nativo de multipáginas en el sidebar */
 [data-testid="stSidebarNav"] {
     display: none !important;
 }
+
 html, body, [class*="css"] {
     font-family: 'EB Garamond', Georgia, serif;
 }
@@ -122,7 +125,7 @@ p, div, label, span {
     background: linear-gradient(90deg, #4488FF, #4488FF) !important;
 }
 
-/* ── Métricas ───────────────────────────────────────────────────────── */
+/* ── Métricas (Corrección de palabras cortadas) ─────────────────────── */
 [data-testid="stMetric"] {
     background: linear-gradient(135deg, #0F1420 0%, #111827 100%);
     border: 0.5px solid rgba(68,136,255,0.15);
@@ -136,8 +139,6 @@ p, div, label, span {
     letter-spacing: 0.08em !important;
     text-transform: uppercase !important;
     color: #5A6780 !important;
-    
-    /* Evitar que se corten las palabras */
     white-space: normal !important;
     overflow: visible !important;
     text-overflow: clip !important;
@@ -150,6 +151,7 @@ p, div, label, span {
     color: #E8EDF5 !important;
     letter-spacing: -0.02em !important;
 }
+
 /* ── Botones ────────────────────────────────────────────────────────── */
 .stButton > button,
 .stFormSubmitButton > button {
@@ -445,36 +447,6 @@ if st.session_state["usuario_premium"] is None:
             </div>
             """, unsafe_allow_html=True)
 
-        st.markdown("""
-        <div style='
-            margin-top: 1.5rem;
-            padding: 1rem 1.25rem;
-            background: rgba(68,136,255,0.03);
-            border: 0.5px solid rgba(68,136,255,0.15);
-            border-left: 2px solid rgba(68,136,255,0.4);
-            border-radius: 4px;
-        '>
-            <div style='
-                font-family: "DM Mono", monospace;
-                font-size: 10px;
-                letter-spacing: 0.1em;
-                text-transform: uppercase;
-                color: #4488FF;
-                margin-bottom: 0.4rem;
-            '>Descuento GaLa Lite</div>
-            <div style='
-                font-family: "EB Garamond", Georgia, serif;
-                font-size: 14px;
-                font-style: italic;
-                color: #5A6780;
-                line-height: 1.55;
-            '>
-                Si ya adquirió acceso a GaLa Lite (2 boletos Sorteo UDLAP),
-                el costo se descuenta automáticamente al registrar su cuenta Premium con el mismo correo.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
     with col_auth:
         tab_login, tab_reg, tab_reset = st.tabs(["Iniciar sesión", "Crear cuenta", "Recuperar acceso"])
 
@@ -529,16 +501,6 @@ if st.session_state["usuario_premium"] is None:
                 "Ingrese su correo. Se generará un token de recuperación que deberá "
                 "compartir con la dirección del sistema para validar su identidad."
             )
-            st.markdown("""
-            <div style='
-                font-family: "DM Mono", monospace;
-                font-size: 10px;
-                letter-spacing: 0.1em;
-                text-transform: uppercase;
-                color: #5A6780;
-                margin-bottom: 0.5rem;
-            '>Paso 1 — Solicitar token</div>
-            """, unsafe_allow_html=True)
             with st.form("form_solicitar_token"):
                 email_rst = st.text_input("Correo electrónico registrado")
                 sol_btn   = st.form_submit_button("Generar token", use_container_width=True)
@@ -548,23 +510,9 @@ if st.session_state["usuario_premium"] is None:
                 if ok:
                     st.success("Token generado.")
                     st.code(resultado, language=None)
-                    st.caption(
-                        f"Comparta este token con {st.secrets.get('ADMIN_EMAIL', 'la dirección del sistema')} "
-                        "para verificar su identidad. Válido por 1 hora."
-                    )
                 else:
                     st.error(resultado)
 
-            st.markdown("""
-            <div style='
-                font-family: "DM Mono", monospace;
-                font-size: 10px;
-                letter-spacing: 0.1em;
-                text-transform: uppercase;
-                color: #5A6780;
-                margin: 1.25rem 0 0.5rem;
-            '>Paso 2 — Restablecer contraseña</div>
-            """, unsafe_allow_html=True)
             with st.form("form_reset_pass"):
                 email_r2    = st.text_input("Correo electrónico")
                 token_r     = st.text_input("Token recibido")
@@ -575,8 +523,6 @@ if st.session_state["usuario_premium"] is None:
             if reset_btn:
                 if nueva_pass != nueva_pass2:
                     st.error("Las contraseñas no coinciden.")
-                elif len(nueva_pass) < 8:
-                    st.warning("La contraseña debe tener al menos 8 caracteres.")
                 else:
                     ok, msg = verificar_y_resetear(email_r2, token_r, nueva_pass)
                     if ok:
@@ -664,7 +610,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ── Helper: encabezado de sección ──────────────────────────────────────────────
 def _header(eyebrow: str, titulo: str, color: str = "#5A6780"):
     st.markdown(f"""
     <div style='margin: 2rem 0 1.5rem;'>
@@ -686,7 +631,7 @@ def _header(eyebrow: str, titulo: str, color: str = "#5A6780"):
     """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SIDEBAR GLOBAL (CONTROLES)
+# SIDEBAR GLOBAL (ÚNICO)
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
     with st.spinner("Consultando Banco de México..."):
@@ -761,7 +706,6 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 # CACHÉ DE FUNCIONES Y SETUP DE TABS
 # ══════════════════════════════════════════════════════════════════════════════
-
 @st.cache_data(show_spinner=False, ttl=86400)
 def cached_descargar_fundamentales(tickers):
     return descargar_fundamentales_paralelo(tickers, max_workers=10)
@@ -798,7 +742,7 @@ tab_feedback  = tabs_objetos[4]
 tab_admin     = tabs_objetos[5] if es_admin else None
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 1 — MOTOR CUANTITATIVO (CONTENIDO)
+# TAB 1 — MOTOR CUANTITATIVO
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_motor:
     if usar_screening and ejecutar_scr:
@@ -820,7 +764,7 @@ with tab_motor:
                 else:
                     df_clusterizado, df_mejores = clustering_activos(df_filtrado, n_clusters)
                     st.session_state["df_screening"] = df_mejores
-
+                    
                     tickers_sugeridos = ", ".join(df_mejores["Ticker"].tolist()) + (", TLT, GLD" if incluir_refugios else "")
                     st.session_state["tickers_screening"] = tickers_sugeridos
 
@@ -838,7 +782,7 @@ with tab_motor:
                         st.dataframe(df_mejores[["Ticker","Nombre","Sector","Cluster",
                                                  "Market Cap (B)","P/E Ratio","Profit Margin %"]],
                                      height=300, use_container_width=True)
-                    st.info(f"Cartera sugerida: **{tickers_sugeridos}**")
+                    st.info(f"Cartera sugerida (guardada en memoria): **{tickers_sugeridos}**")
 
     if not ejecutar and not st.session_state.optimizado:
         st.markdown("""
@@ -867,6 +811,7 @@ with tab_motor:
         tickers_lista        = [t.strip() for t in tickers_finales.split(",")]
         tickers_descarga     = tickers_lista + ([benchmark_elegido] if benchmark_elegido not in tickers_lista else [])
         tickers_descarga_key = ", ".join(tickers_descarga)
+
         try:
             with st.spinner("Descargando series históricas de precios..."):
                 datos_full, retornos_full, _, _ = obtener_datos(tickers_descarga_key, str(fecha_inicio), str(fecha_fin))
@@ -1017,10 +962,10 @@ with tab_motor:
         comparativas = [
             ("CAGR",         f"{metricas_bt['cagr_port']*100:.2f}%",  f"{metricas_bt['cagr_bench']*100:.2f}%"),
             ("Volatilidad",  f"{metricas_bt['vol_port']*100:.2f}%",   f"{metricas_bt['vol_bench']*100:.2f}%"),
-            ("Sharpe",       f"{metricas_bt['sharpe_port']:.4f}",      f"{metricas_bt['sharpe_bench']:.4f}"),
-            ("Sortino",      f"{metricas_bt['sortino_port']:.4f}",     f"{metricas_bt['sortino_bench']:.4f}"),
+            ("Sharpe",       f"{metricas_bt['sharpe_port']:.4f}",       f"{metricas_bt['sharpe_bench']:.4f}"),
+            ("Sortino",      f"{metricas_bt['sortino_port']:.4f}",      f"{metricas_bt['sortino_bench']:.4f}"),
             ("Max Drawdown", f"{metricas_bt['mdd_port']*100:.2f}%",   f"{metricas_bt['mdd_bench']*100:.2f}%"),
-            ("Calmar",       f"{metricas_bt['calmar_port']:.4f}",      f"{metricas_bt['calmar_bench']:.4f}"),
+            ("Calmar",       f"{metricas_bt['calmar_port']:.4f}",       f"{metricas_bt['calmar_bench']:.4f}"),
         ]
         h1, h2, h3 = st.columns(3)
         h1.markdown("**Métrica**"); h2.markdown("**Motor GaLa**"); h3.markdown(f"**{benchmark_ticker}**")
@@ -1516,18 +1461,6 @@ with tab_feedback:
                 st.error(f"Error al registrar el comentario. Detalle: {error_db}")
         else:
             st.warning("Incluya un comentario antes de enviar.")
-
-# ── Sidebar: info del usuario ──────────────────────────────────────────────────
-st.sidebar.markdown("---")
-st.sidebar.markdown(f"**{nombre_display}**")
-st.sidebar.caption(usuario["email"])
-if tiene_lite:
-    st.sidebar.caption("Acceso GaLa Lite — descuento aplicado")
-st.sidebar.markdown("---")
-st.sidebar.caption(
-    "Motor GaLa Premium · Sistema de Gestión de Capital. "
-    "Los resultados son producto de modelos matemáticos y no constituyen asesoría de inversión."
-)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 6 — ADMINISTRACIÓN (OCULTO)
