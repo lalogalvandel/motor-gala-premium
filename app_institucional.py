@@ -391,7 +391,7 @@ with tab_login:
                         if len(respuesta.data) > 0:
                             cliente = respuesta.data[0]
                             st.session_state["autenticado"] = True
-                            st.session_state["id_corp"]     = cliente["id_corp"] 
+                            st.session_state["id_corp"]     = cliente["id_corp"] # ¡Esta línea es la más importante!
                             st.session_state["empresa"]     = cliente["empresa"]
                             
                             st.session_state["db_pasivos"]  = cliente.get("pasivos_json")
