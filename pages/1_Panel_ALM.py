@@ -39,10 +39,6 @@ html, body, [class*="css"] {
 
 .stApp {
     background-color: #0C0F14;
-    background-image:
-        linear-gradient(rgba(68,136,255,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(68,136,255,0.03) 1px, transparent 1px);
-    background-size: 48px 48px;
 }
 
 h1, h2, h3 {
