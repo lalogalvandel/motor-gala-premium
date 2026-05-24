@@ -36,6 +36,6 @@ def valorizar_portafolio_en_escenarios(tasas_escenarios, flujos, vencimientos):
     vp = np.sum(flujos[None, :] / factores, axis=1)
     return vp
 
-def calcular_var_portafolio(valores_portafolio, confianza=0.995):
+def calcular_var_estocastico(valores_portafolio, confianza=0.995):
     """VaR no paramétrico sobre los valores del portafolio."""
     return np.percentile(valores_portafolio, (1 - confianza) * 100)
