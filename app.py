@@ -823,7 +823,6 @@ with tab_motor:
 
                     tickers_sugeridos = ", ".join(df_mejores["Ticker"].tolist()) + (", TLT, GLD" if incluir_refugios else "")
                     st.session_state["tickers_screening"] = tickers_sugeridos
-                    st.session_state["widget_tickers"]    = tickers_sugeridos
 
                     st.success(
                         f"Universo: {len(df_fund)}  |  Tras filtro: {len(df_filtrado)}  "
