@@ -32,7 +32,9 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400;500&display=swap');
 
 #MainMenu, footer { visibility: hidden; }
-
+[data-testid="stSidebarNav"] {
+    display: none !important;
+}
 html, body, [class*="css"] {
     font-family: 'EB Garamond', Georgia, serif;
 }
@@ -127,12 +129,20 @@ p, div, label, span {
     border-radius: 6px;
     padding: 1.1rem 1.4rem;
 }
-[data-testid="stMetricLabel"] {
+[data-testid="stMetricLabel"],
+[data-testid="stMetricLabel"] * {
     font-family: 'DM Mono', monospace !important;
     font-size: 10px !important;
-    letter-spacing: 0.1em !important;
+    letter-spacing: 0.08em !important;
     text-transform: uppercase !important;
     color: #5A6780 !important;
+    
+    /* Evitar que se corten las palabras */
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    word-wrap: break-word !important;
+    line-height: 1.4 !important;
 }
 [data-testid="stMetricValue"] {
     font-family: 'DM Mono', monospace !important;
@@ -140,7 +150,6 @@ p, div, label, span {
     color: #E8EDF5 !important;
     letter-spacing: -0.02em !important;
 }
-
 /* ── Botones ────────────────────────────────────────────────────────── */
 .stButton > button,
 .stFormSubmitButton > button {
