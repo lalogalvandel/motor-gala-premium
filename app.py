@@ -23,6 +23,7 @@ st.set_page_config(
     page_title="Motor GaLa Premium",
     page_icon="logo_gala-removebg-preview.png",
     layout="wide"
+    initial_sidebar_state="expanded"  
 )
 
 # ── CSS Institucional ──────────────────────────────────────────────────────────
@@ -38,10 +39,6 @@ html, body, [class*="css"] {
 
 .stApp {
     background-color: #0C0F14;
-    background-image:
-        linear-gradient(rgba(68,136,255,0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(68,136,255,0.025) 1px, transparent 1px);
-    background-size: 48px 48px;
 }
 
 /* ── Tipografía ─────────────────────────────────────────────────────── */
