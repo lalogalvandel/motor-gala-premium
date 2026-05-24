@@ -16,7 +16,7 @@ from modulos.estocastica import generar_escenarios_tasas, calcular_var_estocasti
 # ── Configuración de página ────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Panel ALM | Motor GaLa",
-    page_icon="logo_gala.png",
+    page_icon="logo_gala-removebg-preview",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
