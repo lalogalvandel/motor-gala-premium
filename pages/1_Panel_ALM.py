@@ -74,7 +74,6 @@ hr {
     text-transform: uppercase !important;
     color: #5A6780 !important;
     
-    /* ── EL ARREGLO MÁGICO ── */
     white-space: normal !important;   
     overflow: visible !important;   
     text-overflow: clip !important;  
