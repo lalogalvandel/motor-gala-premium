@@ -33,7 +33,7 @@ try:
 except:
     pass
 
-# ── CSS ────────────────────────────────────────────────────────────────────────
+# ── CSS (idéntico al que ya tienes) ────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400;500&display=swap');
@@ -151,14 +151,12 @@ hr {
 # ── Encabezado ─────────────────────────────────────────────────────────────────
 empresa_cliente = st.session_state.get("empresa", "Institución Financiera")
 
-# El secreto está aquí: vertical_alignment="center"
 col_logo, col_texto, col_session = st.columns([0.6, 2.4, 1], vertical_alignment="center")
 
 with col_logo:
     st.image("logo_gala.png", use_container_width=True)
 
 with col_texto:
-    # Aumentamos el padding-left a 2.5rem para darle "aire" a la línea divisoria
     st.markdown(f"""
     <div style='display: flex; flex-direction: column; justify-content: center; border-left: 1px solid rgba(68,136,255,0.2); padding-left: 2.5rem; margin-left: 0.5rem; min-height: 70px;'>
         <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #4488FF; margin-bottom: 0.4rem;'>Terminal ALM Institucional</div>
@@ -177,6 +175,7 @@ with col_session:
     """, unsafe_allow_html=True)
 
 st.markdown("<div style='border-bottom: 0.5px solid rgba(68,136,255,0.15); margin-top: 1rem; margin-bottom: 2.5rem;'></div>", unsafe_allow_html=True)
+
 # ── Paso 1: Ingesta (Simétrica y Limpia) ───────────────────────────────────────
 st.markdown("""
 <div style='margin-bottom: 1.75rem;'>
@@ -275,7 +274,7 @@ if df_pasivos is not None and df_activos is not None:
                 help="Desplazamiento paralelo para simular estrés de política monetaria."
             )
 
-        # ── Paso 3: Auditoría y RCS ──
+        # ── Paso 3: Auditoría y RCS (mejorado) ──
         st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
         st.markdown("""
         <div style='margin-bottom: 1.75rem;'>
@@ -284,23 +283,117 @@ if df_pasivos is not None and df_activos is not None:
         </div>
         """, unsafe_allow_html=True)
 
+        # Valores base
         valor_total_pasivos = df_pasivos['Flujo_Esperado'].sum()
         valor_total_activos = df_activos['Valor_Mercado'].sum()
-        ratio               = valor_total_activos / valor_total_pasivos
-        rcs                 = calcular_rcs_mercado(valor_total_activos, vol_cartera)
+        ratio = valor_total_activos / valor_total_pasivos
 
+        # RCS paramétrico (VaR de mercado) – mantenemos como referencia
+        rcs_mercado = calcular_rcs_mercado(valor_total_activos, vol_cartera)
+
+        # ── SCR de Tasa de Interés (NUEVO) ──
+        # Duración promedio actual de los activos (ponderada por valor de mercado)
+        d_activos_actual = np.average(df_activos['Duracion'].values, weights=df_activos['Valor_Mercado'].values)
+        # Tasa base (puede venir de Banxico, aquí usamos 6.5% fijo)
+        tasa_base = 0.065
+        delta_y = shock_bps / 10000.0
+
+        # 1) Activos estresados: usando la aproximación de duración y convexidad por instrumento
+        valores_estresados_activos = 0.0
+        for _, row in df_activos.iterrows():
+            v = row['Valor_Mercado']
+            d_mod = row['Duracion']          # asumimos que ya es duración modificada
+            c = row['Convexidad']
+            # Aproximación de segundo orden: ΔV/V ≈ -D_mod * Δy + 0.5 * C * (Δy)^2
+            v_stress = v * (1 - d_mod * delta_y + 0.5 * c * (delta_y ** 2))
+            valores_estresados_activos += v_stress
+
+        # 2) Pasivos estresados: recalculamos VP exacto con la tasa estresada
+        flujos = df_pasivos['Flujo_Esperado'].values
+        tiempos = df_pasivos['Año'].values
+        tasa_estresada = tasa_base + delta_y
+        valores_presentes_estresados = flujos * (1 + tasa_estresada) ** -tiempos
+        valor_estresado_pasivos = np.sum(valores_presentes_estresados)
+
+        # 3) Excedente en escenario base y estresado
+        excedente_base = valor_total_activos - valor_total_pasivos
+        excedente_stress = valores_estresados_activos - valor_estresado_pasivos
+
+        # El SCR de tasa es la pérdida máxima entre el shock positivo y negativo
+        # Calculamos también el shock inverso para capturar el peor caso
+        delta_y_neg = -shock_bps / 10000.0
+        valores_estresados_activos_neg = 0.0
+        for _, row in df_activos.iterrows():
+            v = row['Valor_Mercado']
+            d_mod = row['Duracion']
+            c = row['Convexidad']
+            v_stress_neg = v * (1 - d_mod * delta_y_neg + 0.5 * c * (delta_y_neg ** 2))
+            valores_estresados_activos_neg += v_stress_neg
+        tasa_estresada_neg = tasa_base + delta_y_neg
+        vp_pasivos_neg = np.sum(flujos * (1 + tasa_estresada_neg) ** -tiempos)
+        excedente_stress_neg = valores_estresados_activos_neg - vp_pasivos_neg
+
+        perdida_pos = excedente_base - excedente_stress
+        perdida_neg = excedente_base - excedente_stress_neg
+        scr_tasa = max(perdida_pos, perdida_neg, 0)   # SCR no negativo
+
+        # Ratios estresados (usamos el escenario que genera pérdida máxima)
+        if perdida_pos >= perdida_neg:
+            ratio_estresado = valores_estresados_activos / valor_estresado_pasivos
+        else:
+            ratio_estresado = valores_estresados_activos_neg / vp_pasivos_neg
+
+        # ── Métricas de auditoría ──
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Activos totales",   f"${valor_total_activos:,.2f} M")
         c2.metric("Pasivos nominales", f"${valor_total_pasivos:,.2f} M")
-        
         if ratio >= 1:
             c3.metric("Ratio de cobertura", f"{ratio*100:.1f}%", "Suficiente")
         else:
             c3.metric("Ratio de cobertura", f"{ratio*100:.1f}%", "-Déficit", delta_color="inverse")
-            
-        c4.metric("RCS (Riesgo Mercado)", f"${rcs:,.2f} M", "-Capital Exigido", delta_color="inverse")
+        c4.metric("SCR Tasa de Interés", f"${scr_tasa:,.2f} M", help="Pérdida máxima en excedente ante shock de tasas")
 
-        # ── Paso 4: Optimizador ──
+        # ── Cumplimiento Normativo (NUEVO) ──
+        st.markdown("---")
+        st.markdown("""
+        <div style='margin-bottom: 1.25rem;'>
+            <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #5A6780; margin-bottom: 0.3rem;'>Cumplimiento CUSF / Solvencia II</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Evaluación
+        cumple_ratio = ratio >= 1.0
+        capital_disponible = excedente_base
+        cumple_capital = capital_disponible >= scr_tasa
+        cumple_estres = ratio_estresado >= 1.0
+
+        # Semáforo
+        if cumple_ratio and cumple_capital and cumple_estres:
+            color_semaforo = "#17C37B"
+            dictamen = "Cumplimiento satisfactorio"
+        elif cumple_ratio and not cumple_capital:
+            color_semaforo = "#d4a017"
+            dictamen = "Condicionado — Capital insuficiente para SCR de tasa"
+        else:
+            color_semaforo = "#FF4B4B"
+            dictamen = "Insuficiente — No se alcanza el ratio de cobertura mínimo"
+
+        col_cump1, col_cump2, col_cump3 = st.columns(3)
+        col_cump1.metric("Ratio de cobertura (mín. 100%)", f"{ratio*100:.1f}%", 
+                         "✓" if cumple_ratio else "✗")
+        col_cump2.metric("Capital disponible vs SCR tasa", f"${capital_disponible:,.2f} M",
+                         f"Excede en ${capital_disponible - scr_tasa:,.2f} M" if cumple_capital else f"Déficit de ${scr_tasa - capital_disponible:,.2f} M")
+        col_cump3.metric("Ratio estresado (shock {shock_bps} pb)".format(shock_bps=shock_bps), f"{ratio_estresado*100:.1f}%",
+                         "✓" if cumple_estres else "✗")
+
+        st.markdown(f"""
+        <div style='margin-top: 1rem; padding: 1rem 1.25rem; border-left: 3px solid {color_semaforo}; background: rgba(68,136,255,0.02); border-radius: 4px;'>
+            <span style='font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: {color_semaforo};'>{dictamen}</span>
+            <span style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; color: #B0BACA; margin-left: 1rem;'>{'Todos los indicadores dentro de límites regulatorios.' if color_semaforo == '#17C37B' else 'Se requiere fortalecer la posición de capital o reducir exposición a tasa.'}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── Paso 4: Optimizador (ahora con restricción de capital) ──
         st.markdown("<div style='margin-top: 2.5rem;'></div>", unsafe_allow_html=True)
         col_btn_opt, col_esp = st.columns([1, 3])
         with col_btn_opt:
@@ -308,15 +401,24 @@ if df_pasivos is not None and df_activos is not None:
 
         if ejecutar:
             with st.spinner("Modelando escenarios y calculando calce óptimo..."):
-                tasa_base      = 0.065
-                tasa_estresada = tasa_base + (shock_bps / 10000.0)
+                tasa_estresada_opt = tasa_base + (shock_bps / 10000.0)
                 yields_estresados = df_activos['Tasa_YTM'].values + (shock_bps / 10000.0)
 
                 valor_pasivo, dur_pasivo, conv_pasivo = calcular_duracion_convexidad(
-                    df_pasivos['Flujo_Esperado'].values, df_pasivos['Año'].values, tasa_estresada
+                    df_pasivos['Flujo_Esperado'].values, df_pasivos['Año'].values, tasa_estresada_opt
                 )
+
+                # Llamada al optimizador con los parámetros de capital
                 resultado = optimizar_inmunizacion(
-                    df_activos['Duracion'].values, df_activos['Convexidad'].values, yields_estresados, dur_pasivo, conv_pasivo
+                    df_activos['Duracion'].values,
+                    df_activos['Convexidad'].values,
+                    yields_estresados,
+                    dur_pasivo,
+                    conv_pasivo,
+                    v_activos=valor_total_activos,
+                    v_pasivos=valor_total_pasivos,
+                    vol_activos=vol_cartera,
+                    d_activos=d_activos_actual
                 )
 
                 if resultado["exito"]:
@@ -393,6 +495,7 @@ elif df_pasivos is None or df_activos is None:
     </div>
     """, unsafe_allow_html=True)
 
+# ── Sección estocástica (sin cambios, pero se mantiene) ──
 st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
 st.markdown("""
 <div style='font-family: "EB Garamond", Georgia, serif; font-size: 24px; color: #E8EDF5; margin-bottom: 1.5rem;'>
@@ -404,7 +507,6 @@ if st.button("Ejecutar 1,000 Escenarios de Mercado"):
     with st.spinner("Proyectando caminos de tasas..."):
         escenarios = generar_escenarios_tasas(0.065, 1000, 12, 0.15, 0.065, 0.02)
         
-        # Gráfico
         fig_mc = go.Figure()
         for i in range(50):
             fig_mc.add_trace(go.Scatter(y=escenarios[:, i], line=dict(color='rgba(68,136,255,0.1)', width=1)))
@@ -416,7 +518,6 @@ if st.button("Ejecutar 1,000 Escenarios de Mercado"):
         )
         st.plotly_chart(fig_mc, use_container_width=True)
 
-        # VaR
         var_95 = calcular_var_estocastico(escenarios, confianza=0.95)
         st.markdown(f"""
         <div style='background: rgba(68,136,255,0.05); padding: 1.5rem; border-radius: 6px; border: 0.5px solid rgba(68,136,255,0.2);'>
