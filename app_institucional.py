@@ -282,14 +282,25 @@ with tab_demo:
         duraciones_mercado = np.array([0.9, 2.8, 8.1, 4.2])
         convexidades_mercado = np.array([1.2, 9.5, 78.4, 22.1]) 
         yields_mercado = np.array([0.10, 0.09, 0.085, 0.11])
-        conv_pasivo = (d_pasivos ** 2) * 1.33
         
-        with st.spinner("Ejecutando algoritmo de calce estocástico..."):
-            resultado = optimizar_inmunizacion(duraciones_mercado, convexidades_mercado, yields_mercado, d_pasivos, conv_pasivo)
+        # ── EL ARREGLO MATEMÁTICO (INMUNIZACIÓN DE REDDINGTON) ──
+        # Da * Va = Dp * Vp  ->  Da_objetivo = Dp * (Vp / Va)
+        ratio_apalancamiento = v_pasivos / v_activos
+        target_duracion = d_pasivos * ratio_apalancamiento
+        
+        # La convexidad del activo debe cubrir la del pasivo ajustada por el ratio
+        conv_pasivo_est = (d_pasivos ** 2) * 1.33 
+        target_convexidad = conv_pasivo_est * ratio_apalancamiento
+        
+        with st.spinner("Ejecutando algoritmo SLSQP de calce estructural..."):
+            # Pasamos los targets matemáticamente correctos al optimizador
+            resultado = optimizar_inmunizacion(duraciones_mercado, convexidades_mercado, yields_mercado, target_duracion, target_convexidad)
             
             if resultado["exito"]:
                 col_res_txt, col_res_plot = st.columns([1, 1.5], gap="large")
                 with col_res_txt:
+                    # Mostramos el target requerido para demostrar rigor matemático
+                    st.markdown(f"<div style='font-family: \"DM Mono\", monospace; font-size: 10.5px; color: #5A6780; margin-bottom: 0.5rem;'>Target requerido: {target_duracion:.2f} años</div>", unsafe_allow_html=True)
                     st.success(f"**Calce Logrado:** {resultado['duracion_lograda']:.2f} años")
                     st.info(f"**Yield Optimizado:** {resultado['rendimiento_esperado']*100:.2f}%")
                     st.metric("Convexidad del Portafolio", f"{resultado['convexidad_lograda']:.2f}")
@@ -304,7 +315,8 @@ with tab_demo:
                     fig_pie.update_layout(showlegend=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=10, b=10, l=10, r=10), height=250, font={'family': 'DM Mono', 'color': '#B0BACA', 'size': 11})
                     st.plotly_chart(fig_pie, use_container_width=True)
             else:
-                st.error("Riesgo estructural: No hay instrumentos disponibles para calzar una duración o convexidad tan extrema.")
+                # Si el ratio exige una duración mayor a la que ofrece la curva (ej. > 8.1 años), arrojamos el error técnico real.
+                st.error(f"Riesgo estructural: El nivel de apalancamiento exige una duración objetivo de {target_duracion:.2f} años. La curva de instrumentos elegibles no tiene alcance suficiente para calzar el balance.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 2: FORMULARIO DE CONTACTO
