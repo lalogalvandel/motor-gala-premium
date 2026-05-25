@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 from scipy.stats import norm
 from scipy.optimize import minimize
 
@@ -27,7 +26,7 @@ def simular_brecha_duracion(d_activos: float, d_pasivos: float, v_activos: float
 
 
 def calcular_rcs_mercado(exposicion: float, volatilidad_anual: float, nivel_confianza: float = 0.995) -> float:
-    # Cálculo del requerimiento de capital por riesgo de mercado (ya óptimo)
+    # Cálculo del requerimiento de capital por riesgo de mercado (VaR paramétrico)
     return exposicion * volatilidad_anual * norm.ppf(nivel_confianza)
 
 
@@ -35,7 +34,11 @@ def optimizar_inmunizacion(duraciones_activos: np.ndarray,
                            convexidades_activos: np.ndarray,
                            rendimientos_activos: np.ndarray,
                            duracion_pasivo: float,
-                           convexidad_pasivo: float) -> dict:
+                           convexidad_pasivo: float,
+                           v_activos: float = None,
+                           v_pasivos: float = None,
+                           vol_activos: float = None,
+                           d_activos: float = None) -> dict:
 
     num_activos = len(duraciones_activos)
 
@@ -49,6 +52,22 @@ def optimizar_inmunizacion(duraciones_activos: np.ndarray,
         {'type': 'ineq', 'fun': lambda w: np.dot(w, convexidades_activos) - convexidad_pasivo}
     ]
 
+    # ── Restricción de capital regulatorio (Solvencia II) ──
+    usa_restriccion_capital = False
+    if all(v is not None for v in [v_activos, v_pasivos, vol_activos, d_activos]):
+        superavit = v_activos - v_pasivos
+        if superavit > 0 and d_activos > 0:
+            usa_restriccion_capital = True
+            z_score = norm.ppf(0.995)
+            sigma_y = vol_activos / d_activos   # volatilidad del yield implícita
+
+            def scr_constraint(w):
+                # Volatilidad de la cartera: sigma_y * sqrt( Σ (w_i * D_i)^2 )
+                cartera_vol = sigma_y * np.sqrt(np.sum((w * duraciones_activos) ** 2))
+                scr = v_activos * cartera_vol * z_score
+                return superavit - scr          # >= 0
+            restricciones.append({'type': 'ineq', 'fun': scr_constraint})
+
     limites = tuple((0.0, 1.0) for _ in range(num_activos))
     pesos_iniciales = np.ones(num_activos) / num_activos
 
@@ -61,7 +80,12 @@ def optimizar_inmunizacion(duraciones_activos: np.ndarray,
     )
 
     if not resultado.success:
-        return {"exito": False, "mensaje": "Imposible lograr inmunización total (Duración + Convexidad)."}
+        if usa_restriccion_capital:
+            mensaje = ("Imposible lograr inmunización total con el capital disponible "
+                       "(Duración + Convexidad + Restricción de SCR).")
+        else:
+            mensaje = "Imposible lograr inmunización total (Duración + Convexidad)."
+        return {"exito": False, "mensaje": mensaje}
 
     pesos_optimos = resultado.x
 
@@ -93,6 +117,7 @@ if __name__ == "__main__":
     convexidades_mercado = np.array([1.2, 9.5, 78.4, 22.1])
     yields_mercado = np.array([0.10, 0.09, 0.085, 0.11])
 
+    # Sin restricción de capital (compatibilidad)
     resultado = optimizar_inmunizacion(
         duraciones_mercado,
         convexidades_mercado,
