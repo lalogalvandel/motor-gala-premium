@@ -294,9 +294,14 @@ with tab_demo:
         target_convexidad = conv_pasivo_est * ratio_apalancamiento
         
         with st.spinner("Ejecutando algoritmo SLSQP de calce estructural..."):
+            scr_actual = calcular_rcs_mercado(v_activos, vol_activos)
+            superavit = v_activos - v_pasivos
+            st.markdown(f"SCR actual: ${scr_actual:,.2f} M | Superávit: ${superavit:,.2f} M")
             resultado = optimizar_inmunizacion(
                 duraciones_mercado, convexidades_mercado, yields_mercado,
-                target_duracion, target_convexidad
+                target_duracion, target_convexidad,
+                v_activos=v_activos, v_pasivos=v_pasivos,
+                vol_activos=vol_activos, d_activos=d_activos
             )
             
             if resultado["exito"]:
