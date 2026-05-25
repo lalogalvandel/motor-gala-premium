@@ -284,12 +284,11 @@ with tab_demo:
         yields_mercado = np.array([0.10, 0.09, 0.085, 0.11])
         
         # ── INMUNIZACIÓN DE REDDINGTON (CÁLCULO ACTUARIAL EXACTO) ──
-        # Ratio de apalancamiento (VP_pasivos / VP_activos, aquí valores de mercado)
         ratio_apalancamiento = v_pasivos / v_activos
         target_duracion = d_pasivos * ratio_apalancamiento
 
         # Convexidad del pasivo: supuesto conservador de bono cupón cero
-        # Fórmula exacta: C = D_mod^2 + D_mod/(1+y)
+        # C = D_mod^2 + D_mod/(1+y)
         conv_pasivo_est = d_pasivos**2 + d_pasivos / (1 + tasa_mercado)
         target_convexidad = conv_pasivo_est * ratio_apalancamiento
         
@@ -328,7 +327,8 @@ with tab_demo:
                     fig_pie.update_layout(showlegend=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=10, b=10, l=10, r=10), height=250, font={'family': 'DM Mono', 'color': '#B0BACA', 'size': 11})
                     st.plotly_chart(fig_pie, use_container_width=True)
             else:
-                st.error(f"Riesgo estructural: El nivel de apalancamiento exige una duración objetivo de {target_duracion:.2f} años. La curva de instrumentos elegibles no tiene alcance suficiente para calzar el balance.")
+                st.error(f"Riesgo estructural: {resultado['mensaje']} "
+                         f"(Target duración: {target_duracion:.2f} años)")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 2: FORMULARIO DE CONTACTO
