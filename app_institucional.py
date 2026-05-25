@@ -247,7 +247,7 @@ with tab_demo:
         st.markdown("<div style='font-family: \"DM Mono\", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #B0BACA; margin-bottom: 1.25rem; padding-bottom: 0.5rem; border-bottom: 0.5px solid rgba(176,186,202,0.15);'>Análisis de Riesgo ALM</div>", unsafe_allow_html=True)
 
         gap = simular_brecha_duracion(d_activos, d_pasivos, v_activos, v_pasivos)
-        scr = calcular_rcs_mercado(v_activos, vol_activos)
+        scr = calcular_rcs_mercado(v_activos, vol_activos)   # VaR paramétrico (no se muestra)
 
         color_gap = "#17C37B" if abs(gap) < 0.5 else ("#d4a017" if abs(gap) < 1.5 else "#FF4B4B")
         estado_gap = "Inmunizado" if abs(gap) < 0.5 else ("Riesgo Moderado" if abs(gap) < 1.5 else "Riesgo Crítico")
@@ -283,24 +283,32 @@ with tab_demo:
         convexidades_mercado = np.array([1.2, 9.5, 78.4, 22.1]) 
         yields_mercado = np.array([0.10, 0.09, 0.085, 0.11])
         
-        # ── EL ARREGLO MATEMÁTICO (INMUNIZACIÓN DE REDDINGTON) ──
-        # Da * Va = Dp * Vp  ->  Da_objetivo = Dp * (Vp / Va)
+        # ── INMUNIZACIÓN DE REDDINGTON (CÁLCULO ACTUARIAL EXACTO) ──
+        # Ratio de apalancamiento (VP_pasivos / VP_activos, aquí valores de mercado)
         ratio_apalancamiento = v_pasivos / v_activos
         target_duracion = d_pasivos * ratio_apalancamiento
-        
-        # La convexidad del activo debe cubrir la del pasivo ajustada por el ratio
-        conv_pasivo_est = (d_pasivos ** 2) * 1.33 
+
+        # Convexidad del pasivo: supuesto conservador de bono cupón cero
+        # Fórmula exacta: C = D_mod^2 + D_mod/(1+y)
+        conv_pasivo_est = d_pasivos**2 + d_pasivos / (1 + tasa_mercado)
         target_convexidad = conv_pasivo_est * ratio_apalancamiento
         
         with st.spinner("Ejecutando algoritmo SLSQP de calce estructural..."):
-            # Pasamos los targets matemáticamente correctos al optimizador
-            resultado = optimizar_inmunizacion(duraciones_mercado, convexidades_mercado, yields_mercado, target_duracion, target_convexidad)
+            resultado = optimizar_inmunizacion(
+                duraciones_mercado, convexidades_mercado, yields_mercado,
+                target_duracion, target_convexidad
+            )
             
             if resultado["exito"]:
                 col_res_txt, col_res_plot = st.columns([1, 1.5], gap="large")
                 with col_res_txt:
-                    # Mostramos el target requerido para demostrar rigor matemático
-                    st.markdown(f"<div style='font-family: \"DM Mono\", monospace; font-size: 10.5px; color: #5A6780; margin-bottom: 0.5rem;'>Target requerido: {target_duracion:.2f} años</div>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<div style='font-family: \"DM Mono\", monospace; font-size: 10.5px; color: #5A6780; margin-bottom: 0.5rem;'>"
+                        f"Target requerido: {target_duracion:.2f} años  |  "
+                        f"Convexidad pasivo estimada: {conv_pasivo_est:.1f} (tasa {tasa_mercado*100:.2f}%)"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
                     st.success(f"**Calce Logrado:** {resultado['duracion_lograda']:.2f} años")
                     st.info(f"**Yield Optimizado:** {resultado['rendimiento_esperado']*100:.2f}%")
                     st.metric("Convexidad del Portafolio", f"{resultado['convexidad_lograda']:.2f}")
@@ -315,7 +323,6 @@ with tab_demo:
                     fig_pie.update_layout(showlegend=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=10, b=10, l=10, r=10), height=250, font={'family': 'DM Mono', 'color': '#B0BACA', 'size': 11})
                     st.plotly_chart(fig_pie, use_container_width=True)
             else:
-                # Si el ratio exige una duración mayor a la que ofrece la curva (ej. > 8.1 años), arrojamos el error técnico real.
                 st.error(f"Riesgo estructural: El nivel de apalancamiento exige una duración objetivo de {target_duracion:.2f} años. La curva de instrumentos elegibles no tiene alcance suficiente para calzar el balance.")
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -403,7 +410,7 @@ with tab_login:
                         if len(respuesta.data) > 0:
                             cliente = respuesta.data[0]
                             st.session_state["autenticado"] = True
-                            st.session_state["id_corp"]     = cliente["id_corp"] # ¡Esta línea es la más importante!
+                            st.session_state["id_corp"]     = cliente["id_corp"]
                             st.session_state["empresa"]     = cliente["empresa"]
                             
                             st.session_state["db_pasivos"]  = cliente.get("pasivos_json")
