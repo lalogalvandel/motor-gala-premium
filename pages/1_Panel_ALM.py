@@ -573,19 +573,19 @@ if df_pasivos is not None and df_activos is not None:
                 )
                 st.plotly_chart(fig_frontera, use_container_width=True)
 
-        # Selectbox persistente
-        seleccion = st.selectbox("Seleccione un punto de la frontera para ver la composición", opciones)
-        
-        # Obtener composición
-        idx = opciones.index(seleccion)
-        pesos_opt_front = puntos_validos[idx]["pesos"]
-        
-        st.markdown("**Composición del portafolio seleccionado:**")
-        for nombre, peso in zip(df_activos['Instrumento'].values, pesos_opt_front):
-            if peso > 0.01:
-                st.markdown(f"- **{nombre}:** {peso*100:.1f}%")
-    else:
-        st.warning("No se pudo construir la frontera eficiente con los parámetros actuales.")
+                # Selectbox persistente
+                seleccion = st.selectbox("Seleccione un punto de la frontera para ver la composición", opciones)
+                
+                # Obtener composición
+                idx = opciones.index(seleccion)
+                pesos_opt_front = puntos_validos[idx]["pesos"]
+                
+                st.markdown("**Composición del portafolio seleccionado:**")
+                for nombre, peso in zip(df_activos['Instrumento'].values, pesos_opt_front):
+                    if peso > 0.01:
+                        st.markdown(f"- **{nombre}:** {peso*100:.1f}%")
+            else:
+                st.warning("No se pudo construir la frontera eficiente con los parámetros actuales.")
 
         # ── Simulación Estocástica ──
         st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
