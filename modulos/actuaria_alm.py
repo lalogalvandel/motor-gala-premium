@@ -136,3 +136,53 @@ if __name__ == "__main__":
                 print(f"- {nombre}: {peso*100:.1f}%")
     else:
         print(f"Falla: {resultado['mensaje']}")
+
+
+def frontera_eficiente_alm(duraciones_activos, convexidades_activos, rendimientos_activos,
+                           duracion_pasivo, convexidad_pasivo,
+                           v_activos, v_pasivos, vol_activos, d_activos,
+                           num_puntos=20):
+    """
+    Traza la frontera eficiente: maximiza yield variando la duración objetivo
+    desde la mínima de los activos hasta la del pasivo apalancado,
+    respetando convexidad y restricción de capital (si procede).
+    Retorna lista de diccionarios con {duracion, yield, scr_est, pesos, exito}.
+    """
+    ratio_ap = v_pasivos / v_activos
+    target_max = duracion_pasivo * ratio_ap
+    target_min = np.min(duraciones_activos)
+    # Aseguramos que el rango tenga sentido
+    if target_min >= target_max:
+        target_min = target_max * 0.8
+
+    objetivos = np.linspace(target_min, target_max, num_puntos)
+    frontera = []
+
+    for d_target in objetivos:
+        res = optimizar_inmunizacion(
+            duraciones_activos, convexidades_activos, rendimientos_activos,
+            d_target, convexidad_pasivo,  # convexidad_pasivo ya ajustada por ratio
+            v_activos=v_activos, v_pasivos=v_pasivos,
+            vol_activos=vol_activos, d_activos=d_activos
+        )
+        if res["exito"]:
+            # Estimar SCR de tasa para esta cartera (aproximación simple)
+            sigma_y = vol_activos / d_activos if d_activos > 0 else 0
+            cartera_vol = sigma_y * np.sqrt(np.sum((res["pesos"] * duraciones_activos) ** 2))
+            scr_est = v_activos * cartera_vol * norm.ppf(0.995)
+            frontera.append({
+                "duracion": res["duracion_lograda"],
+                "yield": res["rendimiento_esperado"],
+                "scr_est": scr_est,
+                "pesos": res["pesos"],
+                "exito": True
+            })
+        else:
+            frontera.append({
+                "duracion": d_target,
+                "yield": None,
+                "scr_est": None,
+                "pesos": None,
+                "exito": False
+            })
+    return frontera
