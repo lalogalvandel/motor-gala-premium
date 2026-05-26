@@ -989,15 +989,31 @@ with tab_motor:
             height=420, legend=dict(x=0.01, y=0.99), hovermode="x unified")
         st.plotly_chart(fig_bt, use_container_width=True, key="chart_bt")
 
-        anuales = cached_retornos_anuales(retorno_port, retorno_bench)
+        capital_anual = df_equity.groupby(df_equity.index.year).last()
+        anuales = capital_anual.pct_change().dropna() * 100
+
         fig_anuales = go.Figure()
-        fig_anuales.add_trace(go.Bar(x=anuales.index.astype(str), y=anuales["Portafolio GaLa"],
-            name="Motor GaLa", marker_color="#4488ff"))
-        fig_anuales.add_trace(go.Bar(x=anuales.index.astype(str), y=anuales["Benchmark"],
-            name=benchmark_ticker, marker_color="rgba(200,200,200,0.5)"))
+        fig_anuales.add_trace(go.Bar(
+            x=anuales.index.astype(str), 
+            y=anuales["Portafolio GaLa (Dinámico)"],
+            name="Motor GaLa", 
+            marker_color="#4488ff"
+        ))
+        fig_anuales.add_trace(go.Bar(
+            x=anuales.index.astype(str), 
+            y=anuales[f"Benchmark ({benchmark_ticker})"],
+            name=benchmark_ticker, 
+            marker_color="rgba(200,200,200,0.5)"
+        ))
         fig_anuales.add_hline(y=0, line_color="white", line_width=0.5)
-        fig_anuales.update_layout(template="plotly_dark", barmode="group",
-            xaxis_title="Año", yaxis_title="Retorno (%)", height=360, legend=dict(x=0.01, y=0.99))
+        fig_anuales.update_layout(
+            template="plotly_dark", 
+            barmode="group",
+            xaxis_title="Año", 
+            yaxis_title="Retorno (%)", 
+            height=360, 
+            legend=dict(x=0.01, y=0.99)
+        )
         st.plotly_chart(fig_anuales, use_container_width=True, key="chart_anuales")
 
         # Monte Carlo
