@@ -708,7 +708,7 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 @st.cache_data(show_spinner=False, ttl=86400)
 def cached_descargar_fundamentales(tickers):
-    return descargar_fundamentales_paralelo(tickers, max_workers=10)
+    return descargar_fundamentales_paralelo(tickers, max_workers=3)
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def obtener_datos(tickers_key: str, inicio: str, fin: str):
