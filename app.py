@@ -1139,15 +1139,25 @@ with tab_motor:
         c3.metric("Desviación downside anual",f"{desv_down*100:.2f}%")
 
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>Stress Testing — Escenarios Históricos</div>""", unsafe_allow_html=True)
+        
         df_stress = cached_stress_test(pesos_opt, tickers, capital_riesgo, retornos_diarios)
-        fig_stress = go.Figure(go.Bar(
-            x=df_stress["Pérdida (%)"], y=df_stress["Escenario"], orientation="h",
-            marker_color=["red" if p < -15 else "orange" if p < -8 else "gold" for p in df_stress["Pérdida (%)"]],
-            text=[f"{p:.1f}%" for p in df_stress["Pérdida (%)"]],
-            textposition="outside"))
-        fig_stress.update_layout(template="plotly_dark", height=350, xaxis_title="Impacto en Capital (%)")
-        st.plotly_chart(fig_stress, use_container_width=True, key="chart_stress")
-        st.dataframe(df_stress, use_container_width=True)
+        
+        if df_stress is not None and not df_stress.empty and "Pérdida (%)" in df_stress.columns:
+            # Tu código original intacto
+            fig_stress = go.Figure(go.Bar(
+                x=df_stress["Pérdida (%)"], y=df_stress["Escenario"], orientation="h",
+                marker_color=["red" if p < -15 else "orange" if p < -8 else "gold" for p in df_stress["Pérdida (%)"]],
+                text=[f"{p:.1f}%" for p in df_stress["Pérdida (%)"]],
+                textposition="outside"))
+            fig_stress.update_layout(template="plotly_dark", height=350, xaxis_title="Impacto en Capital (%)")
+            st.plotly_chart(fig_stress, use_container_width=True, key="chart_stress")
+            st.dataframe(df_stress, use_container_width=True)
+        else:
+            st.info(
+                " **Aviso de modelado:** No fue posible simular los escenarios de estrés histórico. "
+                "Esto es completamente normal si el portafolio incluye activos (como criptomonedas o IPOs recientes) "
+                "que no cotizaban en los mercados durante las crisis históricas evaluadas (ej. Crisis Subprime 2008)."
+            )
 
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>Correlación Dinámica Rolling — 60 días</div>""", unsafe_allow_html=True)
         fig_corr   = None
