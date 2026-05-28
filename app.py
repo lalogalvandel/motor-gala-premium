@@ -1354,13 +1354,22 @@ with tab_retiro:
     with col_imss:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>1. Parámetros IMSS (Ley 73)</div>""", unsafe_allow_html=True)
         
-        semanas_cotizadas = st.slider("Semanas Cotizadas Estimadas", min_value=500, max_value=2500, value=1800, step=50,
-                                      help="Requiere mínimo 500 semanas. Más de 1,500 es ideal para maximizar la cuantía básica.")
-        salario_promedio = st.number_input("Salario Promedio Diario (Últimos 5 años) MXN", 
-                                           min_value=100.0, max_value=3000.0, value=2500.0, step=100.0,
-                                           help="El tope legal en 2026 ronda los $2,850 MXN (25 UMAs).")
-        edad_retiro = st.selectbox("Edad de retiro proyectada", [60, 61, 62, 63, 64, 65], index=5,
-                                   help="A los 60 años se recibe el 75%, aumentando 5% cada año hasta el 100% a los 65.")
+        # ── NUEVO: Interruptor Estratégico ──
+        simular_m40 = st.toggle("Activar Estrategia: Modalidad 40 Topada", value=False,
+                                help="Asume inversión en M40 los últimos 5 años para topar el salario a 25 UMAs.")
+        
+        semanas_cotizadas = st.slider("Semanas Cotizadas Estimadas", min_value=500, max_value=3000, value=1800, step=50)
+        
+        if simular_m40:
+            st.info("**Modo M40 Activado:** El Salario Promedio se fuerza al tope legal de 25 UMAs. Recuerda restar ~$10,000 a $12,000 MXN mensuales del flujo libre de inversión privada.")
+            # Topamos el salario automáticamente usando la función inteligente que creamos
+            salario_promedio = 25 * obtener_uma_actual()
+            st.metric("Salario Promedio Diario (Topado)", f"${salario_promedio:,.2f} MXN")
+        else:
+            salario_promedio = st.number_input("Salario Promedio Diario (Últimos 5 años) MXN", 
+                                               min_value=100.0, max_value=3500.0, value=2000.0, step=100.0)
+            
+        edad_retiro = st.selectbox("Edad de retiro proyectada", [60, 61, 62, 63, 64, 65], index=5)
         
     with col_priv:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>2. Portafolio Privado y Meta</div>""", unsafe_allow_html=True)
