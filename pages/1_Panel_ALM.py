@@ -296,10 +296,9 @@ if df_pasivos is not None and df_activos is not None:
             )
 
         # ── CÁLCULOS ESTRUCTURALES GLOBALES (BASE MATEMÁTICA) ──
-        valor_total_pasivos = df_pasivos['Flujo_Esperado'].sum()
         valor_total_activos = df_activos['Valor_Mercado'].sum()
-        ratio_cobertura = valor_total_activos / valor_total_pasivos
-        ratio_apalancamiento = valor_total_pasivos / valor_total_activos
+        ratio_cobertura = valor_total_activos / vp_pasivo
+        ratio_apalancamiento = vp_pasivo / valor_total_activos
 
         # Calculamos VP, Duración y Convexidad exacta de los Pasivos con la tasa base
         vp_pasivo, dur_pasivo, conv_pasivo = calcular_duracion_convexidad(
@@ -375,7 +374,7 @@ if df_pasivos is not None and df_activos is not None:
         # ── Métricas de auditoría ──
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Activos totales",   f"${valor_total_activos:,.2f} M")
-        c2.metric("Pasivos (VP)",      f"${vp_pasivo:,.2f} M")
+        c2.metric("Pasivos ",      f"${vp_pasivo:,.2f} M")
         
         if ratio_cobertura >= 1:
             c3.metric("Ratio de cobertura", f"{ratio_cobertura*100:.1f}%", "Suficiente")
@@ -439,8 +438,12 @@ if df_pasivos is not None and df_activos is not None:
                     df_activos['Duracion'].values,
                     df_activos['Convexidad'].values,
                     yields_estresados,
-                    target_duracion,    # Pasamos el target matemáticamente correcto
-                    target_convexidad
+                    target_duracion,
+                    target_convexidad,
+                    v_activos=valor_total_activos,
+                    v_pasivos=vp_pasivo,
+                    vol_activos=vol_cartera,
+                    d_activos=d_activos_actual
                 )
 
                 if resultado["exito"]:
@@ -508,7 +511,7 @@ if df_pasivos is not None and df_activos is not None:
                         st.plotly_chart(fig_pie, use_container_width=True)
 
                 else:
-                    st.error(f"Riesgo estructural: El nivel de apalancamiento exige una duración objetivo de {target_duracion:.2f} años. La curva actual no cuenta con instrumentos para alcanzar este nivel matemático.")
+                    st.error(f"Riesgo estructural: No se alcanzó la inmunización. Duración objetivo: {target_duracion:.2f} años. Posibles causas: capital insuficiente, convexidad inadecuada o instrumentos insuficientes.")
 
         # ── Paso 5: Frontera Eficiente ──
         st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
@@ -628,8 +631,7 @@ if df_pasivos is not None and df_activos is not None:
                     </div>
                     """, unsafe_allow_html=True)
                 except Exception as e:
-                    st.error(f"Asegúrese de importar e implementar calcular_var_excedente. Error: {e}")
-
+                    st.error(f"Error en simulación estocástica: {e}")
     except Exception as e:
         st.error(f"Error en la ejecución matemática. Verifique que los archivos base (Activos y Pasivos) estén cargados correctamente. Detalle: {e}")
 
