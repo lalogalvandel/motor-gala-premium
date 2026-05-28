@@ -295,19 +295,18 @@ if df_pasivos is not None and df_activos is not None:
                 help="Desplazamiento paralelo para simular estrés de política monetaria."
             )
 
-        # ── CÁLCULOS ESTRUCTURALES GLOBALES (BASE MATEMÁTICA) ──
-        valor_total_activos = df_activos['Valor_Mercado'].sum()
-        ratio_cobertura = valor_total_activos / vp_pasivo
-        ratio_apalancamiento = vp_pasivo / valor_total_activos
 
-        # Calculamos VP, Duración y Convexidad exacta de los Pasivos con la tasa base
+        valor_total_activos = df_activos['Valor_Mercado'].sum()
+
         vp_pasivo, dur_pasivo, conv_pasivo = calcular_duracion_convexidad(
             df_pasivos['Flujo_Esperado'].values, 
             df_pasivos['Año'].values, 
             tasa_mercado
         )
 
-        # Promedios ponderados actuales de la cartera de Activos
+        ratio_cobertura = valor_total_activos / vp_pasivo
+        ratio_apalancamiento = vp_pasivo / valor_total_activos
+
         d_activos_actual = np.average(df_activos['Duracion'].values, weights=df_activos['Valor_Mercado'].values)
         c_activos_actual = np.average(df_activos['Convexidad'].values, weights=df_activos['Valor_Mercado'].values)
 
