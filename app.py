@@ -667,13 +667,27 @@ with st.sidebar:
 
     tickers_default = st.session_state.get("tickers_screening", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX") if usar_screening else "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"
 
+    usar_perfil_ldi = False
+    if "riesgo_objetivo_ldi" in st.session_state:
+        st.markdown("<div style='padding: 10px; border-radius: 5px; background-color: rgba(68,136,255,0.1); border-left: 3px solid #4488FF;'>", unsafe_allow_html=True)
+        usar_perfil_ldi = st.toggle("Usar Prescripción Actuarial LDI", value=True, 
+                                    help="Sobrescribe el riesgo máximo usando el déficit calculado en la Planeación de Retiro.")
+        
+        if usar_perfil_ldi:
+            limite_riesgo_global = st.session_state["riesgo_objetivo_ldi"]
+            st.caption(f"**Tope de riesgo bloqueado al {limite_riesgo_global*100:.1f}%** ({st.session_state['perfil_ldi_nombre']})")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
     with st.form("optim_form"):
         tickers_input         = st.text_area("Activos a optimizar", value=tickers_default, height=70, key="widget_tickers")
         fecha_inicio          = st.date_input("Fecha de inicio", value=pd.Timestamp("2020-01-01"))
         fecha_fin             = st.date_input("Fecha de cierre", value=pd.Timestamp("2026-05-08"))
         st.markdown("---")
         st.subheader("Restricciones de concentración")
-        peso_max              = st.slider("Exposición máxima por activo (%)", 10, 100, 40) / 100
+        peso_max = st.slider("Exposición máxima por activo (%)", 10, 100, 40) / 100
+        if not usar_perfil_ldi:
+            limite_riesgo_global = st.slider("Exposición global máxima a Renta Variable (%)", 10, 100, 80) / 100
+        
         peso_min              = st.slider("Exposición mínima por activo (%)", 0, 10, 2) / 100
         comision_broker       = st.number_input("Comisión operativa (%)", value=0.15, step=0.05) / 100
         st.markdown("---")
@@ -831,12 +845,25 @@ with tab_motor:
                 REFUGIOS      = {"TLT","IEF","SHY","BND","AGG","BIL","GLD","IAU","USDC-USD","CASH"}
                 es_riesgo     = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in tickers])
                 num_refugios  = np.sum(es_riesgo == 0.0)
-                target_riesgo = min(1.0, max(0.20, horizonte_años / 15.0))
-                factor_glide  = max(target_riesgo, max(0.0, 1.0 - num_refugios * peso_max))
+                
+
+                if 'limite_riesgo_global' in locals():
+                    riesgo_maximo_final = limite_riesgo_global
+                else:
+                    target_riesgo = min(1.0, max(0.20, horizonte_años / 15.0))
+                    riesgo_maximo_final = max(target_riesgo, max(0.0, 1.0 - num_refugios * peso_max))
 
                 resultados, pesos_guardados = simular_portafolios(retornos_anuales, matriz_cov, tasa_rf, num_portafolios=num_sims)
-                pesos_opt = optimizar_sharpe_slsqp(retornos_anuales, matriz_cov, tasa_rf,
-                    peso_min=peso_min, peso_max=peso_max, max_riesgo_total=factor_glide, es_riesgo=es_riesgo)
+                
+                pesos_opt = optimizar_sharpe_slsqp(
+                    retornos_anuales, 
+                    matriz_cov, 
+                    tasa_rf,
+                    peso_min=peso_min, 
+                    peso_max=peso_max, 
+                    max_riesgo_total=riesgo_maximo_final, # <── La regla inyectada
+                    es_riesgo=es_riesgo
+                )
 
                 ret_opt    = float(np.sum(pesos_opt * retornos_anuales))
                 vol_opt    = float(np.sqrt(np.dot(pesos_opt.T, np.dot(matriz_cov, pesos_opt))))
@@ -943,12 +970,27 @@ with tab_motor:
             columnas_validas  = [c for c in list(tickers) + [benchmark_elegido] if c in retornos_para_bt.columns]
             retornos_para_bt  = retornos_para_bt[columnas_validas]
             es_riesgo_arr     = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in retornos_para_bt.columns])
-            factor_glide      = max(min(1.0, max(0.20, horizonte_años/15.0)),
-                                   max(0.0, 1.0 - np.sum(es_riesgo_arr==0.0)*peso_max))
+            
+            # ── INTEGRACIÓN LDI PARA EL BACKTEST ──
+            if 'limite_riesgo_global' in locals():
+                riesgo_maximo_bt = limite_riesgo_global
+            else:
+                riesgo_maximo_bt = max(min(1.0, max(0.20, horizonte_años/15.0)),
+                                       max(0.0, 1.0 - np.sum(es_riesgo_arr==0.0)*peso_max))
+            
+            # ── AQUÍ INYECTAMOS LA RESTRICCIÓN A LA SIMULACIÓN HISTÓRICA ──
             df_equity, benchmark_ticker, retorno_port, retorno_bench = correr_backtest(
-                retornos_para_bt, tasa_rf, capital_inicial, peso_min, peso_max,
-                factor_glide, es_riesgo_arr, st.session_state.df_regimenes,
-                comision_broker, benchmark_elegido)
+                retornos_para_bt, 
+                tasa_rf, 
+                capital_inicial, 
+                peso_min, 
+                peso_max,
+                riesgo_maximo_bt, # <── La regla inyectada
+                es_riesgo_arr, 
+                st.session_state.df_regimenes,
+                comision_broker, 
+                benchmark_elegido
+            )
 
         metricas_bt = cached_metricas_bt(retorno_port, retorno_bench, tasa_rf,
             df_equity["Portafolio GaLa (Dinámico)"], df_equity[f"Benchmark ({benchmark_ticker})"])
@@ -1403,6 +1445,34 @@ with tab_retiro:
             else:
                 m3.metric("Ingreso Total Mensual", f"${ingreso_total:,.2f} MXN", f"-${abs(brecha):,.2f} de déficit", delta_color="inverse")
                 st.warning(f"**Déficit Detectado:** Existe una brecha de ${brecha:,.2f} MXN mensuales. Se requiere incrementar el capital acumulado mediante aportaciones adicionales o implementar estrategias de Modalidad 40 para maximizar el Salario Promedio Diario del IMSS.")
+                # ── EL PUENTE CUANTITATIVO: Cálculo Dinámico del Presupuesto de Riesgo ──
+            
+            if brecha <= 0:
+                # SUPERÁVIT: El objetivo es estrictamente preservación de capital y blindaje inflacionario.
+                # Se asigna un tope de riesgo bajo (ej. máximo 15% en renta variable para combatir inflación, 85% renta fija).
+                riesgo_sugerido = 0.15 
+                perfil_estrategico = "Conservador Institucional (Preservación de Capital)"
+            else:
+                # DÉFICIT: El portafolio necesita generar "Alpha" para cerrar la brecha pensional.
+                # Escalamos el riesgo proporcionalmente al tamaño del déficit, pero topándolo al 45% 
+                # para proteger a un usuario de 59 años de un riesgo de ruina por volatilidad.
+                defcit_maximo_esperado = 20000.0 # Parámetro de calibración (déficit donde se asume riesgo máximo)
+                factor_necesidad = min(brecha / defcit_maximo_esperado, 1.0)
+                
+                # Fórmula: Riesgo Base (15%) + Riesgo Adicional por Necesidad (hasta 30% extra)
+                riesgo_sugerido = 0.15 + (0.30 * factor_necesidad)
+                perfil_estrategico = "Moderado Actuarial (Crecimiento Táctico)"
+
+            # Guardamos el parámetro en la sesión del servidor
+            st.session_state["riesgo_objetivo_ldi"] = riesgo_sugerido
+            st.session_state["perfil_ldi_nombre"] = perfil_estrategico
+            
+            st.markdown("---")
+            st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#4488FF;margin-bottom:.75rem;'>Prescripción Algorítmica de Portafolio</div>""", unsafe_allow_html=True)
+            
+            st.info(f"**Perfil asignado:** {perfil_estrategico}\n\n"
+                    f"**Límite Máximo de Renta Variable Sugerido:** {riesgo_sugerido*100:.1f}%\n\n"
+                    f"El Motor GaLa ha calibrado automáticamente esta restricción. Puede ir al 'Motor Cuantitativo' para ejecutar la optimización de activos bajo esta frontera matemática.")
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 4 — GLOSARIO TÉCNICO
 # ══════════════════════════════════════════════════════════════════════════════
