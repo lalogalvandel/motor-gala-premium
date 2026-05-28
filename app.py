@@ -17,7 +17,7 @@ from modulos.screening   import UNIVERSOS, descargar_fundamentales_paralelo, fil
 from modulos.backtesting import calcular_backtest_walk_forward, calcular_metricas_backtest, calcular_retornos_anuales
 from modulos.riesgo      import calcular_var_cvar, calcular_drawdown, calcular_sortino, calcular_stress_test, calcular_correlacion_rolling
 from modulos.regimenes   import entrenar_modelo_markov
-
+from modulos.pensiones import estimar_pension_ley73, calcular_brecha_pensional
 # ── Configuración de página ────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Motor GaLa Premium",
@@ -730,16 +730,17 @@ def cached_metricas_bt(_rp, _rb, rf, _ep, _eb): return calcular_metricas_backtes
 @st.cache_data(show_spinner=False)
 def cached_retornos_anuales(_rp, _rb): return calcular_retornos_anuales(_rp, _rb)
 
-tabs_nombres = ["Motor Cuantitativo", "Noticias del Mercado", "Glosario Técnico", "Comunidad", "Sugerencias"]
+tabs_nombres = ["Motor Cuantitativo", "Noticias del Mercado", "Planeación de Retiro", "Glosario Técnico", "Comunidad", "Sugerencias"]
 if es_admin: tabs_nombres.append("Administración")
 
 tabs_objetos  = st.tabs(tabs_nombres)
 tab_motor     = tabs_objetos[0]
 tab_noticias  = tabs_objetos[1]
-tab_glosario  = tabs_objetos[2]
-tab_comunidad = tabs_objetos[3]
-tab_feedback  = tabs_objetos[4]
-tab_admin     = tabs_objetos[5] if es_admin else None
+tab_retiro    = tabs_objetos[2] 
+tab_glosario  = tabs_objetos[3]
+tab_comunidad = tabs_objetos[4]
+tab_feedback  = tabs_objetos[5]
+tab_admin     = tabs_objetos[6] if es_admin else None
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — MOTOR CUANTITATIVO
@@ -1341,9 +1342,79 @@ with tab_noticias:
                 st.markdown("---")
             except Exception:
                 continue
-
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — GLOSARIO TÉCNICO
+# TAB 3 — PLANEACIÓN DE RETIRO (LDI PERSONAL)
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_retiro:
+    _header("Modelado Actuarial LDI", "Planeación de Retiro (Ley 73)")
+    st.caption("Proyección de ingresos combinando pensión gubernamental y flujo de portafolio privado.")
+
+    col_imss, col_priv = st.columns(2, gap="large")
+    
+    with col_imss:
+        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>1. Parámetros IMSS (Ley 73)</div>""", unsafe_allow_html=True)
+        
+        semanas_cotizadas = st.slider("Semanas Cotizadas Estimadas", min_value=500, max_value=2500, value=1800, step=50,
+                                      help="Requiere mínimo 500 semanas. Más de 1,500 es ideal para maximizar la cuantía básica.")
+        salario_promedio = st.number_input("Salario Promedio Diario (Últimos 5 años) MXN", 
+                                           min_value=100.0, max_value=3000.0, value=2500.0, step=100.0,
+                                           help="El tope legal en 2026 ronda los $2,850 MXN (25 UMAs).")
+        edad_retiro = st.selectbox("Edad de retiro proyectada", [60, 61, 62, 63, 64, 65], index=5,
+                                   help="A los 60 años se recibe el 75%, aumentando 5% cada año hasta el 100% a los 65.")
+        
+    with col_priv:
+        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>2. Portafolio Privado y Meta</div>""", unsafe_allow_html=True)
+        
+        meta_mensual = st.number_input("Ingreso Mensual Objetivo (MXN)", min_value=10000, value=30000, step=5000)
+        capital_acumulado = st.number_input("Capital Acumulado Proyectado al Retiro (MXN)", min_value=0, value=2000000, step=100000)
+        tasa_retiro = st.slider("Tasa de Retiro Segura Anual (%)", 2.0, 8.0, 4.0, step=0.5,
+                                help="Regla del 4%: Porcentaje del capital que se puede retirar anualmente sin descapitalizar el portafolio.") / 100
+
+    st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+    
+    if st.button("Ejecutar Modelado Actuarial", type="primary", use_container_width=True):
+        with st.spinner("Calculando proyecciones de cuantía básica e incrementos anuales..."):
+            
+            # --- Lógica (Debe ir importada desde modulos/pensiones.py, pero aquí te la dejo directa por si quieres testear rápido) ---
+            uma_actual = 114.0 
+            salario_uma = salario_promedio / uma_actual
+            porcentaje_edad = {60: 0.75, 61: 0.80, 62: 0.85, 63: 0.90, 64: 0.95, 65: 1.0}
+            factor_edad = porcentaje_edad.get(edad_retiro, 1.0)
+            
+            if salario_uma > 6.0:
+                cuantia_basica_pct = 0.13
+            else:
+                cuantia_basica_pct = 0.13 + (6.0 - salario_uma) * 0.05 
+                
+            cuantia_basica = salario_promedio * cuantia_basica_pct * 365
+            semanas_extra = max(0, semanas_cotizadas - 500)
+            anios_extra = semanas_extra / 52.0
+            incrementos = salario_promedio * 0.0245 * 365 * anios_extra
+            
+            pension_anual = (cuantia_basica + incrementos) * factor_edad * 1.15 # 1.15 por asignación familiar
+            tope_mensual = 25 * uma_actual * 30.4
+            
+            pension_imss = min(pension_anual / 12, tope_mensual)
+            flujo_privado = (capital_acumulado * tasa_retiro) / 12
+            ingreso_total = pension_imss + flujo_privado
+            brecha = meta_mensual - ingreso_total
+            # -----------------------------------------------------------------------------------------------------------------------
+
+            st.markdown("---")
+            st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#17C37B;margin-bottom:.75rem;'>Diagnóstico de Flujo Generado</div>""", unsafe_allow_html=True)
+            
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Pensión IMSS Estimada", f"${pension_imss:,.2f} MXN", "Base vitalicia")
+            m2.metric("Flujo de Portafolio Privado", f"${flujo_privado:,.2f} MXN", f"Tasa de retiro: {tasa_retiro*100:.1f}%")
+            
+            if brecha <= 0:
+                m3.metric("Ingreso Total Mensual", f"${ingreso_total:,.2f} MXN", f"+${abs(brecha):,.2f} sobre la meta")
+                st.success(f"**Superávit Estructural:** La combinación de la pensión IMSS y el portafolio supera la meta de ${meta_mensual:,.2f} MXN. El enfoque del portafolio debe centrarse en la preservación de capital y protección contra la inflación (UDIBONOS), limitando la exposición a renta variable de alto riesgo.")
+            else:
+                m3.metric("Ingreso Total Mensual", f"${ingreso_total:,.2f} MXN", f"-${abs(brecha):,.2f} de déficit", delta_color="inverse")
+                st.warning(f"**Déficit Detectado:** Existe una brecha de ${brecha:,.2f} MXN mensuales. Se requiere incrementar el capital acumulado mediante aportaciones adicionales o implementar estrategias de Modalidad 40 para maximizar el Salario Promedio Diario del IMSS.")
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 4 — GLOSARIO TÉCNICO
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_glosario:
     _header("Referencia cuantitativa", "Glosario Técnico")
@@ -1383,7 +1454,7 @@ with tab_glosario:
         st.info("No se encontraron términos que coincidan con la búsqueda.")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 4 — COMUNIDAD
+# TAB 5 — COMUNIDAD
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_comunidad:
     _header("Espacio de intercambio", "Comunidad GaLa Premium")
@@ -1451,7 +1522,7 @@ with tab_comunidad:
                 st.markdown("---")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 5 — SUGERENCIAS
+# TAB 6 — SUGERENCIAS
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_feedback:
     _header("Desarrollo continuo", "Comentarios y Sugerencias")
@@ -1489,7 +1560,7 @@ with tab_feedback:
             st.warning("Incluya un comentario antes de enviar.")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 6 — ADMINISTRACIÓN (OCULTO)
+# TAB 7 — ADMINISTRACIÓN (OCULTO)
 # ══════════════════════════════════════════════════════════════════════════════
 if es_admin and tab_admin:
     with tab_admin:
