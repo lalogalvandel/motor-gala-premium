@@ -518,16 +518,14 @@ if df_pasivos is not None and df_activos is not None:
             <div style='font-family: "EB Garamond", Georgia, serif; font-size: 24px; color: #E8EDF5; font-weight: 400;'>Optimización de Frontera Eficiente ALM</div>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Botón para disparar el cálculo
+
         if st.button("Calcular Frontera Eficiente", type="primary"):
-            with st.spinner("Trazando frontera eficiente..."):
+            with st.spinner("Trazando frontera eficiente y diversificando carteras..."):
                 target_duracion = dur_pasivo * ratio_apalancamiento
                 target_convexidad = conv_pasivo * ratio_apalancamiento
                 yields_estresados = df_activos['Tasa_YTM'].values + (shock_bps / 10000.0)
-        
+
                 try:
-                    # Calculamos y guardamos en session_state para que no desaparezca
                     st.session_state["frontera_data"] = frontera_eficiente_alm(
                         df_activos['Duracion'].values,
                         df_activos['Convexidad'].values,
@@ -538,54 +536,61 @@ if df_pasivos is not None and df_activos is not None:
                         v_pasivos=valor_total_pasivos,
                         vol_activos=vol_cartera,
                         d_activos=d_activos_actual,
-                        num_puntos=20
+                        num_puntos=25 
                     )
                 except Exception as e:
-                    st.error(f"La función frontera_eficiente_alm arrojó un error: {e}")
+                    st.error(f"Error de cálculo en la frontera: {e}")
                     st.session_state["frontera_data"] = None
-        
-        # Lógica de visualización (separada del botón para persistir interacción)
+
         if "frontera_data" in st.session_state and st.session_state["frontera_data"]:
             frontera = st.session_state["frontera_data"]
             puntos_validos = [p for p in frontera if p["exito"]]
             
             if puntos_validos:
-                yields = [p["yield"]*100 for p in puntos_validos]
+                yields = [p["yield"] * 100 for p in puntos_validos]
+                vols = [p["volatilidad"] * 100 for p in puntos_validos] 
                 scrs = [p["scr_est"] for p in puntos_validos]
                 duraciones = [p["duracion"] for p in puntos_validos]
-                opciones = [f"{d:.2f} años / {y:.2f}% yield" for d, y in zip(duraciones, yields)]
-        
+                
+                # Creamos las opciones del selector
+                opciones = [f"Riesgo: {v:.2f}% | Yield: {y:.2f}%" for v, y in zip(vols, yields)]
+
                 fig_frontera = go.Figure()
                 fig_frontera.add_trace(go.Scatter(
-                    x=scrs, y=yields, mode='lines+markers',
-                    marker=dict(size=8, color='#4488FF'),
-                    line=dict(color='#4488FF', width=2),
+                    x=vols,
+                    y=yields, 
+                    mode='lines+markers',
+                    marker=dict(size=8, color='#4488FF', line=dict(width=1, color='white')),
+                    line=dict(color='#4488FF', width=2, shape='spline'), 
                     name='Frontera eficiente',
-                    hovertemplate='SCR: %{x:.2f} M<br>Yield: %{y:.2f}%<br>Duración: %{customdata:.2f} años',
-                    customdata=duraciones
+                    hovertemplate='Volatilidad: %{x:.2f}%<br>Yield: %{y:.2f}%<br>Duración: %{customdata[0]:.2f} años<br>SCR Est: $%{customdata[1]:.0f} M',
+                    customdata=np.column_stack((duraciones, scrs))
                 ))
+                
+                if 'duracion_lograda' in locals() or 'duracion_lograda' in globals():
+                    pass 
+
                 fig_frontera.update_layout(
-                    title="Frontera Eficiente: Yield vs SCR de Tasa",
-                    xaxis_title="SCR estimado (M MXN)",
-                    yaxis_title="Yield esperado (%)",
+                    title="Frontera Eficiente Markowitz (ALM)",
+                    xaxis_title="Volatilidad Esperada (%)",
+                    yaxis_title="Rendimiento (Yield %)",
                     paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(family='DM Mono', color='#B0BACA'), height=400
+                    font=dict(family='DM Mono', color='#B0BACA'), height=450,
+                    hovermode="closest"
                 )
                 st.plotly_chart(fig_frontera, use_container_width=True)
 
-                # Selectbox persistente
-                seleccion = st.selectbox("Seleccione un punto de la frontera para ver la composición", opciones)
+                seleccion = st.selectbox("Analizar composición del portafolio:", opciones)
                 
-                # Obtener composición
                 idx = opciones.index(seleccion)
                 pesos_opt_front = puntos_validos[idx]["pesos"]
                 
-                st.markdown("**Composición del portafolio seleccionado:**")
+                st.markdown(f"**Estructura para el escenario (Riesgo {vols[idx]:.2f}%):**")
                 for nombre, peso in zip(df_activos['Instrumento'].values, pesos_opt_front):
                     if peso > 0.01:
                         st.markdown(f"- **{nombre}:** {peso*100:.1f}%")
             else:
-                st.warning("No se pudo construir la frontera eficiente con los parámetros actuales.")
+                st.warning("Los parámetros actuales no permiten construir una frontera válida.")
 
         # ── Simulación Estocástica ──
         st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
