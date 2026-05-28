@@ -481,7 +481,7 @@ if df_pasivos is not None and df_activos is not None:
 
                         try:
                             pdf_bytes = generar_pdf_inmunizacion(
-                                empresa_cliente, valor_total_activos, valor_total_pasivos, ratio_cobertura,
+                                empresa_cliente, valor_total_activos, vp_pasivo, ratio_cobertura,
                                 resultado['duracion_lograda'], resultado['rendimiento_esperado'], resultado['convexidad_lograda'],
                                 df_activos['Instrumento'].values, resultado['pesos'], shock_bps
                             )
@@ -511,7 +511,6 @@ if df_pasivos is not None and df_activos is not None:
 
                 else:
                     st.error(f"Riesgo estructural: No se alcanzó la inmunización. Duración objetivo: {target_duracion:.2f} años. Posibles causas: capital insuficiente, convexidad inadecuada o instrumentos insuficientes.")
-
         # ── Paso 5: Frontera Eficiente ──
         st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
         st.markdown("""
