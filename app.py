@@ -9,7 +9,7 @@ import secrets as secrets_lib
 import yfinance as yf
 
 from supabase import create_client, Client
-from modulos.datos       import cargar_datos, calcular_retornos, obtener_tasa_referencia_banxico
+from modulos.datos       import cargar_datos, obtener_uma_actual, calcular_retornos, obtener_tasa_referencia_banxico
 from modulos.reporte     import generar_reporte
 from modulos.markowitz   import simular_portafolios, optimizar_sharpe_slsqp
 from modulos.montecarlo  import simular_capital
@@ -1375,8 +1375,7 @@ with tab_retiro:
     if st.button("Ejecutar Modelado Actuarial", type="primary", use_container_width=True):
         with st.spinner("Calculando proyecciones actuariales..."):
             
-            # Llamamos a las funciones importadas
-            uma_actual = 114.0 # (Ahorita arreglamos esto)
+            uma_actual = obtener_uma_actual()
             
             pension_imss = estimar_pension_ley73(semanas_cotizadas, salario_promedio, edad_retiro, uma_actual)
             ingreso_total, brecha, flujo_privado = calcular_brecha_pensional(meta_mensual, pension_imss, capital_acumulado, tasa_retiro)
