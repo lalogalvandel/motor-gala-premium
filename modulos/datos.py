@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import requests
 import streamlit as st  # <-- AÑADIDO: Vital para usar st.secrets
+from datetime import datetime
 
 def cargar_datos(tickers: list, start: str = '2020-01-01', end: str = '2026-05-08') -> pd.DataFrame:
     """Descarga precios de cierre y elimina filas con NaN."""
@@ -58,3 +59,34 @@ def obtener_tasa_referencia_banxico() -> float:
     except Exception as e:
         print(f"🚨 Falla crítica en el radar: {e}")
         return 0.0650
+def obtener_uma_actual():
+    """
+    Devuelve la UMA diaria vigente basada en el año actual del sistema.
+    La UMA entra en vigor el 1 de febrero de cada año.
+    """
+    hoy = datetime.now()
+    anio = hoy.year
+    mes = hoy.month
+    
+    # Si estamos en enero, todavía aplica la UMA del año anterior
+    if mes == 1:
+        anio -= 1
+        
+    # Diccionario histórico y actual de la UMA diaria (Fuente: INEGI)
+    historico_uma = {
+        2022: 96.22,
+        2023: 103.74,
+        2024: 108.57,
+        2025: 112.50, # Valor de 2025
+        2026: 114.00, # Valor vigente proyectado/actual para 2026
+    }
+    
+    # Si el año no está en el diccionario (ej. 2027+ y olvidaste actualizar el código),
+    # tomamos el último valor conocido sumándole una inflación estimada del 4%
+    if anio not in historico_uma:
+        ultimo_anio = max(historico_uma.keys())
+        diferencia_anios = anio - ultimo_anio
+        uma_estimada = historico_uma[ultimo_anio] * ((1 + 0.04) ** diferencia_anios)
+        return round(uma_estimada, 2)
+        
+    return historico_uma[anio]
