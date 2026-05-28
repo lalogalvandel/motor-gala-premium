@@ -548,32 +548,27 @@ if df_pasivos is not None and df_activos is not None:
             
             if puntos_validos:
                 yields = [p["yield"] * 100 for p in puntos_validos]
-                vols = [p["volatilidad"] * 100 for p in puntos_validos] 
+                duraciones = [p["duracion"] for p in puntos_validos] 
                 scrs = [p["scr_est"] for p in puntos_validos]
-                duraciones = [p["duracion"] for p in puntos_validos]
                 
-                # Creamos las opciones del selector
-                opciones = [f"Riesgo: {v:.2f}% | Yield: {y:.2f}%" for v, y in zip(vols, yields)]
+                opciones = [f"Duración: {d:.2f} años | Yield: {y:.2f}%" for d, y in zip(duraciones, yields)]
 
                 fig_frontera = go.Figure()
                 fig_frontera.add_trace(go.Scatter(
-                    x=vols,
-                    y=yields, 
+                    x=duraciones, 
+                    y=yields,    
                     mode='lines+markers',
                     marker=dict(size=8, color='#4488FF', line=dict(width=1, color='white')),
                     line=dict(color='#4488FF', width=2, shape='spline'), 
                     name='Frontera eficiente',
-                    hovertemplate='Volatilidad: %{x:.2f}%<br>Yield: %{y:.2f}%<br>Duración: %{customdata[0]:.2f} años<br>SCR Est: $%{customdata[1]:.0f} M',
-                    customdata=np.column_stack((duraciones, scrs))
+                    hovertemplate='Duración: %{x:.2f} años<br>Yield: %{y:.2f}%<br>SCR Est: $%{customdata:.0f} M',
+                    customdata=scrs
                 ))
                 
-                if 'duracion_lograda' in locals() or 'duracion_lograda' in globals():
-                    pass 
-
                 fig_frontera.update_layout(
-                    title="Frontera Eficiente Markowitz (ALM)",
-                    xaxis_title="Volatilidad Esperada (%)",
-                    yaxis_title="Rendimiento (Yield %)",
+                    title="Frontera Eficiente ALM (Riesgo vs Retorno)",
+                    xaxis_title="Duración del Portafolio (Años) = Riesgo", 
+                    yaxis_title="Rendimiento Esperado (Yield %)",
                     paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                     font=dict(family='DM Mono', color='#B0BACA'), height=450,
                     hovermode="closest"
@@ -585,13 +580,12 @@ if df_pasivos is not None and df_activos is not None:
                 idx = opciones.index(seleccion)
                 pesos_opt_front = puntos_validos[idx]["pesos"]
                 
-                st.markdown(f"**Estructura para el escenario (Riesgo {vols[idx]:.2f}%):**")
+                st.markdown(f"**Estructura para el escenario (Duración {duraciones[idx]:.2f} años):**")
                 for nombre, peso in zip(df_activos['Instrumento'].values, pesos_opt_front):
                     if peso > 0.01:
                         st.markdown(f"- **{nombre}:** {peso*100:.1f}%")
             else:
                 st.warning("Los parámetros actuales no permiten construir una frontera válida.")
-
         # ── Simulación Estocástica ──
         st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
         st.markdown("""
