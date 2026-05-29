@@ -123,7 +123,7 @@ def generar_reporte(
     metricas_bt, benchmark_ticker, df_screening=None,
     fig_markowitz=None, fig_mc=None, fig_var=None, fig_dd=None, fig_stress=None, fig_bt=None, fig_anuales=None, fig_corr=None,
     # Parámetros LDI White-Box
-    limite_riesgo_global=None, perfil_estrategico=None, pension_imss=None, brecha_pensional=None, semanas_cotizadas=None, salario_promedio=None
+    limite_riesgo_global=None, perfil_estrategico=None, pension_imss=None, brecha_pensional=None, semanas_cotizadas=None, salario_promedio=None, simular_m40=False
 ) -> bytes:
 
     buffer = io.BytesIO()
