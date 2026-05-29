@@ -160,9 +160,12 @@ def generar_reporte(
         story += _seccion("Modelado Actuarial LDI y Pensión IMSS (Ley 73)", E['seccion'])
         
         story.append(Paragraph("1. Calibración de Pasivos", E['subseccion']))
+        
+        # ── NUEVA TABLA CON ESTATUS M40 ──
         ldi_data = [
             ['Semanas Cotizadas', f"{semanas_cotizadas:,}" if semanas_cotizadas else "N/A"],
             ['Salario Promedio Diario', f"${salario_promedio:,.2f} MXN" if salario_promedio else "N/A"],
+            ['Estrategia de Optimización', 'Modalidad 40 (Topada)' if simular_m40 else 'Evolución Salarial Orgánica'],
             ['Pensión Vitalicia Estimada (IMSS)', f"${pension_imss:,.2f} MXN/mes"],
         ]
         if brecha_pensional is not None:
@@ -171,13 +174,22 @@ def generar_reporte(
             
         story.append(_tabla_estilo(ldi_data, [3*inch, 3.5*inch]))
         
-        story += _callout_tecnico(
-            titulo="Algoritmo de Pensión (IMSS Ley 73)",
-            texto="La pensión gubernamental se estima aplicando el marco normativo de la Ley del Seguro Social de 1973. "
-                  "La función algorítmica calcula la relación entre el salario promedio y la UMA vigente para extraer el porcentaje "
-                  "de la 'Cuantía Básica' (tope legal del 13%). Posteriormente, se suma el factor de 'Incrementos Anuales' equivalente "
-                  "al 2.45% por cada bloque de 52 semanas que exceda el requisito mínimo de 500 semanas."
-        )
+        # ── NUEVA TARJETA TÉCNICA CONDICIONAL ──
+        if simular_m40:
+            story += _callout_tecnico(
+                titulo="Estrategia de Continuación Voluntaria (Modalidad 40)",
+                texto="El cálculo actuarial asume la inyección de capital en la Modalidad 40 durante los últimos 5 años de cotización. "
+                      "Esto fuerza matemáticamente el Salario Promedio Diario al tope legal de 25 UMAs. "
+                      "Esta estrategia genera una asimetría positiva: el valor presente de los incrementos en la pensión vitalicia "
+                      "supera exponencialmente el costo de las aportaciones voluntarias requeridas."
+            )
+        else:
+            story += _callout_tecnico(
+                titulo="Algoritmo de Pensión (IMSS Ley 73) - Orgánico",
+                texto="La pensión gubernamental se estima aplicando el marco normativo de la Ley del Seguro Social de 1973. "
+                      "La función algorítmica extrae el porcentaje de la 'Cuantía Básica' y suma el factor de 'Incrementos Anuales' "
+                      "basado exclusivamente en la evolución salarial histórica, sin aplicar aportaciones voluntarias externas."
+            )
 
         story.append(Paragraph("2. Prescripción Algorítmica de Riesgo", E['subseccion']))
         riesgo_asignado = limite_riesgo_global * 100 if limite_riesgo_global else 80.0
