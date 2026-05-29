@@ -1273,7 +1273,6 @@ with tab_motor:
                             semanas_cotizadas=st.session_state.get('semanas_cotizadas', None),
                             salario_promedio=st.session_state.get('salario_promedio', None),
                         )
-                        )
                         st.download_button(
                             label="Descargar reporte PDF", data=pdf_bytes,
                             file_name=f"MotorGaLa_{nombre_display}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
