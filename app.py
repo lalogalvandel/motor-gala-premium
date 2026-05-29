@@ -1514,21 +1514,18 @@ with tab_retiro:
 
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     
-    if st.button("Ejecutar Modelado Actuarial", type="primary", use_container_width=True):
+if st.button("Ejecutar Modelado Actuarial", type="primary", use_container_width=True):
         with st.spinner("Calculando proyecciones actuariales..."):
             
             uma_actual = obtener_uma_actual()
             
-            # Los cálculos se ejecutan usando los valores vigentes de los componentes de la UI
+            # Los cálculos se ejecutan usando los valores vigentes de los widgets
             pension_imss = estimar_pension_ley73(semanas_cotizadas, salario_promedio, edad_retiro, uma_actual)
             ingreso_total, brecha, flujo_privado = calcular_brecha_pensional(meta_mensual, pension_imss, capital_acumulado, tasa_retiro)
             
-            # ── PERSISTENCIA COMPLETA EN SESSION STATE PARA CRM Y REPORTE PDF ──
+            # ── SOLO GUARDAMOS LO CALCULADO (Lo de los widgets ya se guardó solo) ──
             st.session_state['pension_imss'] = pension_imss
             st.session_state['brecha'] = brecha
-            st.session_state['semanas_cotizadas'] = semanas_cotizadas
-            st.session_state['salario_promedio'] = salario_promedio
-            st.session_state['simular_m40'] = simular_m40
             # ───────────────────────────────────────────────────────────────────
 
             st.markdown("---")
@@ -1542,21 +1539,19 @@ with tab_retiro:
                 m3.metric("Ingreso Total Mensual", f"${ingreso_total:,.2f} MXN", f"+${abs(brecha):,.2f} sobre la meta")
                 st.success(f"**Superávit Estructural:** La combinación de la pensión IMSS y el portafolio supera la meta de ${meta_mensual:,.2f} MXN. El enfoque del portafolio debe centrarse en la preservación de capital y protección contra la inflación (UDIBONOS), limitando la exposición a renta variable de alto riesgo.")
                 
-                # Definición de la estrategia bajo superávit
                 riesgo_sugerido = 0.15 
                 perfil_estrategico = "Conservador Institucional (Preservación de Capital)"
             else:
                 m3.metric("Ingreso Total Mensual", f"${ingreso_total:,.2f} MXN", f"-${abs(brecha):,.2f} de déficit", delta_color="inverse")
                 st.warning(f"**Déficit Detectado:** Existe una brecha de ${brecha:,.2f} MXN mensuales. Se requiere incrementar el capital acumulado mediante aportaciones adicionales o implementar estrategias de Modalidad 40 para maximizar el Salario Promedio Diario del IMSS.")
                 
-                # Escalación del presupuesto de riesgo basado en la magnitud del déficit
                 defcit_maximo_esperado = 20000.0
                 factor_necesidad = min(brecha / defcit_maximo_esperado, 1.0)
                 
                 riesgo_sugerido = 0.15 + (0.30 * factor_necesidad)
                 perfil_estrategico = "Moderado Actuarial (Crecimiento Táctico)"
 
-            # ── CRÍTICO: Almacenamiento de la prescripción para el acoplamiento con la frontera eficiente ──
+            # Guardamos el parámetro en la sesión del servidor para el optimizador
             st.session_state["riesgo_objetivo_ldi"] = riesgo_sugerido
             st.session_state["perfil_ldi_nombre"] = perfil_estrategico
             
