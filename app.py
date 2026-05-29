@@ -370,6 +370,13 @@ defaults = {
     "resultados":      None,
     "df_regimenes":    None,
     "login_intentos":  0,
+    # ── NUEVOS DEFAULTS REQUERIDOS PARA EL CRM ──
+    "cliente_activo_id": None,
+    "semanas_cotizadas": 1800,
+    "salario_promedio": 2000.0,
+    "meta_mensual": 30000.0,
+    "capital_acumulado": 2000000.0,
+    "simular_m40": False,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -1479,35 +1486,29 @@ with tab_retiro:
     with col_imss:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>1. Parámetros IMSS (Ley 73)</div>""", unsafe_allow_html=True)
         
-        # ── NUEVO: Interruptor Estratégico ──
-        # En col_imss:
-        simular_m40 = st.toggle("Activar Estrategia: Modalidad 40 Topada", 
-                                value=st.session_state.get('simular_m40', False),
+        # Al asignarle key, Streamlit lee y escribe directamente en st.session_state
+        simular_m40 = st.toggle("Activar Estrategia: Modalidad 40 Topada", key="simular_m40",
                                 help="Asume inversión en M40 los últimos 5 años para topar el salario a 25 UMAs.")
         
-        semanas_cotizadas = st.slider("Semanas Cotizadas Estimadas", min_value=500, max_value=3000, 
-                                      value=int(st.session_state.get('semanas_cotizadas', 1800)), step=50)
-
-            
+        semanas_cotizadas = st.slider("Semanas Cotizadas Estimadas", min_value=500, max_value=3000, step=50, key="semanas_cotizadas")
+        
         if simular_m40:
             st.info("**Modo M40 Activado:** El Salario Promedio se fuerza al tope legal de 25 UMAs. Recuerda restar ~$10,000 a $12,000 MXN mensuales del flujo libre de inversión privada.")
-            # Topamos el salario automáticamente usando la función inteligente que creamos
             salario_promedio = 25 * obtener_uma_actual()
+            # Forzamos que el salario topado se guarde en el estado de la sesión
+            st.session_state["salario_promedio"] = salario_promedio
             st.metric("Salario Promedio Diario (Topado)", f"${salario_promedio:,.2f} MXN")
         else:
             salario_promedio = st.number_input("Salario Promedio Diario (Últimos 5 años) MXN", 
-                                           min_value=100.0, max_value=3500.0, 
-                                           value=float(st.session_state.get('salario_promedio', 2000.0)), step=100.0)
+                                               min_value=100.0, max_value=3500.0, step=100.0, key="salario_promedio")
             
         edad_retiro = st.selectbox("Edad de retiro proyectada", [60, 61, 62, 63, 64, 65], index=5)
         
     with col_priv:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>2. Portafolio Privado y Meta</div>""", unsafe_allow_html=True)
         
-        meta_mensual = st.number_input("Ingreso Mensual Objetivo (MXN)", min_value=10000, 
-                                       value=int(st.session_state.get('meta_mensual', 30000)), step=5000)
-        capital_acumulado = st.number_input("Capital Acumulado Proyectado al Retiro (MXN)", min_value=0, 
-                                            value=int(st.session_state.get('capital_acumulado', 2000000)), step=100000)
+        meta_mensual = st.number_input("Ingreso Mensual Objetivo (MXN)", min_value=10000, step=5000, key="meta_mensual")
+        capital_acumulado = st.number_input("Capital Acumulado Proyectado al Retiro (MXN)", min_value=0, step=100000, key="capital_acumulado")
         tasa_retiro = st.slider("Tasa de Retiro Segura Anual (%)", 2.0, 8.0, 4.0, step=0.5,
                                 help="Regla del 4%: Porcentaje del capital que se puede retirar anualmente sin descapitalizar el portafolio.") / 100
 
@@ -1518,14 +1519,17 @@ with tab_retiro:
             
             uma_actual = obtener_uma_actual()
             
+            # Los cálculos se ejecutan usando los valores vigentes de los componentes de la UI
             pension_imss = estimar_pension_ley73(semanas_cotizadas, salario_promedio, edad_retiro, uma_actual)
             ingreso_total, brecha, flujo_privado = calcular_brecha_pensional(meta_mensual, pension_imss, capital_acumulado, tasa_retiro)
+            
+            # ── PERSISTENCIA COMPLETA EN SESSION STATE PARA CRM Y REPORTE PDF ──
             st.session_state['pension_imss'] = pension_imss
             st.session_state['brecha'] = brecha
             st.session_state['semanas_cotizadas'] = semanas_cotizadas
             st.session_state['salario_promedio'] = salario_promedio
             st.session_state['simular_m40'] = simular_m40
-            # -----------------------------------------------------------------------------------------------------------------------
+            # ───────────────────────────────────────────────────────────────────
 
             st.markdown("---")
             st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#17C37B;margin-bottom:.75rem;'>Diagnóstico de Flujo Generado</div>""", unsafe_allow_html=True)
@@ -1537,28 +1541,22 @@ with tab_retiro:
             if brecha <= 0:
                 m3.metric("Ingreso Total Mensual", f"${ingreso_total:,.2f} MXN", f"+${abs(brecha):,.2f} sobre la meta")
                 st.success(f"**Superávit Estructural:** La combinación de la pensión IMSS y el portafolio supera la meta de ${meta_mensual:,.2f} MXN. El enfoque del portafolio debe centrarse en la preservación de capital y protección contra la inflación (UDIBONOS), limitando la exposición a renta variable de alto riesgo.")
-            else:
-                m3.metric("Ingreso Total Mensual", f"${ingreso_total:,.2f} MXN", f"-${abs(brecha):,.2f} de déficit", delta_color="inverse")
-                st.warning(f"**Déficit Detectado:** Existe una brecha de ${brecha:,.2f} MXN mensuales. Se requiere incrementar el capital acumulado mediante aportaciones adicionales o implementar estrategias de Modalidad 40 para maximizar el Salario Promedio Diario del IMSS.")
-                # ── EL PUENTE CUANTITATIVO: Cálculo Dinámico del Presupuesto de Riesgo ──
-            
-            if brecha <= 0:
-                # SUPERÁVIT: El objetivo es estrictamente preservación de capital y blindaje inflacionario.
-                # Se asigna un tope de riesgo bajo (ej. máximo 15% en renta variable para combatir inflación, 85% renta fija).
+                
+                # Definición de la estrategia bajo superávit
                 riesgo_sugerido = 0.15 
                 perfil_estrategico = "Conservador Institucional (Preservación de Capital)"
             else:
-                # DÉFICIT: El portafolio necesita generar "Alpha" para cerrar la brecha pensional.
-                # Escalamos el riesgo proporcionalmente al tamaño del déficit, pero topándolo al 45% 
-                # para proteger a un usuario de 59 años de un riesgo de ruina por volatilidad.
-                defcit_maximo_esperado = 20000.0 # Parámetro de calibración (déficit donde se asume riesgo máximo)
+                m3.metric("Ingreso Total Mensual", f"${ingreso_total:,.2f} MXN", f"-${abs(brecha):,.2f} de déficit", delta_color="inverse")
+                st.warning(f"**Déficit Detectado:** Existe una brecha de ${brecha:,.2f} MXN mensuales. Se requiere incrementar el capital acumulado mediante aportaciones adicionales o implementar estrategias de Modalidad 40 para maximizar el Salario Promedio Diario del IMSS.")
+                
+                # Escalación del presupuesto de riesgo basado en la magnitud del déficit
+                defcit_maximo_esperado = 20000.0
                 factor_necesidad = min(brecha / defcit_maximo_esperado, 1.0)
                 
-                # Fórmula: Riesgo Base (15%) + Riesgo Adicional por Necesidad (hasta 30% extra)
                 riesgo_sugerido = 0.15 + (0.30 * factor_necesidad)
                 perfil_estrategico = "Moderado Actuarial (Crecimiento Táctico)"
 
-            # Guardamos el parámetro en la sesión del servidor
+            # ── CRÍTICO: Almacenamiento de la prescripción para el acoplamiento con la frontera eficiente ──
             st.session_state["riesgo_objetivo_ldi"] = riesgo_sugerido
             st.session_state["perfil_ldi_nombre"] = perfil_estrategico
             
