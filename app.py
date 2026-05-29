@@ -1272,6 +1272,7 @@ with tab_motor:
                             brecha_pensional=st.session_state.get('brecha', None),
                             semanas_cotizadas=st.session_state.get('semanas_cotizadas', None),
                             salario_promedio=st.session_state.get('salario_promedio', None),
+                            simular_m40=st.session_state.get('simular_m40', False),
                         )
                         st.download_button(
                             label="Descargar reporte PDF", data=pdf_bytes,
@@ -1441,6 +1442,7 @@ with tab_retiro:
             st.session_state['brecha'] = brecha
             st.session_state['semanas_cotizadas'] = semanas_cotizadas
             st.session_state['salario_promedio'] = salario_promedio
+            st.session_state['simular_m40'] = simular_m40
             # -----------------------------------------------------------------------------------------------------------------------
 
             st.markdown("---")
