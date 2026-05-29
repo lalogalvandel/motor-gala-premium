@@ -1265,13 +1265,14 @@ with tab_motor:
                             fig_markowitz=fig_markowitz, fig_mc=fig_mc, fig_var=fig_var,
                             fig_dd=fig_dd, fig_stress=fig_stress, fig_bt=fig_bt,
                             fig_anuales=fig_anuales, fig_corr=fig_corr,
-                            # ── NUEVOS PARÁMETROS PARA LA "CAJA BLANCA" LDI ──
-                            limite_riesgo_global=locals().get('limite_riesgo_global', None),
+                            # ── PARÁMETROS "CAJA BLANCA" LDI CORREGIDOS ──
+                            limite_riesgo_global=st.session_state.get('riesgo_objetivo_ldi', None),
                             perfil_estrategico=st.session_state.get('perfil_ldi_nombre', None),
-                            pension_imss=locals().get('pension_imss', None),
-                            brecha_pensional=locals().get('brecha', None),
-                            semanas_cotizadas=locals().get('semanas_cotizadas', None),
-                            salario_promedio=locals().get('salario_promedio', None),
+                            pension_imss=st.session_state.get('pension_imss', None),
+                            brecha_pensional=st.session_state.get('brecha', None),
+                            semanas_cotizadas=st.session_state.get('semanas_cotizadas', None),
+                            salario_promedio=st.session_state.get('salario_promedio', None),
+                        )
                         )
                         st.download_button(
                             label="Descargar reporte PDF", data=pdf_bytes,
@@ -1437,6 +1438,10 @@ with tab_retiro:
             
             pension_imss = estimar_pension_ley73(semanas_cotizadas, salario_promedio, edad_retiro, uma_actual)
             ingreso_total, brecha, flujo_privado = calcular_brecha_pensional(meta_mensual, pension_imss, capital_acumulado, tasa_retiro)
+            st.session_state['pension_imss'] = pension_imss
+            st.session_state['brecha'] = brecha
+            st.session_state['semanas_cotizadas'] = semanas_cotizadas
+            st.session_state['salario_promedio'] = salario_promedio
             # -----------------------------------------------------------------------------------------------------------------------
 
             st.markdown("---")
