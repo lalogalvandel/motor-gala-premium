@@ -338,6 +338,26 @@ def obtener_posts_aprobados():
         return r.data or []
     except Exception:
         return []
+# ── Utilidades CRM (Gestión de Clientes) ───────────────────────────────────────
+def obtener_clientes(id_asesor: str) -> list:
+    try:
+        r = db.table("clientes_asesor").select("*").eq("id_asesor", id_asesor).order("nombre_cliente").execute()
+        return r.data or []
+    except Exception:
+        return []
+
+def guardar_cliente(datos: dict) -> tuple[bool, str]:
+    try:
+        if "id" in datos and datos["id"]:
+            # Si el cliente ya existe, lo actualizamos
+            cliente_id = datos.pop("id")
+            db.table("clientes_asesor").update(datos).eq("id", cliente_id).execute()
+        else:
+            # Si es nuevo, lo insertamos
+            db.table("clientes_asesor").insert(datos).execute()
+        return True, "Expediente guardado exitosamente en la base de datos."
+    except Exception as e:
+        return False, f"Error al guardar: {e}"
 
 # ── Estado de sesión ───────────────────────────────────────────────────────────
 defaults = {
@@ -640,6 +660,61 @@ with st.sidebar:
     st.metric(label="Tasa de Referencia Banxico", value=f"{tasa_actual_banxico * 100:.2f}%")
 
     margen_sugerido = float(round(tasa_actual_banxico * 100, 1))
+
+    # Sidebar: Módulo CRM - Gestión de Clientes
+    st.markdown("---")
+    st.subheader("👥 Expedientes (CRM)")
+
+    clientes_db = obtener_clientes(usuario["id"])
+    nombres_clientes = {c["nombre_cliente"]: c for c in clientes_db}
+    opciones_cliente = ["✚ Nuevo Cliente (Sin seleccionar)"] + list(nombres_clientes.keys())
+
+    cliente_seleccionado = st.selectbox("Seleccionar expediente", opciones_cliente)
+
+    # Inyección de datos a la memoria si se selecciona un cliente
+    if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)":
+        datos_c = nombres_clientes[cliente_seleccionado]
+        # Evitamos recargas infinitas validando el ID
+        if st.session_state.get("cliente_activo_id") != datos_c["id"]:
+            st.session_state["cliente_activo_id"] = datos_c["id"]
+            st.session_state["semanas_cotizadas"] = int(datos_c.get("semanas_cotizadas", 1800))
+            st.session_state["salario_promedio"]  = float(datos_c.get("salario_promedio", 2000.0))
+            st.session_state["meta_mensual"]      = float(datos_c.get("meta_mensual", 30000.0))
+            st.session_state["capital_acumulado"] = float(datos_c.get("capital_acumulado", 2000000.0))
+            st.session_state["simular_m40"]       = bool(datos_c.get("simular_m40", False))
+            st.rerun()
+        st.caption(f"Cargado desde base de datos")
+    else:
+        if st.session_state.get("cliente_activo_id") is not None:
+            st.session_state["cliente_activo_id"] = None
+            st.rerun()
+
+    # Botón para guardar el progreso
+    with st.expander("Guardar cambios al expediente"):
+        nuevo_nombre = st.text_input("Nombre del cliente", value=cliente_seleccionado if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" else "")
+        if st.button("Guardar Perfil LDI", use_container_width=True):
+            if not nuevo_nombre.strip():
+                st.warning("Ingrese un nombre.")
+            else:
+                datos_guardar = {
+                    "id_asesor": usuario["id"],
+                    "nombre_cliente": nuevo_nombre.strip(),
+                    "semanas_cotizadas": st.session_state.get("semanas_cotizadas", 1800),
+                    "salario_promedio": st.session_state.get("salario_promedio", 2000.0),
+                    "meta_mensual": st.session_state.get("meta_mensual", 30000.0),
+                    "capital_acumulado": st.session_state.get("capital_acumulado", 2000000.0),
+                    "simular_m40": st.session_state.get("simular_m40", False)
+                }
+                # Si estamos editando a un cliente existente, anexamos su ID
+                if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" and nuevo_nombre == cliente_seleccionado:
+                    datos_guardar["id"] = st.session_state["cliente_activo_id"]
+
+                ok, msg = guardar_cliente(datos_guardar)
+                if ok:
+                    st.success(msg)
+                    st.rerun()
+                else:
+                    st.error(msg)
 
     # Sidebar: Módulo 1
     st.markdown("---")
@@ -1405,11 +1480,15 @@ with tab_retiro:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>1. Parámetros IMSS (Ley 73)</div>""", unsafe_allow_html=True)
         
         # ── NUEVO: Interruptor Estratégico ──
-        simular_m40 = st.toggle("Activar Estrategia: Modalidad 40 Topada", value=False,
+        # En col_imss:
+        simular_m40 = st.toggle("Activar Estrategia: Modalidad 40 Topada", 
+                                value=st.session_state.get('simular_m40', False),
                                 help="Asume inversión en M40 los últimos 5 años para topar el salario a 25 UMAs.")
         
-        semanas_cotizadas = st.slider("Semanas Cotizadas Estimadas", min_value=500, max_value=3000, value=1800, step=50)
-        
+        semanas_cotizadas = st.slider("Semanas Cotizadas Estimadas", min_value=500, max_value=3000, 
+                                      value=int(st.session_state.get('semanas_cotizadas', 1800)), step=50)
+
+            
         if simular_m40:
             st.info("**Modo M40 Activado:** El Salario Promedio se fuerza al tope legal de 25 UMAs. Recuerda restar ~$10,000 a $12,000 MXN mensuales del flujo libre de inversión privada.")
             # Topamos el salario automáticamente usando la función inteligente que creamos
@@ -1417,15 +1496,18 @@ with tab_retiro:
             st.metric("Salario Promedio Diario (Topado)", f"${salario_promedio:,.2f} MXN")
         else:
             salario_promedio = st.number_input("Salario Promedio Diario (Últimos 5 años) MXN", 
-                                               min_value=100.0, max_value=3500.0, value=2000.0, step=100.0)
+                                           min_value=100.0, max_value=3500.0, 
+                                           value=float(st.session_state.get('salario_promedio', 2000.0)), step=100.0)
             
         edad_retiro = st.selectbox("Edad de retiro proyectada", [60, 61, 62, 63, 64, 65], index=5)
         
     with col_priv:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>2. Portafolio Privado y Meta</div>""", unsafe_allow_html=True)
         
-        meta_mensual = st.number_input("Ingreso Mensual Objetivo (MXN)", min_value=10000, value=30000, step=5000)
-        capital_acumulado = st.number_input("Capital Acumulado Proyectado al Retiro (MXN)", min_value=0, value=2000000, step=100000)
+        meta_mensual = st.number_input("Ingreso Mensual Objetivo (MXN)", min_value=10000, 
+                                       value=int(st.session_state.get('meta_mensual', 30000)), step=5000)
+        capital_acumulado = st.number_input("Capital Acumulado Proyectado al Retiro (MXN)", min_value=0, 
+                                            value=int(st.session_state.get('capital_acumulado', 2000000)), step=100000)
         tasa_retiro = st.slider("Tasa de Retiro Segura Anual (%)", 2.0, 8.0, 4.0, step=0.5,
                                 help="Regla del 4%: Porcentaje del capital que se puede retirar anualmente sin descapitalizar el portafolio.") / 100
 
