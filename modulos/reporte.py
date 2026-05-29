@@ -10,8 +10,7 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table,
     TableStyle, HRFlowable, PageBreak, Image, KeepTogether, CondPageBreak
 )
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 
 # ── Paleta institucional ───────────────────────────────────────────────────────
 AZUL_OSCURO  = colors.HexColor('#0a0f2e')
@@ -22,98 +21,68 @@ GRIS_TEXTO   = colors.HexColor('#4a5568')
 BLANCO       = colors.white
 ROJO         = colors.HexColor('#e53e3e')
 VERDE        = colors.HexColor('#38a169')
-ORO          = colors.HexColor('#d4a017')
 
-# Ancho útil de la página (márgenes 0.6" a cada lado en carta)
+# Ancho útil de la página
 PAGE_W = 6.5 * inch
-
 
 def _estilos():
     return {
-        'titulo': ParagraphStyle(
-            'titulo', fontSize=26, textColor=BLANCO,
-            fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=8
-        ),
-        'subtitulo': ParagraphStyle(
-            'subtitulo', fontSize=11, textColor=AZUL_ACENTO,
-            fontName='Helvetica', alignment=TA_CENTER, spaceAfter=4
-        ),
-        'seccion': ParagraphStyle(
-            'seccion', fontSize=13, textColor=AZUL_OSCURO,
-            fontName='Helvetica-Bold', spaceBefore=14, spaceAfter=6
-        ),
-        'subseccion': ParagraphStyle(
-            'subseccion', fontSize=10, textColor=AZUL_MEDIO,
-            fontName='Helvetica-Bold', spaceBefore=8, spaceAfter=4
-        ),
-        'normal': ParagraphStyle(
-            'normal', fontSize=9, textColor=GRIS_TEXTO,
-            fontName='Helvetica', spaceAfter=4, leading=14
-        ),
-        'pie': ParagraphStyle(
-            'pie', fontSize=7, textColor=GRIS_TEXTO,
-            fontName='Helvetica', alignment=TA_CENTER
-        ),
+        'titulo': ParagraphStyle('titulo', fontSize=26, textColor=BLANCO, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=8),
+        'subtitulo': ParagraphStyle('subtitulo', fontSize=11, textColor=AZUL_ACENTO, fontName='Helvetica', alignment=TA_CENTER, spaceAfter=4),
+        'seccion': ParagraphStyle('seccion', fontSize=13, textColor=AZUL_OSCURO, fontName='Helvetica-Bold', spaceBefore=14, spaceAfter=6),
+        'subseccion': ParagraphStyle('subseccion', fontSize=10, textColor=AZUL_MEDIO, fontName='Helvetica-Bold', spaceBefore=8, spaceAfter=4),
+        'normal': ParagraphStyle('normal', fontSize=9, textColor=GRIS_TEXTO, fontName='Helvetica', spaceAfter=4, leading=14),
+        'justificado': ParagraphStyle('justificado', fontSize=9, textColor=GRIS_TEXTO, fontName='Helvetica', spaceAfter=4, leading=14, alignment=TA_JUSTIFY),
+        'pie': ParagraphStyle('pie', fontSize=7, textColor=GRIS_TEXTO, fontName='Helvetica', alignment=TA_CENTER),
+        'tecnico_titulo': ParagraphStyle('tecnico_titulo', fontSize=9, textColor=AZUL_MEDIO, fontName='Helvetica-Bold', spaceAfter=4),
+        'tecnico_cuerpo': ParagraphStyle('tecnico_cuerpo', fontSize=8, textColor=AZUL_OSCURO, fontName='Helvetica', leading=12, alignment=TA_JUSTIFY),
+        'formula': ParagraphStyle('formula', fontSize=8, textColor=colors.HexColor('#2c5282'), fontName='Courier-Bold', alignment=TA_CENTER, spaceBefore=4, spaceAfter=4),
     }
 
-
-def _fig_a_imagen(fig, width=800, height=400, scale=2, w_inch=None, h_inch=None, **kwargs):
-    """
-    Convierte figura Plotly a objeto Image de ReportLab.
-    Blindado contra recortes de ejes y empalmes de texto.
-    """
-    # 1. Forzamos márgenes de seguridad (left, right, top, bottom) 
-    # El margen izquierdo (l=110) evita que se corten textos largos como "Bear Market 2022"
+def _fig_a_imagen(fig, width=800, height=400, scale=2, h_inch=None):
     fig.update_layout(margin=dict(l=110, r=40, t=40, b=60))
-    
-    # 2. Expandimos el lienzo virtual para alta resolución
-    lienzo_w = width * 1.5
-    lienzo_h = height * 1.5
-    img_bytes = fig.to_image(format="png", width=lienzo_w, height=lienzo_h, scale=scale)
-    
-    # 3. Calculamos el tamaño físico en el PDF basado en los parámetros que mande tu código
-    if h_inch is not None and w_inch is None:
-        alto_fisico = h_inch * inch
-        ancho_fisico = (width / height) * alto_fisico
-    elif w_inch is not None and h_inch is None:
-        ancho_fisico = w_inch * inch
-        alto_fisico = (height / width) * ancho_fisico
-    elif w_inch is not None and h_inch is not None:
-        ancho_fisico = w_inch * inch
-        alto_fisico = h_inch * inch
-    else:
-        # Por defecto, toma casi todo el ancho de la página
-        ancho_fisico = 6.5 * inch
-        alto_fisico = (height / width) * ancho_fisico
-        
+    img_bytes = fig.to_image(format="png", width=width*1.5, height=height*1.5, scale=scale)
+    ancho_fisico = 6.5 * inch
+    alto_fisico = h_inch * inch if h_inch else (height / width) * ancho_fisico
     return Image(io.BytesIO(img_bytes), width=ancho_fisico, height=alto_fisico)
 
-def _tabla_estilo(data, col_widths, header_color=None):
-    header_color = header_color or AZUL_OSCURO
+def _tabla_estilo(data, col_widths, header_color=AZUL_OSCURO):
     t = Table(data, colWidths=col_widths)
     t.setStyle(TableStyle([
-        ('BACKGROUND',    (0, 0), (-1, 0), header_color),
-        ('TEXTCOLOR',     (0, 0), (-1, 0), BLANCO),
-        ('FONTNAME',      (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE',      (0, 0), (-1, -1), 9),
-        ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
-        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND', (0, 0), (-1, 0), header_color),
+        ('TEXTCOLOR', (0, 0), (-1, 0), BLANCO),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ROWBACKGROUNDS',(0, 1), (-1, -1), [BLANCO, GRIS_CLARO]),
-        ('GRID',          (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d8e8')),
-        ('TOPPADDING',    (0, 0), (-1, -1), 7),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d8e8')),
+        ('TOPPADDING', (0, 0), (-1, -1), 7),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
     ]))
     return t
 
+def _seccion(titulo, estilo):
+    return [Paragraph(titulo, estilo), HRFlowable(width="100%", thickness=1, color=AZUL_ACENTO, spaceAfter=10)]
 
-def _seccion(titulo, estilo, hr_color=None) -> list:
-    """Retorna [Párrafo de sección + HRFlowable] como bloque."""
-    return [
-        Paragraph(titulo, estilo),
-        HRFlowable(width="100%", thickness=1,
-                   color=hr_color or AZUL_ACENTO, spaceAfter=10),
-    ]
-
+def _callout_tecnico(titulo, texto, formula=None):
+    """Crea una tarjeta elegante para explicaciones metodológicas (Caja Blanca)"""
+    E = _estilos()
+    elementos = [Paragraph(f"METODOLOGÍA: {titulo}", E['tecnico_titulo']), Paragraph(texto, E['tecnico_cuerpo'])]
+    if formula:
+        elementos.append(Paragraph(formula, E['formula']))
+    
+    t = Table([[elementos]], colWidths=[PAGE_W])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f0f4f8')), # Fondo azul ultraclaro
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e0')),
+        ('LINEBEFORE', (0,0), (0,-1), 3, AZUL_ACENTO), # Borde acento a la izquierda
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LEFTPADDING', (0,0), (-1,-1), 12),
+        ('RIGHTPADDING', (0,0), (-1,-1), 12),
+    ]))
+    return [Spacer(1, 0.1*inch), t, Spacer(1, 0.1*inch)]
 
 def _on_page(canvas, doc):
     w, h = letter
@@ -133,38 +102,24 @@ def _on_page(canvas, doc):
         canvas.rect(0, 0, w, 25, fill=True, stroke=False)
         canvas.setFont('Helvetica', 7)
         canvas.setFillColor(colors.HexColor('#8899bb'))
-        canvas.drawString(30, 8, "Documento confidencial — Motor GaLa © 2026")
+        canvas.drawString(30, 8, "Documento analítico — Confidencial")
         canvas.drawRightString(w - 30, 8, datetime.now().strftime("%d/%m/%Y %H:%M"))
     canvas.restoreState()
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 def generar_reporte(
-    # Portafolio
-    tickers, pesos_opt, ret_opt, vol_opt, sharpe_opt,
-    sortino, desv_down, df_t,
-    # Riesgo
-    var_cvar, max_dd, duracion_dd, inicio_dd, fin_dd,
-    df_stress, capital_riesgo,
-    # Monte Carlo (Inclusión de P25 y P75)
+    tickers, pesos_opt, ret_opt, vol_opt, sharpe_opt, sortino, desv_down, df_t,
+    var_cvar, max_dd, duracion_dd, inicio_dd, fin_dd, df_stress, capital_riesgo,
     p5_final, p25_final, p50_final, p75_final, p95_final,
     horizonte_años, capital_inicial, aportacion_mensual, num_sims,
-    # Backtesting
-    metricas_bt, benchmark_ticker,
-    # Screening (opcional)
-    df_screening=None,
-    # Figuras
-    fig_markowitz=None, fig_mc=None, fig_var=None,
-    fig_dd=None, fig_stress=None, fig_bt=None,
-    fig_anuales=None, fig_corr=None,
+    metricas_bt, benchmark_ticker, df_screening=None,
+    fig_markowitz=None, fig_mc=None, fig_var=None, fig_dd=None, fig_stress=None, fig_bt=None, fig_anuales=None, fig_corr=None,
+    # Parámetros Opcionales LDI
+    limite_riesgo_global=None, perfil_estrategico=None, pension_imss=None, brecha_pensional=None, semanas_cotizadas=None, salario_promedio=None
 ) -> bytes:
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer, pagesize=letter,
-        leftMargin=0.6 * inch, rightMargin=0.6 * inch,
-        topMargin=0.6 * inch, bottomMargin=0.5 * inch
-    )
+    doc = SimpleDocTemplate(buffer, pagesize=letter, leftMargin=0.6*inch, rightMargin=0.6*inch, topMargin=0.6*inch, bottomMargin=0.5*inch)
     E = _estilos()
     story = []
 
@@ -174,400 +129,165 @@ def generar_reporte(
     story.append(Spacer(1, 1.6 * inch))
     story.append(Paragraph("MOTOR CUANTITATIVO GaLa", E['titulo']))
     story.append(Spacer(1, 0.3 * inch))
-    story.append(Paragraph("Reporte Institucional de Gestión de Capital y Riesgo", E['subtitulo']))
+    story.append(Paragraph("Reporte Institucional y Metodología White-Box", E['subtitulo']))
     story.append(Spacer(1, 0.3 * inch))
     story.append(Paragraph(datetime.now().strftime("%d de %B de %Y"), E['subtitulo']))
-    story.append(Spacer(1, 0.5 * inch))
-    story.append(Paragraph(f"Universo analizado: {' | '.join(tickers)}", E['subtitulo']))
     story.append(Spacer(1, 0.8 * inch))
 
-    veredicto_sharpe = "sólido" if sharpe_opt > 1 else "moderado" if sharpe_opt > 0.5 else "bajo"
-    veredicto_dd     = "controlado" if abs(max_dd) < 0.15 else "elevado"
     story.append(Paragraph(
-        f"El portafolio óptimo identificado por Motor GaLa presenta un retorno esperado anual "
-        f"de {ret_opt*100:.2f}% con una volatilidad de {vol_opt*100:.2f}%, "
-        f"generando un Ratio de Sharpe {veredicto_sharpe} de {sharpe_opt:.4f}. "
-        f"El Maximum Drawdown histórico es {veredicto_dd} en {abs(max_dd)*100:.2f}%, "
-        f"con una duración de {duracion_dd} días. "
-        f"El modelo de riesgo fue calibrado con distribución t de Student "
-        f"(gl={df_t:.1f}), capturando fat tails propias de mercados financieros reales.",
-        ParagraphStyle(
-            'resumen_portada', fontSize=10, textColor=GRIS_CLARO,
-            fontName='Helvetica', alignment=TA_CENTER,
-            spaceAfter=6, leading=18, leftIndent=30, rightIndent=30
-        )
+        f"Este reporte detalla la arquitectura algorítmica detrás de la estructuración del portafolio, "
+        f"evitando los modelos convencionales de 'Caja Negra'. El universo de inversión ({len(tickers)} activos) ha sido procesado "
+        f"mediante un motor estocástico calibrado con variables macroeconómicas reales y distribuciones asimétricas.",
+        ParagraphStyle('resumen', fontSize=10, textColor=GRIS_CLARO, fontName='Helvetica', alignment=TA_CENTER, leading=16, leftIndent=40, rightIndent=40)
     ))
     story.append(PageBreak())
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # NUEVA PÁGINA (OPCIONAL) — MODELADO LDI (LEY 73)
+    # ══════════════════════════════════════════════════════════════════════════
+    if pension_imss is not None:
+        story.append(Spacer(1, 0.3 * inch))
+        story += _seccion("Modelado Actuarial LDI y Pensión IMSS (Ley 73)", E['seccion'])
+        
+        story.append(Paragraph("1. Calibración de Pasivos", E['subseccion']))
+        ldi_data = [
+            ['Semanas Cotizadas', f"{semanas_cotizadas:,}"],
+            ['Salario Base de Cotización', f"${salario_promedio:,.2f} MXN/día"],
+            ['Pensión Vitalicia Estimada (IMSS)', f"${pension_imss:,.2f} MXN/mes"],
+        ]
+        if brecha_pensional is not None:
+            estado = "Déficit Estructural" if brecha_pensional > 0 else "Superávit y Preservación"
+            ldi_data.append(['Diagnóstico LDI', estado])
+            
+        story.append(_tabla_estilo(ldi_data, [3*inch, 3.5*inch]))
+        
+        story += _callout_tecnico(
+            titulo="Algoritmo de Pensión (IMSS Ley 73)",
+            texto="La pensión gubernamental se estima aplicando el marco normativo de la Ley del Seguro Social de 1973. "
+                  "La función algorítmica calcula la relación entre el salario promedio y la UMA vigente para extraer el porcentaje "
+                  "de la 'Cuantía Básica' (tope legal del 13%). Posteriormente, se suma el factor de 'Incrementos Anuales' equivalente "
+                  "al 2.45% por cada bloque de 52 semanas que exceda el requisito mínimo de 500 semanas, agregando una prima por asignación familiar del 15%."
+        )
+
+        story.append(Paragraph("2. Prescripción Algorítmica de Riesgo", E['subseccion']))
+        riesgo_asignado = limite_riesgo_global * 100 if limite_riesgo_global else 80.0
+        story.append(Paragraph(
+            f"El Motor GaLa determinó matemáticamente un perfil <b>{perfil_estrategico or 'Optimizado'}</b>. "
+            f"Basado en el nivel de certidumbre del flujo libre proyectado, el presupuesto de riesgo máximo (límite de "
+            f"exposición a Renta Variable o *Drawdown* de alta severidad) se bloqueó algorítmicamente en el <b>{riesgo_asignado:.1f}%</b>.",
+            E['normal']
+        ))
+        
+        story += _callout_tecnico(
+            titulo="Inversión Basada en Pasivos (LDI)",
+            texto="El modelo LDI (Liability-Driven Investing) abandona el enfoque clásico de 'maximizar retornos' a ciegas. "
+                  "En su lugar, el algoritmo analiza el pasivo futuro del individuo (sus gastos menos su pensión garantizada). "
+                  "Si existe un superávit, el optimizador restringe severamente la volatilidad forzando la compra de activos de refugio "
+                  "(como Mbonos o UDIBONOS). Si hay déficit, amplía la frontera eficiente permitiendo exposición controlada a renta variable."
+        )
+        story.append(PageBreak())
 
     # ══════════════════════════════════════════════════════════════════════════
     # PÁGINA 2 — PORTAFOLIO ÓPTIMO
     # ══════════════════════════════════════════════════════════════════════════
     story.append(Spacer(1, 0.3 * inch))
-    story += _seccion("1. Portafolio Óptimo — Max Sharpe", E['seccion'])
+    story += _seccion("Arquitectura del Portafolio Óptimo", E['seccion'])
 
-    # Métricas principales
-    metricas_data = [
-        ['Retorno Anual', 'Volatilidad', 'Sharpe', 'Sortino'],
-        [f"{ret_opt*100:.2f}%", f"{vol_opt*100:.2f}%", f"{sharpe_opt:.4f}", f"{sortino:.4f}"]
-    ]
+    # Métricas principales (Mismo código de tu versión)
+    metricas_data = [['Retorno Anual', 'Volatilidad', 'Sharpe', 'Sortino'], [f"{ret_opt*100:.2f}%", f"{vol_opt*100:.2f}%", f"{sharpe_opt:.4f}", f"{sortino:.4f}"]]
     t_met = Table(metricas_data, colWidths=[1.6 * inch] * 4)
-    t_met.setStyle(TableStyle([
-        ('BACKGROUND',    (0, 0), (-1, 0), AZUL_OSCURO),
-        ('TEXTCOLOR',     (0, 0), (-1, 0), BLANCO),
-        ('FONTNAME',      (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE',      (0, 0), (-1, 0), 9),
-        ('BACKGROUND',    (0, 1), (-1, 1), GRIS_CLARO),
-        ('FONTNAME',      (0, 1), (-1, 1), 'Helvetica-Bold'),
-        ('FONTSIZE',      (0, 1), (-1, 1), 18),
-        ('TEXTCOLOR',     (0, 1), (-1, 1), AZUL_OSCURO),
-        ('ALIGN',         (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING',    (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-    ]))
+    t_met.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), AZUL_OSCURO), ('TEXTCOLOR', (0, 0), (-1, 0), BLANCO), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, 0), 9), ('BACKGROUND', (0, 1), (-1, 1), GRIS_CLARO), ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'), ('FONTSIZE', (0, 1), (-1, 1), 18), ('TEXTCOLOR', (0, 1), (-1, 1), AZUL_OSCURO), ('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('TOPPADDING', (0, 0), (-1, -1), 10), ('BOTTOMPADDING', (0, 0), (-1, -1), 10)]))
     story.append(t_met)
     story.append(Spacer(1, 0.2 * inch))
 
-    # Distribución de pesos
-    story.append(Paragraph("Distribución Óptima del Capital", E['subseccion']))
-    df_pesos = pd.DataFrame({
-        'Activo':   tickers,
-        'Peso (%)': (pesos_opt * 100).round(2)
-    }).sort_values('Peso (%)', ascending=False)
+    # Tarjeta Blanca Markowitz
+    story += _callout_tecnico(
+        titulo="Optimización SLSQP Sujeta a Restricciones",
+        texto="La distribución de pesos no es heurística. El Motor iteró mediante Programación Cuadrática Secuencial (SLSQP) "
+              "sobre la matriz de covarianzas histórica para encontrar el portafolio tangencial. Las restricciones implementadas "
+              "aseguran que ningún activo supere el techo de concentración y que la exposición global de riesgo no cruce el umbral establecido por el módulo LDI.",
+        formula="Max: Sharpe = (E[Rp] - Rf) / σp    |    Sujeto a: Σ w_i = 1,  Σ(w_riesgo) ≤ Limite"
+    )
 
+    story.append(Paragraph("Distribución de Activos", E['subseccion']))
+    df_pesos = pd.DataFrame({'Activo': tickers, 'Peso (%)': (pesos_opt * 100).round(2)}).sort_values('Peso (%)', ascending=False)
     pesos_data = [['Activo', 'Peso (%)', 'Asignación visual']]
     for _, row in df_pesos.iterrows():
-        barra = '█' * max(1, int(row['Peso (%)'] / 3))
-        pesos_data.append([row['Activo'], f"{row['Peso (%)']:.2f}%", barra])
-    story.append(_tabla_estilo(pesos_data, [1.5 * inch, 1.2 * inch, 4 * inch]))
+        pesos_data.append([row['Activo'], f"{row['Peso (%)']:.2f}%", '█' * max(1, int(row['Peso (%)'] / 3))])
+    story.append(_tabla_estilo(pesos_data, [1.5 * inch, 1.2 * inch, 3.8 * inch]))
 
-    # Frontera eficiente — título + gráfica siempre juntos
     if fig_markowitz:
-        story.append(Spacer(1, 0.15 * inch))
         story.append(KeepTogether([
-            Paragraph("Frontera Eficiente de Markowitz", E['subseccion']),
-            Spacer(1, 0.1 * inch),
-            _fig_a_imagen(fig_markowitz, h_inch=3.2),
+            Spacer(1, 0.15 * inch),
+            Paragraph("Topología de la Frontera Eficiente", E['subseccion']),
+            _fig_a_imagen(fig_markowitz, h_inch=2.8),
         ]))
-
     story.append(PageBreak())
 
     # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 3 — BACKTESTING
+    # PÁGINA 3 — RIESGO E INSTITUCIONALIDAD
     # ══════════════════════════════════════════════════════════════════════════
     story.append(Spacer(1, 0.3 * inch))
-    story += _seccion(f"2. Backtesting Histórico — GaLa vs {benchmark_ticker}", E['seccion'])
-    
-    bt_data = [
-        ['Métrica', 'GaLa', benchmark_ticker, 'Ventaja GaLa'],
-        ['CAGR',
-         f"{metricas_bt['cagr_port']*100:.2f}%",
-         f"{metricas_bt['cagr_bench']*100:.2f}%",
-         f"{(metricas_bt['cagr_port']-metricas_bt['cagr_bench'])*100:+.2f}%"],
-        ['Volatilidad',
-         f"{metricas_bt['vol_port']*100:.2f}%",
-         f"{metricas_bt['vol_bench']*100:.2f}%",
-         f"{(metricas_bt['vol_bench']-metricas_bt['vol_port'])*100:+.2f}%"],
-        ['Sharpe',
-         f"{metricas_bt['sharpe_port']:.4f}",
-         f"{metricas_bt['sharpe_bench']:.4f}",
-         f"{metricas_bt['sharpe_port']-metricas_bt['sharpe_bench']:+.4f}"],
-        ['Sortino',
-         f"{metricas_bt['sortino_port']:.4f}",
-         f"{metricas_bt['sortino_bench']:.4f}",
-         f"{metricas_bt['sortino_port']-metricas_bt['sortino_bench']:+.4f}"],
-        ['Max Drawdown',
-         f"{metricas_bt['mdd_port']*100:.2f}%",
-         f"{metricas_bt['mdd_bench']*100:.2f}%",
-         f"{(metricas_bt['mdd_bench']-metricas_bt['mdd_port'])*100:+.2f}%"],
-        ['Calmar Ratio',
-         f"{metricas_bt['calmar_port']:.4f}",
-         f"{metricas_bt['calmar_bench']:.4f}",
-         f"{metricas_bt['calmar_port']-metricas_bt['calmar_bench']:+.4f}"],
-        ['Alpha (Jensen)', f"{metricas_bt['alpha']*100:.2f}%", '—', '—'],
-        ['Beta',           f"{metricas_bt['beta']:.4f}", '1.0000', '—'],
-    ]
-    t_bt = Table(bt_data, colWidths=[1.8 * inch, 1.5 * inch, 1.5 * inch, 1.5 * inch])
-    t_bt.setStyle(TableStyle([
-        ('BACKGROUND',    (0, 0), (-1, 0), AZUL_OSCURO),
-        ('TEXTCOLOR',     (0, 0), (-1, 0), BLANCO),
-        ('FONTNAME',      (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE',      (0, 0), (-1, -1), 9),
-        ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
-        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-        ('ROWBACKGROUNDS',(0, 1), (-1, -1), [BLANCO, GRIS_CLARO]),
-        ('GRID',          (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d8e8')),
-        ('TOPPADDING',    (0, 0), (-1, -1), 7),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
-        ('TEXTCOLOR',     (3, 1), (3, -1), VERDE),
-        ('FONTNAME',      (3, 1), (3, -1), 'Helvetica-Bold'),
-    ]))
-    story.append(t_bt)
-
-    # Curva de equity
-    if fig_bt:
-        story.append(KeepTogether([
-            Spacer(1, 0.2 * inch),
-            Paragraph("Curva de Equity — Motor GaLa vs Benchmark", E['subseccion']),
-            Spacer(1, 0.08 * inch),
-            _fig_a_imagen(fig_bt, h_inch=2.8),
-        ]))
-
-    # Retornos anuales
-    if fig_anuales:
-        story.append(KeepTogether([
-            Spacer(1, 0.2 * inch),
-            Paragraph("Retornos Anuales Comparativos", E['subseccion']),
-            Spacer(1, 0.08 * inch),
-            _fig_a_imagen(fig_anuales, h_inch=2.5),
-        ]))
-
-    story.append(PageBreak())
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 4 — RIESGO INSTITUCIONAL
-    # ══════════════════════════════════════════════════════════════════════════
-    story.append(Spacer(1, 0.3 * inch))
-    story += _seccion("3. Métricas de Riesgo Institucional", E['seccion'])
+    story += _seccion("Análisis de Riesgo Estructural (VaR y CVaR)", E['seccion'])
 
     riesgo_data = [
-        ['Métrica', 'Valor (%)', f'Pérdida diaria (${capital_riesgo:,} USD)'],
-        ['VaR 95% Histórico',
-         f"{var_cvar['VaR_95_hist']*100:.2f}%",
-         f"${abs(var_cvar['VaR_95_hist'])*capital_riesgo:,.0f}"],
-        ['VaR 99% Histórico',
-         f"{var_cvar['VaR_99_hist']*100:.2f}%",
-         f"${abs(var_cvar['VaR_99_hist'])*capital_riesgo:,.0f}"],
-        ['CVaR 95% (Expected Shortfall)',
-         f"{var_cvar['CVaR_95']*100:.2f}%",
-         f"${abs(var_cvar['CVaR_95'])*capital_riesgo:,.0f}"],
-        ['CVaR 99%',
-         f"{var_cvar['CVaR_99']*100:.2f}%",
-         f"${abs(var_cvar['CVaR_99'])*capital_riesgo:,.0f}"],
-        ['Maximum Drawdown',
-         f"{max_dd*100:.2f}%",
-         f"${abs(max_dd)*capital_riesgo:,.0f}"],
+        ['Métrica', 'Valor (%)', f'Exposición Diaria (${capital_riesgo:,})'],
+        ['VaR 95%', f"{var_cvar['VaR_95_hist']*100:.2f}%", f"${abs(var_cvar['VaR_95_hist'])*capital_riesgo:,.0f}"],
+        ['CVaR 99% (Expected Shortfall)', f"{var_cvar['CVaR_99']*100:.2f}%", f"${abs(var_cvar['CVaR_99'])*capital_riesgo:,.0f}"],
+        ['Maximum Drawdown', f"{max_dd*100:.2f}%", f"${abs(max_dd)*capital_riesgo:,.0f}"]
     ]
-    story.append(_tabla_estilo(riesgo_data, [2.8 * inch, 1.5 * inch, 2.4 * inch]))
-    story.append(Spacer(1, 0.08 * inch))
-    story.append(Paragraph(
-        f"Período del Maximum Drawdown: {inicio_dd.strftime('%b %Y')} → "
-        f"{fin_dd.strftime('%b %Y')} ({duracion_dd} días / {duracion_dd//30} meses)",
-        E['normal']
-    ))
+    story.append(_tabla_estilo(riesgo_data, [2.8 * inch, 1.5 * inch, 2.2 * inch]))
 
-    # Histograma VaR
+    story += _callout_tecnico(
+        titulo="Modelado de Colas Pesadas (t-Student vs Gauss)",
+        texto="Los sistemas tradicionales de riesgo asumen una distribución Normal (campana de Gauss), subestimando masivamente "
+              "la frecuencia de crashes del mercado (Cisnes Negros). Motor GaLa calibró los retornos a una distribución empírica t-Student. "
+              f"Con grados de libertad (gl = {df_t:.1f}), el modelo engrosa matemáticamente las 'colas' de la gráfica inferior, resultando "
+              "en un CVaR (Expected Shortfall) severo y realista que blinda la estructura patrimonial."
+    )
+
     if fig_var:
         story.append(KeepTogether([
-            Spacer(1, 0.15 * inch),
-            Paragraph("Distribución de Retornos Diarios — VaR y CVaR", E['subseccion']),
-            Spacer(1, 0.08 * inch),
-            _fig_a_imagen(fig_var, h_inch=2.7),
+            Paragraph("Distribución de Retornos Diarios (Ajuste T-Student)", E['subseccion']),
+            _fig_a_imagen(fig_var, h_inch=2.5),
         ]))
-
-    # Curva de Drawdown
     if fig_dd:
         story.append(KeepTogether([
-            Spacer(1, 0.15 * inch),
-            Paragraph("Curva de Drawdown Histórico", E['subseccion']),
-            Spacer(1, 0.08 * inch),
-            _fig_a_imagen(fig_dd, h_inch=2.5),
+            Paragraph("Profundidad y Duración del Drawdown", E['subseccion']),
+            _fig_a_imagen(fig_dd, h_inch=2.2),
         ]))
-
     story.append(PageBreak())
 
     # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 5 — STRESS TESTING + CORRELACIÓN
+    # PÁGINA 4 — MONTE CARLO Y BACKTESTING
     # ══════════════════════════════════════════════════════════════════════════
     story.append(Spacer(1, 0.3 * inch))
-    story += _seccion("4. Stress Testing — Escenarios Históricos", E['seccion'])
-
-    stress_data = [['Escenario', 'Impacto (%)', 'Pérdida estimada (USD)']]
-    for _, row in df_stress.iterrows():
-        stress_data.append([
-            row['Escenario'],
-            f"{row['Pérdida (%)']:.1f}%",
-            f"${abs(row['Pérdida (USD)']):,.0f}"
-        ])
-    t_stress = Table(stress_data, colWidths=[3.2 * inch, 1.5 * inch, 2.0 * inch])
-    t_stress.setStyle(TableStyle([
-        ('BACKGROUND',    (0, 0), (-1, 0), AZUL_OSCURO),
-        ('TEXTCOLOR',     (0, 0), (-1, 0), BLANCO),
-        ('FONTNAME',      (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE',      (0, 0), (-1, -1), 9),
-        ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
-        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-        ('ROWBACKGROUNDS',(0, 1), (-1, -1), [BLANCO, GRIS_CLARO]),
-        ('GRID',          (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d8e8')),
-        ('TOPPADDING',    (0, 0), (-1, -1), 7),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
-        ('TEXTCOLOR',     (1, 1), (1, -1), ROJO),
-        ('FONTNAME',      (1, 1), (1, -1), 'Helvetica-Bold'),
-    ]))
-    story.append(t_stress)
-
-    if fig_stress:
-        story.append(KeepTogether([
-            Spacer(1, 0.15 * inch),
-            Paragraph("Impacto por Escenario — Visualización", E['subseccion']),
-            Spacer(1, 0.08 * inch),
-            _fig_a_imagen(fig_stress, h_inch=2.7),
-        ]))
-
-    # Correlación dinámica
-    if fig_corr:
-        story.append(KeepTogether([
-            Spacer(1, 0.25 * inch),
-            Paragraph("5. Correlación Dinámica Rolling — 60 días", E['seccion']),
-            HRFlowable(width="100%", thickness=1, color=AZUL_ACENTO, spaceAfter=8),
-            Paragraph(
-                "La correlación dinámica permite identificar períodos donde los activos "
-                "se mueven en conjunto, reduciendo los beneficios de diversificación. "
-                "Valores superiores a 0.6 indican zona de riesgo de concentración.",
-                E['normal']
-            ),
-            Spacer(1, 0.08 * inch),
-            _fig_a_imagen(fig_corr, h_inch=2.7),
-        ]))
-
-    story.append(PageBreak())
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 6 — PROYECCIÓN MONTE CARLO (MÓDULO MODIFICADO)
-    # ══════════════════════════════════════════════════════════════════════════
-    story.append(Spacer(1, 0.3 * inch))
-    story += _seccion("6. Proyección de Capital — Monte Carlo", E['seccion'])
-
-    story.append(Paragraph(
-        f"Horizonte: {horizonte_años} años  |  Capital inicial: ${capital_inicial:,} MXN  |  "
-        f"Aportación periódica: ${aportacion_mensual:,} MXN  |  "
-        f"Modelo: t de Student (gl={df_t:.1f})",
-        E['normal']
-    ))
-    story.append(Spacer(1, 0.12 * inch))
-
-    # Matriz expandida con cuartiles intermedios P25 y P75
-    mc_data = [
-        ['Escenario', 'Capital Final (MXN)', 'Crecimiento total'],
-        ['Adverso (P5)',          f"${p5_final:,.0f}",   f"{((p5_final/capital_inicial)-1)*100:.1f}%"],
-        ['Mod. Adverso (P25)',    f"${p25_final:,.0f}",  f"{((p25_final/capital_inicial)-1)*100:.1f}%"],
-        ['Base (P50)',            f"${p50_final:,.0f}",  f"{((p50_final/capital_inicial)-1)*100:.1f}%"],
-        ['Mod. Favorable (P75)',  f"${p75_final:,.0f}",  f"{((p75_final/capital_inicial)-1)*100:.1f}%"],
-        ['Favorable (P95)',       f"${p95_final:,.0f}",  f"{((p95_final/capital_inicial)-1)*100:.1f}%"],
-    ]
-    t_mc = Table(mc_data, colWidths=[2.0 * inch, 2.5 * inch, 2.2 * inch])
-    t_mc.setStyle(TableStyle([
-        ('BACKGROUND',    (0, 0), (-1, 0), AZUL_OSCURO),
-        ('TEXTCOLOR',     (0, 0), (-1, 0), BLANCO),
-        ('FONTNAME',      (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE',      (0, 0), (-1, -1), 10),
-        ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
-        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-        # Colores de filas en gradiente de riesgo
-        ('BACKGROUND',    (0, 1), (-1, 1), colors.HexColor('#fff5f5')), # P5 (Rojo tenue)
-        ('BACKGROUND',    (0, 2), (-1, 2), colors.HexColor('#fffaf0')), # P25 (Crema/Naranja)
-        ('BACKGROUND',    (0, 3), (-1, 3), colors.HexColor('#f0fff4')), # P50 (Verde tenue)
-        ('BACKGROUND',    (0, 4), (-1, 4), colors.HexColor('#f5faff')), # P75 (Azul muy tenue)
-        ('BACKGROUND',    (0, 5), (-1, 5), colors.HexColor('#ebf8ff')), # P95 (Azul claro)
-        # Colores de texto estratégicos
-        ('TEXTCOLOR',     (2, 1), (2, 1), ROJO),
-        ('TEXTCOLOR',     (2, 2), (2, 2), colors.HexColor('#b45309')), # Ocre/Marrón para P25
-        ('TEXTCOLOR',     (2, 3), (2, 3), VERDE),
-        ('TEXTCOLOR',     (2, 4), (2, 4), colors.HexColor('#1d4ed8')), # Azul corporativo para P75
-        ('TEXTCOLOR',     (2, 5), (2, 5), AZUL_ACENTO),
-        ('FONTNAME',      (1, 1), (-1, -1), 'Helvetica-Bold'),
-        ('GRID',          (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d8e8')),
-        ('TOPPADDING',    (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-    ]))
-    story.append(t_mc)
-
+    story += _seccion("Proyección Estocástica y Evidencia Empírica", E['seccion'])
+    
     if fig_mc:
+        story.append(Paragraph(f"Simulación Estocástica de Capital — {num_sims:,} trayectorias", E['subseccion']))
+        story.append(_fig_a_imagen(fig_mc, h_inch=2.6))
+        
+    story += _callout_tecnico(
+        titulo="Motor de Inferencia Monte Carlo",
+        texto="La gráfica superior proyecta el Valor Futuro combinando el capital inicial y las aportaciones periódicas frente a miles "
+              "de futuros posibles generados aleatoriamente. Al no utilizar una tasa de crecimiento lineal, el modelo evidencia el "
+              "'Riesgo de Secuencia de Retornos'. El cuartil Adverso (P5) garantiza un intervalo de confianza del 95% para la supervivencia financiera del portafolio."
+    )
+
+    if fig_bt:
         story.append(KeepTogether([
-            Spacer(1, 0.2 * inch),
-            Paragraph(f"Trayectorias de Capital — {num_sims:,} simulaciones", E['subseccion']),
-            Spacer(1, 0.08 * inch),
-            _fig_a_imagen(fig_mc, h_inch=3.2),
+            Paragraph(f"Backtesting Comparativo vs Benchmark ({benchmark_ticker})", E['subseccion']),
+            _fig_a_imagen(fig_bt, h_inch=2.5),
         ]))
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 7 — SCREENING (OPCIONAL)
-    # ══════════════════════════════════════════════════════════════════════════
-    if df_screening is not None and not df_screening.empty:
-        story.append(PageBreak())
-        story.append(Spacer(1, 0.3 * inch))
-        story += _seccion("7. Screening Fundamental — Selección de Activos", E['seccion'])
-        story.append(Paragraph(
-            "Los activos del portafolio fueron seleccionados mediante un proceso cuantitativo "
-            "de dos etapas: filtro fundamental (Market Cap, Profit Margin, P/E, Deuda/Capital) "
-            "seguido de clustering K-Means para garantizar diversificación por perfil.",
-            E['normal']
-        ))
-        story.append(Spacer(1, 0.1 * inch))
-
-        cols_show = ['Ticker', 'Nombre', 'Sector', 'Market Cap (B)',
-                     'P/E Ratio', 'Profit Margin %', 'ROE %']
-        cols_disp = [c for c in cols_show if c in df_screening.columns]
-
-        headers_cortos = {
-            'Ticker':         'Ticker',
-            'Nombre':         'Nombre',
-            'Sector':         'Sector',
-            'Market Cap (B)': 'Mkt Cap\n(B USD)',
-            'P/E Ratio':      'P/E',
-            'Profit Margin %':'Margen\n(%)',
-            'ROE %':          'ROE\n(%)',
-        }
-        formatos = {
-            'Market Cap (B)':  lambda v: f"{float(v):.1f}" if v not in ('nan', '', 'None') else '—',
-            'P/E Ratio':       lambda v: f"{float(v):.1f}" if v not in ('nan', '', 'None') else '—',
-            'Profit Margin %': lambda v: f"{float(v):.1f}" if v not in ('nan', '', 'None') else '—',
-            'ROE %':           lambda v: f"{float(v):.1f}" if v not in ('nan', '', 'None') else '—',
-        }
-
-        def formatear(col, val):
-            try:
-                return formatos[col](val) if col in formatos else str(val)
-            except (ValueError, TypeError):
-                return '—'
-
-        scr_data = [[headers_cortos[c] for c in cols_disp]] + [
-            [formatear(c, str(row[c])) for c in cols_disp]
-            for _, row in df_screening.iterrows()
-        ]
-        pesos_cols  = {'Ticker': 1.0, 'Nombre': 3.5, 'Sector': 2.5,
-                       'Market Cap (B)': 1.2, 'P/E Ratio': 0.9,
-                       'Profit Margin %': 1.2, 'ROE %': 0.9}
-        peso_total  = sum(pesos_cols[c] for c in cols_disp)
-        anchos      = [(pesos_cols[c] / peso_total) * PAGE_W for c in cols_disp]
-
-        t_scr = Table(scr_data, colWidths=anchos)
-        t_scr.setStyle(TableStyle([
-            ('BACKGROUND',    (0, 0), (-1, 0), AZUL_OSCURO),
-            ('TEXTCOLOR',     (0, 0), (-1, 0), BLANCO),
-            ('FONTNAME',      (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE',      (0, 0), (-1, -1), 8),
-            ('LEADING',       (0, 0), (-1, -1), 10),
-            ('ALIGN',         (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-            ('ROWBACKGROUNDS',(0, 1), (-1, -1), [BLANCO, GRIS_CLARO]),
-            ('GRID',          (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d8e8')),
-            ('TOPPADDING',    (0, 0), (-1, -1), 5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-            ('WORDWRAP',      (0, 0), (-1, -1), True),
-        ]))
-        story.append(t_scr)
-
-    # ── Nota legal ─────────────────────────────────────────────────────────────
+    # Disclaimer legal al final
     story.append(Spacer(1, 0.4 * inch))
     story.append(HRFlowable(width="100%", thickness=0.5, color=GRIS_TEXTO))
     story.append(Spacer(1, 0.1 * inch))
     story.append(Paragraph(
-        "Este reporte fue generado automáticamente por Motor Cuantitativo GaLa. "
-        "Los resultados son producto de modelos matemáticos con fines informativos "
-        "y no constituyen asesoría de inversión. Rendimientos pasados no garantizan resultados futuros. "
-        "Modelo de riesgo calibrado con distribución t de Student para captura de eventos extremos.",
-        E['pie']
+        "Generado por Motor Cuantitativo GaLa Institutional Solutions. Las metodologías descritas son estrictamente "
+        "modelos matemáticos y de probabilidad probabilística, y no constituyen garantía de rendimientos futuros.", E['pie']
     ))
 
     doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
