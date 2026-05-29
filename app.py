@@ -1265,6 +1265,13 @@ with tab_motor:
                             fig_markowitz=fig_markowitz, fig_mc=fig_mc, fig_var=fig_var,
                             fig_dd=fig_dd, fig_stress=fig_stress, fig_bt=fig_bt,
                             fig_anuales=fig_anuales, fig_corr=fig_corr,
+                            # ── NUEVOS PARÁMETROS PARA LA "CAJA BLANCA" LDI ──
+                            limite_riesgo_global=locals().get('limite_riesgo_global', None),
+                            perfil_estrategico=st.session_state.get('perfil_ldi_nombre', None),
+                            pension_imss=locals().get('pension_imss', None),
+                            brecha_pensional=locals().get('brecha', None),
+                            semanas_cotizadas=locals().get('semanas_cotizadas', None),
+                            salario_promedio=locals().get('salario_promedio', None),
                         )
                         st.download_button(
                             label="Descargar reporte PDF", data=pdf_bytes,
