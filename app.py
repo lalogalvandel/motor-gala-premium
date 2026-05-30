@@ -958,14 +958,19 @@ with tab_motor:
                 es_riesgo     = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in tickers])
                 num_refugios  = np.sum(es_riesgo == 0.0)
                 
-
-                # LDI – si hay una prescripción actuarial activa, se toma ese límite
-                if st.session_state.get("riesgo_objetivo_ldi") is not None:
+                # ── CORRECCIÓN LDI QUIRÚRGICA: Optimizador Markowitz ──
+                # Solo usa el LDI si el toggle en la UI está encendido AND el dato existe en memoria
+                if usar_perfil_ldi and st.session_state.get("riesgo_objetivo_ldi") is not None:
                     riesgo_maximo_final = float(st.session_state["riesgo_objetivo_ldi"])
+                elif not usar_perfil_ldi:
+                    # Usa el slider manual de "Exposición global máxima a Renta Variable"
+                    riesgo_maximo_final = limite_riesgo_global
                 else:
+                    # Fallback (Glide path de ciclo de vida)
                     target_riesgo = min(1.0, max(0.20, horizonte_años / 15.0))
-                    riesgo_maximo_final = target_riesgo
-                # Blindaje de rango [0, 1]
+                    riesgo_maximo_final = max(target_riesgo, max(0.0, 1.0 - num_refugios * peso_max))
+
+                # Blindaje de seguridad matemática [0, 1]
                 riesgo_maximo_final = max(0.0, min(1.0, riesgo_maximo_final))
 
                 resultados, pesos_guardados = simular_portafolios(retornos_anuales, matriz_cov, tasa_rf, num_portafolios=num_sims)
@@ -976,7 +981,7 @@ with tab_motor:
                     tasa_rf,
                     peso_min=peso_min, 
                     peso_max=peso_max, 
-                    max_riesgo_total=riesgo_maximo_final, # <── La regla inyectada
+                    max_riesgo_total=riesgo_maximo_final, # <── Restricción corregida
                     es_riesgo=es_riesgo
                 )
 
@@ -1086,22 +1091,24 @@ with tab_motor:
             retornos_para_bt  = retornos_para_bt[columnas_validas]
             es_riesgo_arr     = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in retornos_para_bt.columns])
             
-            # Integración LDI – respeta la prescripción actuarial si está activa
-            if st.session_state.get("riesgo_objetivo_ldi") is not None:
+            # ── CORRECCIÓN LDI QUIRÚRGICA: Optimizador Backtesting ──
+            # Replicamos exactamente la misma lógica del LDI para el backtesting
+            if usar_perfil_ldi and st.session_state.get("riesgo_objetivo_ldi") is not None:
                 riesgo_maximo_bt = float(st.session_state["riesgo_objetivo_ldi"])
+            elif not usar_perfil_ldi:
+                riesgo_maximo_bt = limite_riesgo_global
             else:
                 riesgo_maximo_bt = min(1.0, max(0.20, horizonte_años / 15.0))
-            # Blindaje de rango [0, 1]
+                
             riesgo_maximo_bt = max(0.0, min(1.0, riesgo_maximo_bt))
             
-            # ── AQUÍ INYECTAMOS LA RESTRICCIÓN A LA SIMULACIÓN HISTÓRICA ──
             df_equity, benchmark_ticker, retorno_port, retorno_bench = correr_backtest(
                 retornos_para_bt, 
                 tasa_rf, 
                 capital_inicial, 
                 peso_min, 
                 peso_max,
-                riesgo_maximo_bt, # <── La regla inyectada
+                riesgo_maximo_bt, # <── Restricción corregida
                 es_riesgo_arr, 
                 st.session_state.df_regimenes,
                 comision_broker, 
