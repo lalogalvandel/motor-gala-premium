@@ -959,11 +959,14 @@ with tab_motor:
                 num_refugios  = np.sum(es_riesgo == 0.0)
                 
 
-                if 'limite_riesgo_global' in locals():
-                    riesgo_maximo_final = limite_riesgo_global
+                # LDI – si hay una prescripción actuarial activa, se toma ese límite
+                if st.session_state.get("riesgo_objetivo_ldi") is not None:
+                    riesgo_maximo_final = float(st.session_state["riesgo_objetivo_ldi"])
                 else:
                     target_riesgo = min(1.0, max(0.20, horizonte_años / 15.0))
-                    riesgo_maximo_final = max(target_riesgo, max(0.0, 1.0 - num_refugios * peso_max))
+                    riesgo_maximo_final = target_riesgo
+                # Blindaje de rango [0, 1]
+                riesgo_maximo_final = max(0.0, min(1.0, riesgo_maximo_final))
 
                 resultados, pesos_guardados = simular_portafolios(retornos_anuales, matriz_cov, tasa_rf, num_portafolios=num_sims)
                 
@@ -1083,12 +1086,13 @@ with tab_motor:
             retornos_para_bt  = retornos_para_bt[columnas_validas]
             es_riesgo_arr     = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in retornos_para_bt.columns])
             
-            # ── INTEGRACIÓN LDI PARA EL BACKTEST ──
-            if 'limite_riesgo_global' in locals():
-                riesgo_maximo_bt = limite_riesgo_global
+            # Integración LDI – respeta la prescripción actuarial si está activa
+            if st.session_state.get("riesgo_objetivo_ldi") is not None:
+                riesgo_maximo_bt = float(st.session_state["riesgo_objetivo_ldi"])
             else:
-                riesgo_maximo_bt = max(min(1.0, max(0.20, horizonte_años/15.0)),
-                                       max(0.0, 1.0 - np.sum(es_riesgo_arr==0.0)*peso_max))
+                riesgo_maximo_bt = min(1.0, max(0.20, horizonte_años / 15.0))
+            # Blindaje de rango [0, 1]
+            riesgo_maximo_bt = max(0.0, min(1.0, riesgo_maximo_bt))
             
             # ── AQUÍ INYECTAMOS LA RESTRICCIÓN A LA SIMULACIÓN HISTÓRICA ──
             df_equity, benchmark_ticker, retorno_port, retorno_bench = correr_backtest(
