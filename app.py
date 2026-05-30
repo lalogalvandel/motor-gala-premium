@@ -693,7 +693,9 @@ with st.sidebar:
             st.session_state["capital_acumulado"] = float(datos_c.get("capital_acumulado", 2000000.0))
             st.session_state["simular_m40"]       = bool(datos_c.get("simular_m40", False))
             st.session_state["tickers_procesar"]  = str(datos_c.get("tickers_guardados", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"))
-            st.session_state["peso_maximo"]       = int(datos_c.get("peso_maximo", 40))
+            pm_db = float(datos_c.get("peso_maximo", 40))
+            st.session_state["peso_maximo"] = int(pm_db * 100) if pm_db <= 1.0 else int(pm_db)
+            
             st.rerun()
         st.caption(f"Cargado desde base de datos")
     else:
@@ -776,14 +778,22 @@ with st.sidebar:
         st.markdown("---")
         st.subheader("Restricciones de concentración")
         
-        # El slider ahora jala el peso máximo del expediente cargado
-        peso_max_val = st.slider("Exposición máxima por activo (%)", 10, 100, value=st.session_state.get("peso_maximo", 40))
+        # ── EL BLINDAJE DEL SLIDER ──
+        pm_sesion = st.session_state.get("peso_maximo", 40)
+        pm_valido = int(pm_sesion * 100) if isinstance(pm_sesion, float) and pm_sesion <= 1.0 else int(pm_sesion)
+        pm_valido = max(10, min(100, pm_valido)) # Forzamos que caiga entre 10 y 100
+        
+        peso_max_val = st.slider("Exposición máxima por activo (%)", 10, 100, value=pm_valido)
         peso_max = peso_max_val / 100
         
         if not usar_perfil_ldi:
             limite_riesgo_global = st.slider("Exposición global máxima a Renta Variable (%)", 10, 100, 80) / 100
         
         peso_min              = st.slider("Exposición mínima por activo (%)", 0, 10, 2) / 100
+        
+        # Blindaje matemático final para proteger al Optimizador SciPy
+        peso_max = max(peso_max, peso_min)
+        
         comision_broker       = st.number_input("Comisión operativa (%)", value=0.15, step=0.05) / 100
         
         st.markdown("---")
