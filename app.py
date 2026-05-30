@@ -377,10 +377,13 @@ defaults = {
     "meta_mensual": 30000.0,
     "capital_acumulado": 2000000.0,
     "simular_m40": False,
+    "tickers_procesar": "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX",
+    "peso_maximo": 40,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
+  
 
 # ══════════════════════════════════════════════════════════════════════════════
 # LANDING — AUTH
@@ -669,6 +672,7 @@ with st.sidebar:
     margen_sugerido = float(round(tasa_actual_banxico * 100, 1))
 
     # Sidebar: Módulo CRM - Gestión de Clientes
+    # Sidebar: Módulo CRM - Gestión de Clientes
     st.markdown("---")
     st.subheader("👥 Expedientes (CRM)")
 
@@ -681,7 +685,6 @@ with st.sidebar:
     # Inyección de datos a la memoria si se selecciona un cliente
     if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)":
         datos_c = nombres_clientes[cliente_seleccionado]
-        # Evitamos recargas infinitas validando el ID
         if st.session_state.get("cliente_activo_id") != datos_c["id"]:
             st.session_state["cliente_activo_id"] = datos_c["id"]
             st.session_state["semanas_cotizadas"] = int(datos_c.get("semanas_cotizadas", 1800))
@@ -689,6 +692,8 @@ with st.sidebar:
             st.session_state["meta_mensual"]      = float(datos_c.get("meta_mensual", 30000.0))
             st.session_state["capital_acumulado"] = float(datos_c.get("capital_acumulado", 2000000.0))
             st.session_state["simular_m40"]       = bool(datos_c.get("simular_m40", False))
+            st.session_state["tickers_procesar"]  = str(datos_c.get("tickers_guardados", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"))
+            st.session_state["peso_maximo"]       = int(datos_c.get("peso_maximo", 40))
             st.rerun()
         st.caption(f"Cargado desde base de datos")
     else:
@@ -699,7 +704,7 @@ with st.sidebar:
     # Botón para guardar el progreso
     with st.expander("Guardar cambios al expediente"):
         nuevo_nombre = st.text_input("Nombre del cliente", value=cliente_seleccionado if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" else "")
-        if st.button("Guardar Perfil LDI", use_container_width=True):
+        if st.button("Guardar Perfil Completo", use_container_width=True):
             if not nuevo_nombre.strip():
                 st.warning("Ingrese un nombre.")
             else:
@@ -710,7 +715,9 @@ with st.sidebar:
                     "salario_promedio": st.session_state.get("salario_promedio", 2000.0),
                     "meta_mensual": st.session_state.get("meta_mensual", 30000.0),
                     "capital_acumulado": st.session_state.get("capital_acumulado", 2000000.0),
-                    "simular_m40": st.session_state.get("simular_m40", False)
+                    "simular_m40": st.session_state.get("simular_m40", False),
+                    "tickers_guardados": st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"),
+                    "peso_maximo": st.session_state.get("peso_maximo", 40)
                 }
                 # Si estamos editando a un cliente existente, anexamos su ID
                 if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" and nuevo_nombre == cliente_seleccionado:
@@ -761,17 +768,24 @@ with st.sidebar:
         st.markdown("</div>", unsafe_allow_html=True)
         
     with st.form("optim_form"):
-        tickers_input         = st.text_area("Activos a optimizar", value=tickers_default, height=70, key="widget_tickers")
-        fecha_inicio          = st.date_input("Fecha de inicio", value=pd.Timestamp("2020-01-01"))
-        fecha_fin             = st.date_input("Fecha de cierre", value=pd.Timestamp("2026-05-08"))
+        # La caja de texto ahora jala los tickers del expediente cargado
+        tickers_input = st.text_area("Activos a optimizar", value=st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX"), height=70)
+        fecha_inicio  = st.date_input("Fecha de inicio", value=pd.Timestamp("2020-01-01"))
+        fecha_fin     = st.date_input("Fecha de cierre", value=pd.Timestamp("2026-05-08"))
+        
         st.markdown("---")
         st.subheader("Restricciones de concentración")
-        peso_max = st.slider("Exposición máxima por activo (%)", 10, 100, 40) / 100
+        
+        # El slider ahora jala el peso máximo del expediente cargado
+        peso_max_val = st.slider("Exposición máxima por activo (%)", 10, 100, value=st.session_state.get("peso_maximo", 40))
+        peso_max = peso_max_val / 100
+        
         if not usar_perfil_ldi:
             limite_riesgo_global = st.slider("Exposición global máxima a Renta Variable (%)", 10, 100, 80) / 100
         
         peso_min              = st.slider("Exposición mínima por activo (%)", 0, 10, 2) / 100
         comision_broker       = st.number_input("Comisión operativa (%)", value=0.15, step=0.05) / 100
+        
         st.markdown("---")
         st.subheader("Proyección de capital")
         capital_inicial       = st.number_input("Capital inicial (MXN)", min_value=0, value=100_000, step=10_000)
@@ -779,6 +793,7 @@ with st.sidebar:
         aportacion_mensual    = st.number_input("Aportación periódica (MXN)", min_value=0, value=100_000, step=10_000)
         horizonte_años        = st.slider("Horizonte de inversión (años)", min_value=1, max_value=40, value=10)
         num_sims              = st.slider("Simulaciones Monte Carlo", 500, 5000, 2000, step=500)
+        
         st.markdown("---")
         st.subheader("Benchmark comparativo")
         PERFILES_BENCHMARK = {
@@ -789,6 +804,11 @@ with st.sidebar:
         }
         benchmark_seleccion = st.selectbox("Perfil del benchmark", list(PERFILES_BENCHMARK.keys()))
         ejecutar = st.form_submit_button("Ejecutar optimización", use_container_width=True)
+
+        if ejecutar:
+            # Al darle al botón, guardamos los valores en la memoria en tiempo real
+            st.session_state["tickers_procesar"] = tickers_input
+            st.session_state["peso_maximo"] = peso_max_val
 
     # Sidebar: Info del usuario
     st.markdown("---")
