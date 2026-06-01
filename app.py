@@ -769,6 +769,7 @@ with st.sidebar:
         if usar_perfil_ldi:
             limite_riesgo_global = st.session_state["riesgo_objetivo_ldi"]
             st.caption(f"**Tope de riesgo bloqueado al {limite_riesgo_global*100:.1f}%** ({st.session_state['perfil_ldi_nombre']})")
+            st.caption("*(Proviene de la pestaña Planeación de Retiro. Ajuste los parámetros allí para modificar el límite.)*")
         st.markdown("</div>", unsafe_allow_html=True)
         
     with st.form("optim_form"):
@@ -789,7 +790,14 @@ with st.sidebar:
         peso_max = peso_max_val / 100
         
         if not usar_perfil_ldi:
-            limite_riesgo_global = st.slider("Exposición global máxima a Renta Variable (%)", 10, 100, 80) / 100
+            # Inicializar el estado si no existe
+            if "limite_riesgo_manual" not in st.session_state:
+                st.session_state["limite_riesgo_manual"] = 80
+            limite_riesgo_global = st.slider(
+                "Exposición global máxima a Renta Variable (%)",
+                10, 100, st.session_state["limite_riesgo_manual"]
+            ) / 100
+            st.session_state["limite_riesgo_manual"] = int(limite_riesgo_global * 100)
         
         peso_min              = st.slider("Exposición mínima por activo (%)", 0, 10, 2) / 100
         
@@ -1065,10 +1073,10 @@ with tab_motor:
                 if usar_perfil_ldi and st.session_state.get("riesgo_objetivo_ldi") is not None:
                     riesgo_maximo_final = float(st.session_state["riesgo_objetivo_ldi"])
                 elif not usar_perfil_ldi:
-                    riesgo_maximo_final = limite_riesgo_global
+                    riesgo_maximo_final = st.session_state.get("limite_riesgo_manual", 80) / 100
                 else:
-                    target_riesgo = min(1.0, max(0.20, horizonte_años / 15.0))
-                    riesgo_maximo_final = max(target_riesgo, max(0.0, 1.0 - num_refugios * peso_max))
+                    # Caso anómalo (LDI activo sin riesgo definido) → glide path puro
+                    riesgo_maximo_final = min(1.0, max(0.20, horizonte_años / 15.0))
 
                 riesgo_maximo_final = max(0.0, min(1.0, riesgo_maximo_final))
 
@@ -1209,7 +1217,7 @@ with tab_motor:
             if usar_perfil_ldi and st.session_state.get("riesgo_objetivo_ldi") is not None:
                 riesgo_maximo_bt = float(st.session_state["riesgo_objetivo_ldi"])
             elif not usar_perfil_ldi:
-                riesgo_maximo_bt = limite_riesgo_global
+                riesgo_maximo_bt = st.session_state.get("limite_riesgo_manual", 80) / 100
             else:
                 riesgo_maximo_bt = min(1.0, max(0.20, horizonte_años / 15.0))
                 
