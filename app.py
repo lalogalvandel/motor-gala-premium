@@ -18,6 +18,8 @@ from modulos.backtesting import calcular_backtest_walk_forward, calcular_metrica
 from modulos.riesgo      import calcular_var_cvar, calcular_drawdown, calcular_sortino, calcular_stress_test, calcular_correlacion_rolling
 from modulos.regimenes   import entrenar_modelo_markov
 from modulos.pensiones import estimar_pension_ley73, calcular_brecha_pensional
+from modulos.black_litterman import calcular_black_litterman
+
 # ── Configuración de página ────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Motor GaLa Premium",
@@ -768,6 +770,40 @@ with st.sidebar:
             limite_riesgo_global = st.session_state["riesgo_objetivo_ldi"]
             st.caption(f"**Tope de riesgo bloqueado al {limite_riesgo_global*100:.1f}%** ({st.session_state['perfil_ldi_nombre']})")
         st.markdown("</div>", unsafe_allow_html=True)
+
+    # ── MÓDULO BLACK-LITTERMAN (Vistas Tácticas) ──
+    st.markdown("---")
+    st.subheader("3. Alpha Táctico (Black-Litterman)")
+    usar_bl = st.toggle("Activar inyección de Vistas del Gestor", value=False)
+    
+    vistas_usuario = []
+    if usar_bl:
+        num_vistas = st.number_input("Número de tesis de inversión", 1, 5, 1)
+        # Lista temporal para usar en los selectboxes
+        tickers_temp = [t.strip() for t in tickers_default.split(",") if t.strip()]
+        
+        for i in range(num_vistas):
+            with st.expander(f"Tesis Táctica {i+1}", expanded=True):
+                tipo = st.selectbox("Estructura de la tesis", ["absoluta", "relativa"], key=f"tipo_{i}")
+                activo_1 = st.selectbox("Activo principal", tickers_temp, key=f"a1_{i}")
+                
+                if tipo == "absoluta":
+                    rendimiento = st.slider("Rendimiento esperado anual (%)", -50.0, 50.0, 10.0, step=1.0, key=f"rend_{i}") / 100
+                    st.markdown(f"<span style='color:#17C37B;font-size:13px;'>Tesis: <b>{activo_1}</b> rendirá un <b>{rendimiento*100:.1f}%</b> este año.</span>", unsafe_allow_html=True)
+                    vista = {"tipo": "absoluta", "activo_1": activo_1, "rendimiento_esperado": rendimiento}
+                else:
+                    activos_rest = [t for t in tickers_temp if t != activo_1]
+                    activo_2 = st.selectbox("Superará a...", activos_rest, key=f"a2_{i}") if activos_rest else activo_1
+                    rendimiento = st.slider("Superará por un margen de (%)", 0.0, 50.0, 5.0, step=1.0, key=f"rend_{i}") / 100
+                    st.markdown(f"<span style='color:#17C37B;font-size:13px;'>Tesis: <b>{activo_1}</b> superará a <b>{activo_2}</b> por un <b>{rendimiento*100:.1f}%</b>.</span>", unsafe_allow_html=True)
+                    vista = {"tipo": "relativa", "activo_1": activo_1, "activo_2": activo_2, "rendimiento_esperado": rendimiento}
+                    
+                confianza = st.select_slider("Nivel de Confianza", ["Baja", "Media", "Alta"], value="Media", key=f"conf_{i}")
+                vista["confianza"] = confianza
+                vistas_usuario.append(vista)
+                
+    st.session_state["vistas_bl"] = vistas_usuario
+    st.session_state["usar_bl"] = usar_bl
         
     with st.form("optim_form"):
         # La caja de texto ahora jala los tickers del expediente cargado
@@ -835,6 +871,21 @@ with st.sidebar:
 @st.cache_data(show_spinner=False, ttl=86400)
 def cached_descargar_fundamentales(tickers):
     return descargar_fundamentales_paralelo(tickers, max_workers=3)
+    
+@st.cache_data(show_spinner=False, ttl=86400)
+def obtener_pesos_mercado(tickers_list):
+    """Obtiene el Market Cap para construir el portafolio de equilibrio de Black-Litterman."""
+    df_fund = cached_descargar_fundamentales(tuple(tickers_list))
+    if df_fund.empty or "Market Cap (B)" not in df_fund.columns:
+        # Fallback de seguridad: Si falla Yahoo Finance, asume pesos equitativos
+        return pd.Series(1.0 / len(tickers_list), index=tickers_list)
+    
+    caps = df_fund.set_index("Ticker")["Market Cap (B)"]
+    caps = caps.fillna(caps.median()) # Protege contra datos faltantes
+    # Evita valores en cero que rompan la división
+    caps = caps.replace(0, caps.median())
+    pesos = caps / caps.sum()
+    return pesos
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def obtener_datos(tickers_key: str, inicio: str, fin: str):
@@ -952,41 +1003,55 @@ with tab_motor:
             st.stop()
 
         if ejecutar:
-            with st.spinner("Ejecutando optimización y análisis de regímenes..."):
+            with st.spinner("Calibrando motor cuantitativo y análisis de regímenes..."):
                 st.session_state.df_regimenes = entrenar_modelo_markov(datos)
                 REFUGIOS      = {"TLT","IEF","SHY","BND","AGG","BIL","GLD","IAU","USDC-USD","CASH"}
                 es_riesgo     = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in tickers])
                 num_refugios  = np.sum(es_riesgo == 0.0)
                 
-                # ── CORRECCIÓN LDI QUIRÚRGICA: Optimizador Markowitz ──
-                # Solo usa el LDI si el toggle en la UI está encendido AND el dato existe en memoria
+                # ── IMPLEMENTACIÓN BLACK-LITTERMAN ──
+                # Si el usuario activó BL y puso vistas, recalculamos la realidad matemática
+                if st.session_state.get("usar_bl", False) and len(st.session_state.get("vistas_bl", [])) > 0:
+                    pesos_mkt = obtener_pesos_mercado(tickers)
+                    retornos_usar, matriz_cov_usar = calcular_black_litterman(
+                        retornos_anuales, 
+                        matriz_cov, 
+                        pesos_mkt, 
+                        st.session_state["vistas_bl"], 
+                        tasa_rf
+                    )
+                else:
+                    # Si BL está apagado, colapsamos al modelo clásico
+                    retornos_usar = retornos_anuales
+                    matriz_cov_usar = matriz_cov
+                
+                # ── CORRECCIÓN LDI QUIRÚRGICA ──
                 if usar_perfil_ldi and st.session_state.get("riesgo_objetivo_ldi") is not None:
                     riesgo_maximo_final = float(st.session_state["riesgo_objetivo_ldi"])
                 elif not usar_perfil_ldi:
-                    # Usa el slider manual de "Exposición global máxima a Renta Variable"
                     riesgo_maximo_final = limite_riesgo_global
                 else:
-                    # Fallback (Glide path de ciclo de vida)
                     target_riesgo = min(1.0, max(0.20, horizonte_años / 15.0))
                     riesgo_maximo_final = max(target_riesgo, max(0.0, 1.0 - num_refugios * peso_max))
 
-                # Blindaje de seguridad matemática [0, 1]
                 riesgo_maximo_final = max(0.0, min(1.0, riesgo_maximo_final))
 
-                resultados, pesos_guardados = simular_portafolios(retornos_anuales, matriz_cov, tasa_rf, num_portafolios=num_sims)
+                # Usamos los retornos ajustados (retornos_usar / matriz_cov_usar)
+                resultados, pesos_guardados = simular_portafolios(retornos_usar, matriz_cov_usar, tasa_rf, num_portafolios=num_sims)
                 
                 pesos_opt = optimizar_sharpe_slsqp(
-                    retornos_anuales, 
-                    matriz_cov, 
+                    retornos_usar, 
+                    matriz_cov_usar, 
                     tasa_rf,
                     peso_min=peso_min, 
                     peso_max=peso_max, 
-                    max_riesgo_total=riesgo_maximo_final, # <── Restricción corregida
+                    max_riesgo_total=riesgo_maximo_final,
                     es_riesgo=es_riesgo
                 )
 
-                ret_opt    = float(np.sum(pesos_opt * retornos_anuales))
-                vol_opt    = float(np.sqrt(np.dot(pesos_opt.T, np.dot(matriz_cov, pesos_opt))))
+                # Las métricas finales para mostrar se calculan sobre las matrices de Black-Litterman
+                ret_opt    = float(np.sum(pesos_opt * retornos_usar))
+                vol_opt    = float(np.sqrt(np.dot(pesos_opt.T, np.dot(matriz_cov_usar, pesos_opt))))
                 sharpe_opt = float((ret_opt - tasa_rf) / vol_opt)
 
                 st.session_state.optimizado  = True
