@@ -954,19 +954,6 @@ def obtener_datos(tickers_key: str, inicio: str, fin: str):
     retornos_diarios, retornos_anuales, matriz_cov = calcular_retornos(datos)
     return datos, retornos_diarios, retornos_anuales, matriz_cov
 
-@st.cache_data(show_spinner=False)
-def cached_var_cvar(_ret, cap):      return calcular_var_cvar(_ret, cap)
-@st.cache_data(show_spinner=False)
-def cached_drawdown(_ret):           return calcular_drawdown(_ret)
-@st.cache_data(show_spinner=False)
-def cached_sortino(_ret, r, rf):     return calcular_sortino(_ret, r, rf)
-@st.cache_data(show_spinner=False)
-def cached_stress_test(pesos, tickers, cap, _ret): return calcular_stress_test(pesos, tickers, cap, _ret)
-@st.cache_data(show_spinner=False)
-def cached_metricas_bt(_rp, _rb, rf, _ep, _eb): return calcular_metricas_backtest(_rp, _rb, rf, _ep, _eb)
-@st.cache_data(show_spinner=False)
-def cached_retornos_anuales(_rp, _rb): return calcular_retornos_anuales(_rp, _rb)
-
 tabs_nombres = ["Motor Cuantitativo", "Noticias del Mercado", "Planeación de Retiro", "Glosario Técnico", "Comunidad", "Sugerencias"]
 tabs_nombres = ["Motor Cuantitativo", "Tesorería Patrimonial", "Noticias del Mercado", "Planeación de Retiro", "Glosario Técnico", "Comunidad", "Sugerencias"]
 if es_admin: tabs_nombres.append("Administración")
@@ -1247,7 +1234,7 @@ with tab_motor:
                 benchmark_elegido
             )
 
-        metricas_bt = cached_metricas_bt(retorno_port, retorno_bench, tasa_rf,
+        metricas_bt = calcular_metricas_backtest(retorno_port, retorno_bench, tasa_rf,
             df_equity["Portafolio GaLa (Dinámico)"], df_equity[f"Benchmark ({benchmark_ticker})"])
 
         st.markdown("""
@@ -1399,7 +1386,7 @@ with tab_motor:
         retorno_port_diario = retornos_diarios @ pesos_opt
 
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>Value at Risk y Expected Shortfall</div>""", unsafe_allow_html=True)
-        var_cvar = cached_var_cvar(retorno_port_diario, capital_riesgo)
+        var_cvar = calcular_var_cvar(retorno_port_diario, capital_riesgo)
         c1,c2,c3,c4 = st.columns(4)
         c1.metric("VaR 95% Histórico", f"{var_cvar['VaR_95_hist']*100:.2f}%", f"-${abs(var_cvar['VaR_95_hist'])*capital_riesgo:,.0f} USD")
         c2.metric("VaR 99% Histórico", f"{var_cvar['VaR_99_hist']*100:.2f}%", f"-${abs(var_cvar['VaR_99_hist'])*capital_riesgo:,.0f} USD")
@@ -1416,7 +1403,7 @@ with tab_motor:
         st.plotly_chart(fig_var, use_container_width=True, key="chart_var")
 
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>Maximum Drawdown</div>""", unsafe_allow_html=True)
-        dd_serie, max_dd, inicio_dd, fin_dd, duracion_dd = cached_drawdown(retorno_port_diario)
+        dd_serie, max_dd, inicio_dd, fin_dd, duracion_dd = calcular_drawdown(retorno_port_diario)
         c1,c2,c3 = st.columns(3)
         c1.metric("Maximum Drawdown", f"{max_dd*100:.2f}%", f"-${abs(max_dd)*capital_riesgo:,.0f} USD")
         c2.metric("Duración",         f"{duracion_dd} días ({duracion_dd//30} meses)")
@@ -1430,7 +1417,7 @@ with tab_motor:
         st.plotly_chart(fig_dd, use_container_width=True, key="chart_dd")
 
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>Sortino vs Sharpe</div>""", unsafe_allow_html=True)
-        sortino, desv_down = cached_sortino(retorno_port_diario, ret_opt, tasa_rf)
+        sortino, desv_down = calcular_sortino(retorno_port_diario, ret_opt, tasa_rf)
         c1,c2,c3 = st.columns(3)
         c1.metric("Ratio de Sharpe",          f"{sharpe_opt:.4f}")
         c2.metric("Ratio de Sortino",         f"{sortino:.4f}")
@@ -1438,7 +1425,7 @@ with tab_motor:
 
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>Stress Testing — Escenarios Históricos</div>""", unsafe_allow_html=True)
         
-        df_stress = cached_stress_test(pesos_opt, tickers, capital_riesgo, retornos_diarios)
+        df_stress = calcular_stress_test(pesos_opt, tickers, capital_riesgo, retornos_diarios)
         
         if df_stress is not None and not df_stress.empty and "Pérdida (%)" in df_stress.columns:
             fig_stress = go.Figure(go.Bar(
