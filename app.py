@@ -1739,9 +1739,11 @@ with tab_wallet:
         if movimientos_db:
             df_movs = pd.DataFrame(movimientos_db)
             
-            # 1. BLINDAJE DE FECHAS (Adiós a los errores de parseo)
+            # 1. BLINDAJE DE FECHAS Y ORDEN CRONOLÓGICO
             df_movs["created_at"] = pd.to_datetime(df_movs["created_at"], errors="coerce", utc=True).dt.tz_localize(None)
             df_movs = df_movs.dropna(subset=["created_at"]).copy()
+            df_movs = df_movs.sort_values("created_at") # Fundamental para que la línea sea exacta
+            
             df_movs["Mes"] = df_movs["created_at"].dt.to_period("M").astype(str)
             
             # 2. LEY DE SIGNOS (Creación de la columna Flujo Neto)
@@ -1750,31 +1752,32 @@ with tab_wallet:
                 t = str(row["tipo"]).upper()
                 if t == "GASTO": return -abs(m)
                 elif t == "INGRESO": return abs(m)
-                return m # Los AJUSTE MTM mantienen su propio signo
+                return m 
 
             df_movs["Flujo Neto"] = df_movs.apply(calcular_flujo, axis=1)
             
-            # 3. CASH FLOW (Ingresos vs Egresos para la gráfica de barras)
+            # 3. CASH FLOW (Mensual, exclusivo para la gráfica de barras)
             df_cashflow = df_movs.groupby(["Mes", "tipo"])["Flujo Neto"].sum().unstack(fill_value=0)
             
-            # 4. EVOLUCIÓN HISTÓRICA (Capital Semilla + Acumulado)
-            df_evolucion = df_movs.groupby("Mes")["Flujo Neto"].sum().reset_index()
-            flujo_total_registrado = df_evolucion["Flujo Neto"].sum()
+            # 4. EVOLUCIÓN HISTÓRICA CONTINUA (Para la gráfica de línea suave)
+            flujo_total_registrado = df_movs["Flujo Neto"].sum()
             capital_semilla = capital_total - flujo_total_registrado
             
-            df_evolucion["Capital Acumulado"] = df_evolucion["Flujo Neto"].cumsum() + capital_semilla
-            df_evolucion = df_evolucion.set_index("Mes")
+            # Hacemos la suma acumulada transacción por transacción, no por mes
+            df_movs["Capital Acumulado"] = capital_semilla + df_movs["Flujo Neto"].cumsum()
+            
+            # Preparamos el índice exacto de tiempo para que Streamlit dibuje suave
+            df_linea = df_movs[["created_at", "Capital Acumulado"]].set_index("created_at")
 
             # ── RENDERIZADO DE GRÁFICAS ──
             col_graf1, col_graf2 = st.columns(2)
             
             with col_graf1:
                 st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin-bottom:.75rem;'>Evolución del Patrimonio (AUM)</div>""", unsafe_allow_html=True)
-                st.line_chart(df_evolucion["Capital Acumulado"], use_container_width=True, color="#17C37B")
+                st.line_chart(df_linea, use_container_width=True, color="#17C37B")
                 
             with col_graf2:
                 st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin-bottom:.75rem;'>Cash Flow Mensual (Ingresos vs Egresos)</div>""", unsafe_allow_html=True)
-                # Formateamos barras para que Streamlit entienda bien
                 cols_cashflow = []
                 if "INGRESO" in df_cashflow.columns: cols_cashflow.append("INGRESO")
                 if "GASTO" in df_cashflow.columns: cols_cashflow.append("GASTO")
@@ -1785,13 +1788,24 @@ with tab_wallet:
                     st.bar_chart(df_cashflow, use_container_width=True)
             
             # ── TABLA AUDITORÍA ──
-            with st.expander("Ver Auditoría Completa de Transacciones (Libro Mayor)"):
-                df_mostrar = df_movs[["created_at", "tipo", "monto", "concepto"]].copy()
-                df_mostrar.columns = ["Fecha", "Tipo de Movimiento", "Monto (MXN)", "Concepto"]
-                df_mostrar = df_mostrar.sort_values("Fecha", ascending=False)
+            with st.expander("Ver Auditoría Completa de Transacciones (Libro Mayor)", expanded=False):
+                # Volvemos a ordenar al revés para que lo más nuevo salga hasta arriba
+                df_mostrar = df_movs.sort_values("created_at", ascending=False).copy()
+                
+                # Mapeamos los IDs de cuenta a sus nombres reales para que sea legible
+                mapa_inverso_cuentas = dict(zip(df_cuentas["id"], df_cuentas["Institución"]))
+                df_mostrar["Cuenta"] = df_mostrar["id_cuenta"].map(mapa_inverso_cuentas)
+                
+                df_mostrar = df_mostrar[["created_at", "Cuenta", "tipo", "monto", "concepto"]]
+                df_mostrar.columns = ["Fecha", "Institución", "Tipo", "Monto (MXN)", "Concepto"]
+                
+                # Formateamos la fecha para que sea más limpia visualmente
+                df_mostrar["Fecha"] = df_mostrar["Fecha"].dt.strftime("%Y-%m-%d %H:%M")
+                
                 st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
         else:
             st.info("Aún no hay transacciones históricas para generar la analítica.")
+            
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — NOTICIAS DEL MERCADO
 # ══════════════════════════════════════════════════════════════════════════════
