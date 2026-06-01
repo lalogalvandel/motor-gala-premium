@@ -968,16 +968,18 @@ def cached_metricas_bt(_rp, _rb, rf, _ep, _eb): return calcular_metricas_backtes
 def cached_retornos_anuales(_rp, _rb): return calcular_retornos_anuales(_rp, _rb)
 
 tabs_nombres = ["Motor Cuantitativo", "Noticias del Mercado", "Planeación de Retiro", "Glosario Técnico", "Comunidad", "Sugerencias"]
+tabs_nombres = ["Motor Cuantitativo", "Tesorería Patrimonial", "Noticias del Mercado", "Planeación de Retiro", "Glosario Técnico", "Comunidad", "Sugerencias"]
 if es_admin: tabs_nombres.append("Administración")
 
 tabs_objetos  = st.tabs(tabs_nombres)
 tab_motor     = tabs_objetos[0]
-tab_noticias  = tabs_objetos[1]
-tab_retiro    = tabs_objetos[2] 
-tab_glosario  = tabs_objetos[3]
-tab_comunidad = tabs_objetos[4]
-tab_feedback  = tabs_objetos[5]
-tab_admin     = tabs_objetos[6] if es_admin else None
+tab_wallet    = tabs_objetos[1] # <── Nueva pestaña
+tab_noticias  = tabs_objetos[2]
+tab_retiro    = tabs_objetos[3] 
+tab_glosario  = tabs_objetos[4]
+tab_comunidad = tabs_objetos[5]
+tab_feedback  = tabs_objetos[6]
+tab_admin     = tabs_objetos[7] if es_admin else None
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — MOTOR CUANTITATIVO
@@ -1536,7 +1538,103 @@ with tab_motor:
                         st.exception(e)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — NOTICIAS DEL MERCADO
+# TAB 2 — TESORERÍA PATRIMONIAL (WALLET)
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_wallet:
+    _header("Consolidación de Activos", "Tesorería y Tracking Patrimonial")
+    st.caption("Registro de flujos de efectivo, conciliación de saldos y cálculo de tasa ponderada efectiva.")
+
+    # ── MOCK DATA (Temporal hasta conectar con Supabase) ──
+    # Esto simula lo que te devolvería db.get_portfolio_data()
+    if "cuentas_wallet" not in st.session_state:
+        st.session_state["cuentas_wallet"] = pd.DataFrame({
+            "ID": [1, 2, 3],
+            "Institución": ["Nu México", "CetesDirecto", "GBM+ (Estrategia)"],
+            "Saldo (MXN)": [150000.0, 500000.0, 350000.0],
+            "Tasa Anual (%)": [14.75, 11.00, 12.50]
+        })
+
+    df_cuentas = st.session_state["cuentas_wallet"]
+    capital_total = df_cuentas["Saldo (MXN)"].sum()
+    
+    # Cálculos actuariales (Ex ui_consultar_capital)
+    if capital_total > 0:
+        df_cuentas["Peso (%)"] = (df_cuentas["Saldo (MXN)"] / capital_total) * 100
+        tasa_ponderada = (df_cuentas["Tasa Anual (%)"] * (df_cuentas["Peso (%)"] / 100)).sum()
+        renta_anual = capital_total * (tasa_ponderada / 100)
+    else:
+        df_cuentas["Peso (%)"] = 0
+        tasa_ponderada = 0
+        renta_anual = 0
+
+    # 1. DASHBOARD DE POSICIÓN
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Capital Total (AUM)", f"${capital_total:,.2f} MXN")
+    c2.metric("Tasa Efectiva Ponderada", f"{tasa_ponderada:.2f}%")
+    c3.metric("Renta Mensual Estimada", f"${renta_anual/12:,.2f} MXN")
+    c4.metric("Renta Diaria Estimada", f"${renta_anual/365:,.2f} MXN")
+
+    st.markdown("---")
+
+    col_tabla, col_ops = st.columns([1.5, 1], gap="large")
+
+    # 2. ESTADO DE CUENTA
+    with col_tabla:
+        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin-bottom:.75rem;'>Distribución de Capital</div>""", unsafe_allow_html=True)
+        st.dataframe(
+            df_cuentas[["Institución", "Saldo (MXN)", "Tasa Anual (%)", "Peso (%)"]],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Saldo (MXN)": st.column_config.NumberColumn(format="$%.2f"),
+                "Peso (%)": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f%%")
+            }
+        )
+
+    # 3. MESA DE OPERACIONES (Ex ui_registrar_movimiento y ui_gestionar_activos)
+    with col_ops:
+        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin-bottom:.75rem;'>Mesa de Operaciones</div>""", unsafe_allow_html=True)
+        
+        tab_flujo, tab_mtm, tab_nueva = st.tabs(["Registrar Flujo", "Ajuste Mark-to-Market", "Nueva Cuenta"])
+        
+        with tab_flujo:
+            with st.form("form_flujo"):
+                cuenta_sel = st.selectbox("Cuenta de origen/destino", df_cuentas["Institución"])
+                tipo_flujo = st.radio("Tipo de movimiento", ["Aportación (Ingreso)", "Retiro (Gasto)"], horizontal=True)
+                monto_flujo = st.number_input("Monto (MXN)", min_value=1.0, step=1000.0)
+                nota_flujo = st.text_input("Concepto / Referencia")
+                
+                if st.form_submit_button("Registrar Transacción", use_container_width=True):
+                    st.info("Conectando a base de datos de auditoría...") # Placeholder para la BD
+                    
+        with tab_mtm:
+            st.caption("Concilie el saldo del sistema con el saldo real de su broker (Mark-to-Market).")
+            with st.form("form_mtm"):
+                cuenta_mtm = st.selectbox("Cuenta a conciliar", df_cuentas["Institución"])
+                
+                # Buscamos el saldo actual para mostrarlo como referencia
+                saldo_actual = df_cuentas.loc[df_cuentas["Institución"] == cuenta_mtm, "Saldo (MXN)"].values[0]
+                st.markdown(f"Saldo en sistema: **${saldo_actual:,.2f}**")
+                
+                nuevo_saldo = st.number_input("Saldo real en la plataforma (MXN)", min_value=0.0, value=float(saldo_actual), step=100.0)
+                
+                if st.form_submit_button("Ejecutar Ajuste a Mercado", use_container_width=True):
+                    diferencia = nuevo_saldo - saldo_actual
+                    if diferencia == 0:
+                        st.success("La cuenta está perfectamente cuadrada.")
+                    else:
+                        st.success(f"Ajuste registrado. Variación de ${diferencia:,.2f} MXN contabilizada como rendimiento/pérdida.")
+
+        with tab_nueva:
+            with st.form("form_nueva_cuenta"):
+                nom_cuenta = st.text_input("Institución o Broker (Ej. Finsus, GBM)")
+                tasa_cuenta = st.number_input("Tasa de rendimiento anual esperada (%)", min_value=0.0, step=0.5)
+                saldo_ini = st.number_input("Saldo de apertura (MXN)", min_value=0.0, step=1000.0)
+                if st.form_submit_button("Crear Cuenta", use_container_width=True):
+                    st.success(f"Cuenta {nom_cuenta} aperturada correctamente.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — NOTICIAS DEL MERCADO
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_noticias:
     _header("Titulares en tiempo real", "Noticias del Mercado Financiero")
@@ -1646,7 +1744,7 @@ with tab_noticias:
                 continue
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — PLANEACIÓN DE RETIRO (LDI PERSONAL)
+# TAB 4 — PLANEACIÓN DE RETIRO (LDI PERSONAL)
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_retiro:
     _header("Modelado Actuarial LDI", "Planeación de Retiro (Ley 73)")
@@ -1728,7 +1826,7 @@ with tab_retiro:
                         f"El Motor GaLa ha calibrado automáticamente esta restricción. Puede ir al 'Motor Cuantitativo' para ejecutar la optimización de activos bajo esta frontera matemática.")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 4 — GLOSARIO TÉCNICO
+# TAB 5 — GLOSARIO TÉCNICO
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_glosario:
     _header("Referencia cuantitativa", "Glosario Técnico")
@@ -1768,7 +1866,7 @@ with tab_glosario:
         st.info("No se encontraron términos que coincidan con la búsqueda.")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 5 — COMUNIDAD
+# TAB 6 — COMUNIDAD
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_comunidad:
     _header("Espacio de intercambio", "Comunidad GaLa Premium")
@@ -1836,7 +1934,7 @@ with tab_comunidad:
                 st.markdown("---")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 6 — SUGERENCIAS
+# TAB 7 — SUGERENCIAS
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_feedback:
     _header("Desarrollo continuo", "Comentarios y Sugerencias")
@@ -1874,7 +1972,7 @@ with tab_feedback:
             st.warning("Incluya un comentario antes de enviar.")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 7 — ADMINISTRACIÓN (OCULTO)
+# TAB 8 — ADMINISTRACIÓN (OCULTO)
 # ══════════════════════════════════════════════════════════════════════════════
 if es_admin and tab_admin:
     with tab_admin:
