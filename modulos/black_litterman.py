@@ -42,9 +42,19 @@ def calcular_black_litterman(retornos_anuales: pd.Series,
     Pi = delta * np.dot(Sigma, W_mkt)
     
     # ── 2. PROCESAMIENTO DE VISTAS (Views) ──
-    K = len(vistas_usuario)
+    # BLINDAJE 1: Filtrar vistas inválidas ANTES de dimensionar las matrices
+    vistas_validas = []
+    for vista in vistas_usuario:
+        activo_1 = vista.get("activo_1")
+        if activo_1 not in activos:
+            continue
+        if vista.get("tipo") == "relativa" and vista.get("activo_2") not in activos:
+            continue
+        vistas_validas.append(vista)
+        
+    K = len(vistas_validas)
     
-    # Si no hay vistas, el modelo colapsa de forma natural al equilibrio del mercado
+    # Si no quedan vistas válidas, el modelo colapsa de forma natural al equilibrio
     if K == 0:
         return pd.Series(Pi, index=activos), matriz_cov
         
@@ -52,28 +62,18 @@ def calcular_black_litterman(retornos_anuales: pd.Series,
     Q = np.zeros(K)
     C = np.zeros(K) # Vector de niveles de confianza
     
-    # Mapeo de niveles de confianza a porcentajes (heuristicos)
-    mapa_confianza = {"Alta": 0.9, "Media": 0.5, "Baja": 0.1}
+    mapa_confianza = {"Baja": 0.1, "Media": 0.5, "Alta": 0.9}
     
-    for k, vista in enumerate(vistas_usuario):
-        tipo = vista.get("tipo", "absoluta") # 'absoluta' o 'relativa'
-        activo_1 = vista["activo_1"]
-        
-        # ── BLINDAJE: Si el activo ya no existe en la matriz, ignoramos la vista ──
-        if activo_1 not in activos:
-            continue
-            
-        idx_1 = activos.get_loc(activo_1)
+    for k, vista in enumerate(vistas_validas):
+        tipo = vista.get("tipo", "absoluta")
+        idx_1 = activos.get_loc(vista["activo_1"])
         
         if tipo == "absoluta":
             # "El activo 1 tendrá un retorno X"
             P[k, idx_1] = 1.0
         elif tipo == "relativa":
             # "El activo 1 superará al activo 2 por X"
-            activo_2 = vista["activo_2"]
-            if activo_2 not in activos:
-                continue
-            idx_2 = activos.get_loc(activo_2)
+            idx_2 = activos.get_loc(vista["activo_2"])
             P[k, idx_1] = 1.0
             P[k, idx_2] = -1.0
             
@@ -81,13 +81,18 @@ def calcular_black_litterman(retornos_anuales: pd.Series,
         C[k] = mapa_confianza.get(vista.get("confianza", "Media"), 0.5)
 
     # ── 3. MATRIZ DE INCERTIDUMBRE (Omega) ──
-    # Usamos el método de varianzas proporcionales ajustadas por confianza
     Omega = np.zeros((K, K))
     for k in range(K):
-        # La incertidumbre base es P * (tau * Sigma) * P^T
         incertidumbre_base = np.dot(P[k], np.dot(tau * Sigma, P[k].T))
-        # Ajustamos: Mayor confianza -> Menor incertidumbre
-        Omega[k, k] = incertidumbre_base / C[k] if C[k] > 0 else incertidumbre_base * 10
+        
+        # BLINDAJE 2: Prevención de Matrices Singulares (Épsilon)
+        # Si un activo tiene volatilidad CERO (ej. CASH) o datos planos,
+        # forzamos un valor minúsculo (1e-6) para permitir la inversión de la matriz
+        # sin alterar matemáticamente el resultado final del portafolio.
+        if incertidumbre_base <= 1e-8:
+            incertidumbre_base = 1e-6
+            
+        Omega[k, k] = (incertidumbre_base / C[k]) if C[k] > 0 else (incertidumbre_base * 10)
         
     # ── 4. ÁLGEBRA DE BLACK-LITTERMAN (Teorema de Bayes) ──
     tau_Sigma = tau * Sigma
