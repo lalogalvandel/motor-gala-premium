@@ -340,6 +340,7 @@ def obtener_posts_aprobados():
         return r.data or []
     except Exception:
         return []
+
 # ── Utilidades CRM (Gestión de Clientes) ───────────────────────────────────────
 def obtener_clientes(id_asesor: str) -> list:
     try:
@@ -351,11 +352,9 @@ def obtener_clientes(id_asesor: str) -> list:
 def guardar_cliente(datos: dict) -> tuple[bool, str]:
     try:
         if "id" in datos and datos["id"]:
-            # Si el cliente ya existe, lo actualizamos
             cliente_id = datos.pop("id")
             db.table("clientes_asesor").update(datos).eq("id", cliente_id).execute()
         else:
-            # Si es nuevo, lo insertamos
             db.table("clientes_asesor").insert(datos).execute()
         return True, "Expediente guardado exitosamente en la base de datos."
     except Exception as e:
@@ -372,7 +371,6 @@ defaults = {
     "resultados":      None,
     "df_regimenes":    None,
     "login_intentos":  0,
-    # ── NUEVOS DEFAULTS REQUERIDOS PARA EL CRM ──
     "cliente_activo_id": None,
     "semanas_cotizadas": 1800,
     "salario_promedio": 2000.0,
@@ -381,11 +379,13 @@ defaults = {
     "simular_m40": False,
     "tickers_procesar": "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX",
     "peso_maximo": 40,
+    "vistas_bl": [],
+    "usar_bl": False,
+    "limite_riesgo_manual": 80,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
-  
 
 # ══════════════════════════════════════════════════════════════════════════════
 # LANDING — AUTH
@@ -674,7 +674,6 @@ with st.sidebar:
     margen_sugerido = float(round(tasa_actual_banxico * 100, 1))
 
     # Sidebar: Módulo CRM - Gestión de Clientes
-    # Sidebar: Módulo CRM - Gestión de Clientes
     st.markdown("---")
     st.subheader("👥 Expedientes (CRM)")
 
@@ -697,7 +696,8 @@ with st.sidebar:
             st.session_state["tickers_procesar"]  = str(datos_c.get("tickers_guardados", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"))
             pm_db = float(datos_c.get("peso_maximo", 40))
             st.session_state["peso_maximo"] = int(pm_db * 100) if pm_db <= 1.0 else int(pm_db)
-                        # ── LIMPIEZA DE ESTADOS DEPENDIENTES DEL CLIENTE ANTERIOR ──
+
+            # ── LIMPIEZA DE ESTADOS DEPENDIENTES DEL CLIENTE ANTERIOR ──
             st.session_state["vistas_bl"] = []
             st.session_state["usar_bl"] = False
             st.session_state.pop("riesgo_objetivo_ldi", None)
@@ -707,12 +707,14 @@ with st.sidebar:
             st.session_state["optimizado"] = False
             st.session_state["pesos_opt"] = None
             st.session_state["resultados"] = None
+
             st.rerun()
         st.caption(f"Cargado desde base de datos")
     else:
         if st.session_state.get("cliente_activo_id") is not None:
             st.session_state["cliente_activo_id"] = None
-                        # Limpiar estados de análisis anteriores
+
+            # Limpiar estados de análisis anteriores
             st.session_state["vistas_bl"] = []
             st.session_state["usar_bl"] = False
             st.session_state.pop("riesgo_objetivo_ldi", None)
@@ -722,6 +724,7 @@ with st.sidebar:
             st.session_state["optimizado"] = False
             st.session_state["pesos_opt"] = None
             st.session_state["resultados"] = None
+
             st.rerun()
 
     # Botón para guardar el progreso
@@ -742,7 +745,6 @@ with st.sidebar:
                     "tickers_guardados": st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"),
                     "peso_maximo": st.session_state.get("peso_maximo", 40)
                 }
-                # Si estamos editando a un cliente existente, anexamos su ID
                 if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" and nuevo_nombre == cliente_seleccionado:
                     datos_guardar["id"] = st.session_state["cliente_activo_id"]
 
@@ -773,14 +775,13 @@ with st.sidebar:
     else:
         ejecutar_scr = False
 
-    # Sidebar: Módulo 2
+    # Sidebar: Módulo 2 – Parámetros de Optimización
     st.markdown("---")
     st.subheader("2. Parámetros de Optimización")
 
     tickers_default = st.session_state.get("tickers_screening", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX") if usar_screening else "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"
-         
+
     with st.form("optim_form"):
-        # La caja de texto ahora jala los tickers del expediente cargado
         tickers_input = st.text_area("Activos a optimizar", value=st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX"), height=70)
         fecha_inicio  = st.date_input("Fecha de inicio", value=pd.Timestamp("2020-01-01"))
         fecha_fin     = st.date_input("Fecha de cierre", value=pd.Timestamp("2026-05-08"))
@@ -788,30 +789,20 @@ with st.sidebar:
         st.markdown("---")
         st.subheader("Restricciones de concentración")
         
-        # ── EL BLINDAJE DEL SLIDER ──
         pm_sesion = st.session_state.get("peso_maximo", 40)
         pm_valido = int(pm_sesion * 100) if isinstance(pm_sesion, float) and pm_sesion <= 1.0 else int(pm_sesion)
-        pm_valido = max(10, min(100, pm_valido)) # Forzamos que caiga entre 10 y 100
+        pm_valido = max(10, min(100, pm_valido))
         
         peso_max_val = st.slider("Exposición máxima por activo (%)", 10, 100, value=pm_valido)
         peso_max = peso_max_val / 100
         
-        if not usar_perfil_ldi:
-            # Inicializar el estado si no existe
-            if "limite_riesgo_manual" not in st.session_state:
-                st.session_state["limite_riesgo_manual"] = 80
-            limite_riesgo_global = st.slider(
-                "Exposición global máxima a Renta Variable (%)",
-                10, 100, st.session_state["limite_riesgo_manual"]
-            ) / 100
-            st.session_state["limite_riesgo_manual"] = int(limite_riesgo_global * 100)
-        
-        peso_min              = st.slider("Exposición mínima por activo (%)", 0, 10, 2) / 100
-        
-        # Blindaje matemático final para proteger al Optimizador SciPy
+        if "limite_riesgo_manual" not in st.session_state:
+            st.session_state["limite_riesgo_manual"] = 80
+        # El slider de exposición global se mostrará si no se activa LDI (se decide después)
+        peso_min = st.slider("Exposición mínima por activo (%)", 0, 10, 2) / 100
         peso_max = max(peso_max, peso_min)
         
-        comision_broker       = st.number_input("Comisión operativa (%)", value=0.15, step=0.05) / 100
+        comision_broker = st.number_input("Comisión operativa (%)", value=0.15, step=0.05) / 100
         
         st.markdown("---")
         st.subheader("Proyección de capital")
@@ -833,14 +824,14 @@ with st.sidebar:
         ejecutar = st.form_submit_button("Ejecutar optimización", use_container_width=True)
 
         if ejecutar:
-            # Al darle al botón, guardamos los valores en la memoria en tiempo real
             st.session_state["tickers_procesar"] = tickers_input
             st.session_state["peso_maximo"] = peso_max_val
 
+    # ── Prescripción Actuarial LDI (ubicada fuera del formulario) ──
     usar_perfil_ldi = False
     if "riesgo_objetivo_ldi" in st.session_state:
         st.markdown("---")
-        st.caption("Prescripción Actuarial LDI disponible")
+        st.caption("⚙️ Prescripción Actuarial LDI disponible")
         usar_perfil_ldi = st.toggle(
             "Activar límite de riesgo automático (LDI)",
             value=True,
@@ -853,16 +844,22 @@ with st.sidebar:
                 f"({st.session_state['perfil_ldi_nombre']})"
             )
             st.caption("*(Proviene de la pestaña Planeación de Retiro. Ajuste los parámetros allí para modificar el límite.)*")
-            
+    else:
+        # Si no hay LDI, se muestra el slider manual normal
+        # (Nota: el slider manual está dentro del formulario, pero depende de usar_perfil_ldi;
+        #  como aquí usar_perfil_ldi es False, el formulario lo mostrará normalmente)
+        pass
+
+    # ── MÓDULO BLACK-LITTERMAN ──
     st.markdown("---")
     st.subheader("3. Expectativas de Mercado (Black‑Litterman)")
-    usar_bl = st.toggle("Incorporar visión de portafolio", value=False)
-    
+    usar_bl = st.toggle("Incorporar visión de portafolio", value=st.session_state.get("usar_bl", False))
+    st.session_state["usar_bl"] = usar_bl
+
     vistas_usuario = []
     if usar_bl:
         num_vistas = st.number_input("Número de perspectivas de inversión", 1, 5, 1)
         
-        # Recuperamos los instrumentos activos reales (evita defaults obsoletos)
         cadena_tickers = st.session_state.get("tickers_procesar", tickers_default)
         tickers_temp = [t.strip().upper() for t in cadena_tickers.split(",") if t.strip()]
         
@@ -913,7 +910,7 @@ with st.sidebar:
         
                 confianza = st.select_slider(
                     "Grado de certeza en la expectativa",
-                    ["Baja", "Media", "Alta"],  # <-- Ajustado para que empate con la matemática
+                    ["Baja", "Media", "Alta"],
                     value="Media",
                     key=f"conf_{i}",
                 )
@@ -921,8 +918,7 @@ with st.sidebar:
                 vistas_usuario.append(vista)
         
     st.session_state["vistas_bl"] = vistas_usuario
-    st.session_state["usar_bl"] = usar_bl
- 
+
     # Sidebar: Info del usuario
     st.markdown("---")
     st.markdown(f"**{nombre_display}**")
@@ -941,15 +937,12 @@ def cached_descargar_fundamentales(tickers):
     
 @st.cache_data(show_spinner=False, ttl=86400)
 def obtener_pesos_mercado(tickers_list):
-    """Obtiene el Market Cap para construir el portafolio de equilibrio de Black-Litterman."""
     df_fund = cached_descargar_fundamentales(tuple(tickers_list))
     if df_fund.empty or "Market Cap (B)" not in df_fund.columns:
-        # Fallback de seguridad: Si falla Yahoo Finance, asume pesos equitativos
         return pd.Series(1.0 / len(tickers_list), index=tickers_list)
     
     caps = df_fund.set_index("Ticker")["Market Cap (B)"]
-    caps = caps.fillna(caps.median()) # Protege contra datos faltantes
-    # Evita valores en cero que rompan la división
+    caps = caps.fillna(caps.median())
     caps = caps.replace(0, caps.median())
     pesos = caps / caps.sum()
     return pesos
@@ -1077,7 +1070,6 @@ with tab_motor:
                 num_refugios  = np.sum(es_riesgo == 0.0)
                 
                 # ── IMPLEMENTACIÓN BLACK-LITTERMAN ──
-                # Si el usuario activó BL y puso vistas, recalculamos la realidad matemática
                 if st.session_state.get("usar_bl", False) and len(st.session_state.get("vistas_bl", [])) > 0:
                     pesos_mkt = obtener_pesos_mercado(tickers)
                     retornos_usar, matriz_cov_usar = calcular_black_litterman(
@@ -1088,29 +1080,27 @@ with tab_motor:
                         tasa_rf
                     )
                 else:
-                    # Si BL está apagado, colapsamos al modelo clásico
                     retornos_usar = retornos_anuales
                     matriz_cov_usar = matriz_cov
                 
-                # ── CORRECCIÓN LDI QUIRÚRGICA ──
+                # ── LÓGICA DE RESTRICCIÓN DE RIESGO ──
+                # Ahora usar_perfil_ldi está definido fuera del formulario, en el sidebar
                 if usar_perfil_ldi and st.session_state.get("riesgo_objetivo_ldi") is not None:
                     riesgo_maximo_final = float(st.session_state["riesgo_objetivo_ldi"])
                 elif not usar_perfil_ldi:
+                    # Tomamos el límite manual persistente
                     riesgo_maximo_final = st.session_state.get("limite_riesgo_manual", 80) / 100
                 else:
-                    # Caso anómalo (LDI activo sin riesgo definido) → glide path puro
+                    # Caso anómalo: LDI activo sin riesgo definido → glide path puro
                     riesgo_maximo_final = min(1.0, max(0.20, horizonte_años / 15.0))
-
+                
                 riesgo_maximo_final = max(0.0, min(1.0, riesgo_maximo_final))
 
-                # ── NUEVO BLINDAJE: Prevención de restricciones imposibles ──
+                # Blindaje: prevención de restricciones imposibles
                 riesgo_minimo_requerido = np.sum(es_riesgo) * peso_min
                 if riesgo_maximo_final < riesgo_minimo_requerido:
-                    # Si el mínimo exigido supera al límite del LDI, relajamos el límite
-                    # lo estrictamente necesario para que SciPy pueda resolver la ecuación.
-                    riesgo_maximo_final = riesgo_minimo_requerido + 0.001  
+                    riesgo_maximo_final = riesgo_minimo_requerido + 0.001
 
-                # Usamos los retornos ajustados (Markowitz o Black-Litterman)
                 resultados, pesos_guardados = simular_portafolios(retornos_usar, matriz_cov_usar, tasa_rf, num_portafolios=num_sims)
                 
                 pesos_opt = optimizar_sharpe_slsqp(
@@ -1123,12 +1113,10 @@ with tab_motor:
                     es_riesgo=es_riesgo
                 )
 
-                # ── BLINDAJE DE EXCEPCIÓN PANIC: Por si SciPy falla por otra razón ──
                 if pesos_opt is None or len(pesos_opt) != len(tickers):
                     st.error("⚠️ Conflicto de restricciones: El algoritmo no pudo resolver el portafolio (ej. límite de peso máximo vs mínimo). Se aplicarán pesos equitativos por seguridad.")
                     pesos_opt = np.ones(len(tickers)) / len(tickers)
 
-                # Las métricas finales para mostrar se calculan sobre las matrices
                 ret_opt    = float(np.sum(pesos_opt * retornos_usar))
                 vol_opt    = float(np.sqrt(np.dot(pesos_opt.T, np.dot(matriz_cov_usar, pesos_opt))))
                 sharpe_opt = float((ret_opt - tasa_rf) / vol_opt)
@@ -1235,15 +1223,13 @@ with tab_motor:
             retornos_para_bt  = retornos_para_bt[columnas_validas]
             es_riesgo_arr     = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in retornos_para_bt.columns])
             
-            # ── CORRECCIÓN LDI QUIRÚRGICA: Optimizador Backtesting ──
-            # Replicamos exactamente la misma lógica del LDI para el backtesting
+            # ── RESTRICCIÓN DE RIESGO PARA BACKTESTING ──
             if usar_perfil_ldi and st.session_state.get("riesgo_objetivo_ldi") is not None:
                 riesgo_maximo_bt = float(st.session_state["riesgo_objetivo_ldi"])
             elif not usar_perfil_ldi:
                 riesgo_maximo_bt = st.session_state.get("limite_riesgo_manual", 80) / 100
             else:
                 riesgo_maximo_bt = min(1.0, max(0.20, horizonte_años / 15.0))
-                
             riesgo_maximo_bt = max(0.0, min(1.0, riesgo_maximo_bt))
             
             df_equity, benchmark_ticker, retorno_port, retorno_bench = correr_backtest(
@@ -1252,7 +1238,7 @@ with tab_motor:
                 capital_inicial, 
                 peso_min, 
                 peso_max,
-                riesgo_maximo_bt, # <── Restricción corregida
+                riesgo_maximo_bt,
                 es_riesgo_arr, 
                 st.session_state.df_regimenes,
                 comision_broker, 
@@ -1453,7 +1439,6 @@ with tab_motor:
         df_stress = cached_stress_test(pesos_opt, tickers, capital_riesgo, retornos_diarios)
         
         if df_stress is not None and not df_stress.empty and "Pérdida (%)" in df_stress.columns:
-            # Tu código original intacto
             fig_stress = go.Figure(go.Bar(
                 x=df_stress["Pérdida (%)"], y=df_stress["Escenario"], orientation="h",
                 marker_color=["red" if p < -15 else "orange" if p < -8 else "gold" for p in df_stress["Pérdida (%)"]],
@@ -1659,6 +1644,7 @@ with tab_noticias:
                 st.markdown("---")
             except Exception:
                 continue
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — PLANEACIÓN DE RETIRO (LDI PERSONAL)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1671,7 +1657,6 @@ with tab_retiro:
     with col_imss:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin:1.5rem 0 .75rem;'>1. Parámetros IMSS (Ley 73)</div>""", unsafe_allow_html=True)
         
-        # Al asignarle key, Streamlit lee y escribe directamente en st.session_state
         simular_m40 = st.toggle("Activar Estrategia: Modalidad 40 Topada", key="simular_m40",
                                 help="Asume inversión en M40 los últimos 5 años para topar el salario a 25 UMAs.")
         
@@ -1680,7 +1665,6 @@ with tab_retiro:
         if simular_m40:
             st.info("**Modo M40 Activado:** El Salario Promedio se fuerza al tope legal de 25 UMAs. Recuerda restar ~$10,000 a $12,000 MXN mensuales del flujo libre de inversión privada.")
             salario_promedio = 25 * obtener_uma_actual()
-            # Forzamos que el salario topado se guarde en el estado de la sesión
             st.session_state["salario_promedio"] = salario_promedio
             st.metric("Salario Promedio Diario (Topado)", f"${salario_promedio:,.2f} MXN")
         else:
@@ -1704,14 +1688,11 @@ with tab_retiro:
                 
                 uma_actual = obtener_uma_actual()
                 
-                # Los cálculos se ejecutan usando los valores vigentes de los widgets
                 pension_imss = estimar_pension_ley73(semanas_cotizadas, salario_promedio, edad_retiro, uma_actual)
                 ingreso_total, brecha, flujo_privado = calcular_brecha_pensional(meta_mensual, pension_imss, capital_acumulado, tasa_retiro)
                 
-                # ── SOLO GUARDAMOS LO CALCULADO (Lo de los widgets ya se guardó solo) ──
                 st.session_state['pension_imss'] = pension_imss
                 st.session_state['brecha'] = brecha
-                # ───────────────────────────────────────────────────────────────────
     
                 st.markdown("---")
                 st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#17C37B;margin-bottom:.75rem;'>Diagnóstico de Flujo Generado</div>""", unsafe_allow_html=True)
@@ -1736,7 +1717,6 @@ with tab_retiro:
                     riesgo_sugerido = 0.15 + (0.30 * factor_necesidad)
                     perfil_estrategico = "Moderado Actuarial (Crecimiento Táctico)"
     
-                # Guardamos el parámetro en la sesión del servidor para el optimizador
                 st.session_state["riesgo_objetivo_ldi"] = riesgo_sugerido
                 st.session_state["perfil_ldi_nombre"] = perfil_estrategico
                 
@@ -1746,6 +1726,7 @@ with tab_retiro:
                 st.info(f"**Perfil asignado:** {perfil_estrategico}\n\n"
                         f"**Límite Máximo de Renta Variable Sugerido:** {riesgo_sugerido*100:.1f}%\n\n"
                         f"El Motor GaLa ha calibrado automáticamente esta restricción. Puede ir al 'Motor Cuantitativo' para ejecutar la optimización de activos bajo esta frontera matemática.")
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 4 — GLOSARIO TÉCNICO
 # ══════════════════════════════════════════════════════════════════════════════
