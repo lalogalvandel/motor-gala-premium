@@ -697,12 +697,31 @@ with st.sidebar:
             st.session_state["tickers_procesar"]  = str(datos_c.get("tickers_guardados", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"))
             pm_db = float(datos_c.get("peso_maximo", 40))
             st.session_state["peso_maximo"] = int(pm_db * 100) if pm_db <= 1.0 else int(pm_db)
-            
+                        # ── LIMPIEZA DE ESTADOS DEPENDIENTES DEL CLIENTE ANTERIOR ──
+            st.session_state["vistas_bl"] = []
+            st.session_state["usar_bl"] = False
+            st.session_state.pop("riesgo_objetivo_ldi", None)
+            st.session_state.pop("perfil_ldi_nombre", None)
+            st.session_state.pop("pension_imss", None)
+            st.session_state.pop("brecha", None)
+            st.session_state["optimizado"] = False
+            st.session_state["pesos_opt"] = None
+            st.session_state["resultados"] = None
             st.rerun()
         st.caption(f"Cargado desde base de datos")
     else:
         if st.session_state.get("cliente_activo_id") is not None:
             st.session_state["cliente_activo_id"] = None
+                        # Limpiar estados de análisis anteriores
+            st.session_state["vistas_bl"] = []
+            st.session_state["usar_bl"] = False
+            st.session_state.pop("riesgo_objetivo_ldi", None)
+            st.session_state.pop("perfil_ldi_nombre", None)
+            st.session_state.pop("pension_imss", None)
+            st.session_state.pop("brecha", None)
+            st.session_state["optimizado"] = False
+            st.session_state["pesos_opt"] = None
+            st.session_state["resultados"] = None
             st.rerun()
 
     # Botón para guardar el progreso
@@ -759,19 +778,7 @@ with st.sidebar:
     st.subheader("2. Parámetros de Optimización")
 
     tickers_default = st.session_state.get("tickers_screening", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX") if usar_screening else "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"
-
-    usar_perfil_ldi = False
-    if "riesgo_objetivo_ldi" in st.session_state:
-        st.markdown("<div style='padding: 10px; border-radius: 5px; background-color: rgba(68,136,255,0.1); border-left: 3px solid #4488FF;'>", unsafe_allow_html=True)
-        usar_perfil_ldi = st.toggle("Usar Prescripción Actuarial LDI", value=True, 
-                                    help="Sobrescribe el riesgo máximo usando el déficit calculado en la Planeación de Retiro.")
-        
-        if usar_perfil_ldi:
-            limite_riesgo_global = st.session_state["riesgo_objetivo_ldi"]
-            st.caption(f"**Tope de riesgo bloqueado al {limite_riesgo_global*100:.1f}%** ({st.session_state['perfil_ldi_nombre']})")
-            st.caption("*(Proviene de la pestaña Planeación de Retiro. Ajuste los parámetros allí para modificar el límite.)*")
-        st.markdown("</div>", unsafe_allow_html=True)
-        
+         
     with st.form("optim_form"):
         # La caja de texto ahora jala los tickers del expediente cargado
         tickers_input = st.text_area("Activos a optimizar", value=st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX"), height=70)
@@ -830,7 +837,23 @@ with st.sidebar:
             st.session_state["tickers_procesar"] = tickers_input
             st.session_state["peso_maximo"] = peso_max_val
 
-
+    usar_perfil_ldi = False
+    if "riesgo_objetivo_ldi" in st.session_state:
+        st.markdown("---")
+        st.caption("Prescripción Actuarial LDI disponible")
+        usar_perfil_ldi = st.toggle(
+            "Activar límite de riesgo automático (LDI)",
+            value=True,
+            help="Sobrescribe el riesgo máximo usando el déficit calculado en la Planeación de Retiro."
+        )
+        if usar_perfil_ldi:
+            limite_riesgo_global = st.session_state["riesgo_objetivo_ldi"]
+            st.caption(
+                f"**Tope de riesgo bloqueado al {limite_riesgo_global*100:.1f}%** "
+                f"({st.session_state['perfil_ldi_nombre']})"
+            )
+            st.caption("*(Proviene de la pestaña Planeación de Retiro. Ajuste los parámetros allí para modificar el límite.)*")
+            
     st.markdown("---")
     st.subheader("3. Expectativas de Mercado (Black‑Litterman)")
     usar_bl = st.toggle("Incorporar visión de portafolio", value=False)
