@@ -1072,7 +1072,14 @@ with tab_motor:
 
                 riesgo_maximo_final = max(0.0, min(1.0, riesgo_maximo_final))
 
-                # Usamos los retornos ajustados (retornos_usar / matriz_cov_usar)
+                # ── NUEVO BLINDAJE: Prevención de restricciones imposibles ──
+                riesgo_minimo_requerido = np.sum(es_riesgo) * peso_min
+                if riesgo_maximo_final < riesgo_minimo_requerido:
+                    # Si el mínimo exigido supera al límite del LDI, relajamos el límite
+                    # lo estrictamente necesario para que SciPy pueda resolver la ecuación.
+                    riesgo_maximo_final = riesgo_minimo_requerido + 0.001  
+
+                # Usamos los retornos ajustados (Markowitz o Black-Litterman)
                 resultados, pesos_guardados = simular_portafolios(retornos_usar, matriz_cov_usar, tasa_rf, num_portafolios=num_sims)
                 
                 pesos_opt = optimizar_sharpe_slsqp(
@@ -1085,7 +1092,12 @@ with tab_motor:
                     es_riesgo=es_riesgo
                 )
 
-                # Las métricas finales para mostrar se calculan sobre las matrices de Black-Litterman
+                # ── BLINDAJE DE EXCEPCIÓN PANIC: Por si SciPy falla por otra razón ──
+                if pesos_opt is None or len(pesos_opt) != len(tickers):
+                    st.error("⚠️ Conflicto de restricciones: El algoritmo no pudo resolver el portafolio (ej. límite de peso máximo vs mínimo). Se aplicarán pesos equitativos por seguridad.")
+                    pesos_opt = np.ones(len(tickers)) / len(tickers)
+
+                # Las métricas finales para mostrar se calculan sobre las matrices
                 ret_opt    = float(np.sum(pesos_opt * retornos_usar))
                 vol_opt    = float(np.sqrt(np.dot(pesos_opt.T, np.dot(matriz_cov_usar, pesos_opt))))
                 sharpe_opt = float((ret_opt - tasa_rf) / vol_opt)
