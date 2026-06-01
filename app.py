@@ -405,6 +405,15 @@ def registrar_transaccion_wallet(id_cuenta: int, saldo_actual: float, tipo: str,
     except Exception as e:
         return False, f"Error en la transacción: {e}"
 
+def obtener_historial_movimientos(ids_cuentas: list) -> list:
+    if not ids_cuentas:
+        return []
+    try:
+        r = db.table("wallet_movimientos").select("*").in_("id_cuenta", ids_cuentas).order("created_at").execute()
+        return r.data or []
+    except Exception as e:
+        return []
+
 # ── Estado de sesión ───────────────────────────────────────────────────────────
 defaults = {
     "usuario_premium": None,
@@ -1713,6 +1722,60 @@ with tab_wallet:
                             st.rerun()
                         else:
                             st.error(msg)
+
+# ══════════════════════════════════════════════════════════════════════════════
+    # 4. ANALÍTICA HISTÓRICA Y CASH FLOW
+    # ══════════════════════════════════════════════════════════════════════════════
+    st.markdown("---")
+    st.subheader("Analítica de Flujos y Evolución de Capital")
+    
+    if not df_cuentas.empty:
+        ids_cuentas = df_cuentas["id"].tolist()
+        movimientos_db = obtener_historial_movimientos(ids_cuentas)
+        
+        if movimientos_db:
+            df_movs = pd.DataFrame(movimientos_db)
+            df_movs["created_at"] = pd.to_datetime(df_movs["created_at"]).dt.tz_localize(None)
+            df_movs["Mes"] = df_movs["created_at"].dt.to_period("M").astype(str)
+            
+            # ── PREPARACIÓN DE DATOS: CASH FLOW ──
+            # Asignamos signos matemáticos: Ingresos/Ajustes Positivos suman, Gastos restan
+            df_movs["Flujo Neto"] = df_movs.apply(
+                lambda x: x["monto"] if x["tipo"] in ["INGRESO", "AJUSTE MTM"] and x["monto"] > 0 else -x["monto"], 
+                axis=1
+            )
+            
+            # Agrupamos por mes para el Cash Flow
+            df_cashflow = df_movs.groupby(["Mes", "tipo"])["monto"].sum().unstack(fill_value=0)
+            
+            # ── PREPARACIÓN DE DATOS: EVOLUCIÓN HISTÓRICA ──
+            df_evolucion = df_movs.groupby("Mes")["Flujo Neto"].sum().reset_index()
+            df_evolucion["Capital Acumulado"] = df_evolucion["Flujo Neto"].cumsum()
+            df_evolucion = df_evolucion.set_index("Mes")
+
+            # ── RENDERIZADO DE GRÁFICAS ──
+            col_graf1, col_graf2 = st.columns(2)
+            
+            with col_graf1:
+                st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin-bottom:.75rem;'>Evolución del Patrimonio (AUM)</div>""", unsafe_allow_html=True)
+                st.line_chart(df_evolucion["Capital Acumulado"], use_container_width=True, color="#17C37B")
+                
+            with col_graf2:
+                st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin-bottom:.75rem;'>Cash Flow Mensual (Ingresos vs Egresos)</div>""", unsafe_allow_html=True)
+                # Renombramos y ordenamos para que Streamlit grafique barras apiladas o agrupadas
+                if "INGRESO" in df_cashflow.columns and "GASTO" in df_cashflow.columns:
+                    st.bar_chart(df_cashflow[["INGRESO", "GASTO"]], use_container_width=True)
+                else:
+                    st.bar_chart(df_cashflow, use_container_width=True)
+            
+            # ── TABLA AUDITORÍA ──
+            with st.expander("Ver Auditoría Completa de Transacciones (Libro Mayor)"):
+                df_mostrar = df_movs[["created_at", "tipo", "monto", "concepto"]].copy()
+                df_mostrar.columns = ["Fecha", "Tipo de Movimiento", "Monto (MXN)", "Concepto"]
+                df_mostrar = df_mostrar.sort_values("Fecha", ascending=False)
+                st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+        else:
+            st.info("Aún no hay transacciones históricas para generar la analítica.")
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — NOTICIAS DEL MERCADO
 # ══════════════════════════════════════════════════════════════════════════════
