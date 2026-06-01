@@ -821,75 +821,76 @@ with st.sidebar:
             # Al darle al botón, guardamos los valores en la memoria en tiempo real
             st.session_state["tickers_procesar"] = tickers_input
             st.session_state["peso_maximo"] = peso_max_val
-        # ── MÓDULO BLACK-LITTERMAN (Expectativas Tácticas) ──
-        st.markdown("---")
-        st.subheader("3. Expectativas de Mercado (Black‑Litterman)")
-        usar_bl = st.toggle("Incorporar visión de portafolio", value=False)
+
+
+    st.markdown("---")
+    st.subheader("3. Expectativas de Mercado (Black‑Litterman)")
+    usar_bl = st.toggle("Incorporar visión de portafolio", value=False)
+    
+    vistas_usuario = []
+    if usar_bl:
+        num_vistas = st.number_input("Número de perspectivas de inversión", 1, 5, 1)
         
-        vistas_usuario = []
-        if usar_bl:
-            num_vistas = st.number_input("Número de perspectivas de inversión", 1, 5, 1)
+        # Recuperamos los instrumentos activos reales (evita defaults obsoletos)
+        cadena_tickers = st.session_state.get("tickers_procesar", tickers_default)
+        tickers_temp = [t.strip().upper() for t in cadena_tickers.split(",") if t.strip()]
         
-            # Recuperamos los instrumentos activos reales (evita defaults obsoletos)
-            cadena_tickers = st.session_state.get("tickers_procesar", tickers_default)
-            tickers_temp = [t.strip().upper() for t in cadena_tickers.split(",") if t.strip()]
+        for i in range(num_vistas):
+            with st.expander(f"Perspectiva {i+1}", expanded=True):
+                tipo = st.selectbox("Tipo de expectativa", ["absoluta", "relativa"], key=f"tipo_{i}")
+                activo_1 = st.selectbox("Instrumento de referencia", tickers_temp, key=f"a1_{i}")
         
-            for i in range(num_vistas):
-                with st.expander(f"Perspectiva {i+1}", expanded=True):
-                    tipo = st.selectbox("Tipo de expectativa", ["absoluta", "relativa"], key=f"tipo_{i}")
-                    activo_1 = st.selectbox("Instrumento de referencia", tickers_temp, key=f"a1_{i}")
-        
-                    if tipo == "absoluta":
-                        rendimiento = st.slider(
-                            "Retorno esperado anual (%)",
-                            -50.0, 50.0, 10.0, step=1.0, key=f"rend_{i}"
-                        ) / 100
-                        st.markdown(
-                            f"<span style='color:#17C37B;font-size:13px;'>"
-                            f"Se proyecta que <b>{activo_1}</b> obtenga un retorno de "
-                            f"<b>{rendimiento*100:.1f}%</b> en el período.</span>",
-                            unsafe_allow_html=True,
-                        )
-                        vista = {
-                            "tipo": "absoluta",
-                            "activo_1": activo_1,
-                            "rendimiento_esperado": rendimiento,
-                        }
-                    else:
-                        activos_rest = [t for t in tickers_temp if t != activo_1]
-                        activo_2 = (
-                            st.selectbox("Instrumento de comparación", activos_rest, key=f"a2_{i}")
-                            if activos_rest
-                            else activo_1
-                        )
-                        rendimiento = st.slider(
-                            "Exceso de retorno esperado (%)",
-                            0.0, 50.0, 5.0, step=1.0, key=f"rend_{i}"
-                        ) / 100
-                        st.markdown(
-                            f"<span style='color:#17C37B;font-size:13px;'>"
-                            f"Se estima que <b>{activo_1}</b> supere a <b>{activo_2}</b> "
-                            f"en <b>{rendimiento*100:.1f}%</b>.</span>",
-                            unsafe_allow_html=True,
-                        )
-                        vista = {
-                            "tipo": "relativa",
-                            "activo_1": activo_1,
-                            "activo_2": activo_2,
-                            "rendimiento_esperado": rendimiento,
-                        }
-        
-                    confianza = st.select_slider(
-                        "Grado de certeza en la expectativa",
-                        ["Bajo", "Medio", "Alto"],
-                        value="Medio",
-                        key=f"conf_{i}",
+                if tipo == "absoluta":
+                    rendimiento = st.slider(
+                        "Retorno esperado anual (%)",
+                        -50.0, 50.0, 10.0, step=1.0, key=f"rend_{i}"
+                    ) / 100
+                    st.markdown(
+                        f"<span style='color:#17C37B;font-size:13px;'>"
+                        f"Se proyecta que <b>{activo_1}</b> obtenga un retorno de "
+                        f"<b>{rendimiento*100:.1f}%</b> en el período.</span>",
+                        unsafe_allow_html=True,
                     )
-                    vista["confianza"] = confianza
-                    vistas_usuario.append(vista)
+                    vista = {
+                        "tipo": "absoluta",
+                        "activo_1": activo_1,
+                        "rendimiento_esperado": rendimiento,
+                    }
+                else:
+                    activos_rest = [t for t in tickers_temp if t != activo_1]
+                    activo_2 = (
+                        st.selectbox("Instrumento de comparación", activos_rest, key=f"a2_{i}")
+                        if activos_rest
+                        else activo_1
+                    )
+                    rendimiento = st.slider(
+                        "Exceso de retorno esperado (%)",
+                        0.0, 50.0, 5.0, step=1.0, key=f"rend_{i}"
+                    ) / 100
+                    st.markdown(
+                        f"<span style='color:#17C37B;font-size:13px;'>"
+                        f"Se estima que <b>{activo_1}</b> supere a <b>{activo_2}</b> "
+                        f"en <b>{rendimiento*100:.1f}%</b>.</span>",
+                        unsafe_allow_html=True,
+                    )
+                    vista = {
+                        "tipo": "relativa",
+                        "activo_1": activo_1,
+                        "activo_2": activo_2,
+                        "rendimiento_esperado": rendimiento,
+                    }
         
-        st.session_state["vistas_bl"] = vistas_usuario
-        st.session_state["usar_bl"] = usar_bl
+                confianza = st.select_slider(
+                    "Grado de certeza en la expectativa",
+                    ["Baja", "Media", "Alta"],  # <-- Ajustado para que empate con la matemática
+                    value="Media",
+                    key=f"conf_{i}",
+                )
+                vista["confianza"] = confianza
+                vistas_usuario.append(vista)
+        
+    st.session_state["vistas_bl"] = vistas_usuario
+    st.session_state["usar_bl"] = usar_bl
  
     # Sidebar: Info del usuario
     st.markdown("---")
