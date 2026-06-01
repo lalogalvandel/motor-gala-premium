@@ -1730,7 +1730,14 @@ with tab_wallet:
     # 4. ANALÍTICA HISTÓRICA Y CASH FLOW
     # ══════════════════════════════════════════════════════════════════════════════
     st.markdown("---")
-    st.subheader("Analítica de Flujos y Evolución de Capital")
+    
+    col_tit, col_btn = st.columns([4, 1])
+    with col_tit:
+        st.subheader("Analítica de Flujos y Evolución de Capital")
+    with col_btn:
+        # Botón manual por si la red de Supabase tarda en refrescar el último movimiento
+        if st.button("🔄 Refrescar Datos", use_container_width=True):
+            st.rerun()
     
     if not df_cuentas.empty:
         ids_cuentas = df_cuentas["id"].tolist()
@@ -1739,14 +1746,17 @@ with tab_wallet:
         if movimientos_db:
             df_movs = pd.DataFrame(movimientos_db)
             
-            # 1. BLINDAJE DE FECHAS Y ORDEN CRONOLÓGICO
-            df_movs["created_at"] = pd.to_datetime(df_movs["created_at"], errors="coerce", utc=True).dt.tz_localize(None)
-            df_movs = df_movs.dropna(subset=["created_at"]).copy()
-            df_movs = df_movs.sort_values("created_at") # Fundamental para que la línea sea exacta
+            # 1. ZONA HORARIA Y LIMPIEZA (El antídoto contra los fantasmas)
+            # Convertimos UTC de Supabase a Hora Central de México
+            df_movs["created_at_utc"] = pd.to_datetime(df_movs["created_at"], errors="coerce", utc=True)
+            df_movs = df_movs.dropna(subset=["created_at_utc"]).copy()
+            df_movs["Fecha Local"] = df_movs["created_at_utc"].dt.tz_convert("America/Mexico_City").dt.tz_localize(None)
             
-            df_movs["Mes"] = df_movs["created_at"].dt.to_period("M").astype(str)
+            # Creamos columnas de agrupación
+            df_movs["Día"] = df_movs["Fecha Local"].dt.floor("D")
+            df_movs["Mes"] = df_movs["Fecha Local"].dt.to_period("M").astype(str)
             
-            # 2. LEY DE SIGNOS (Creación de la columna Flujo Neto)
+            # 2. LEY DE SIGNOS
             def calcular_flujo(row):
                 m = float(row["monto"])
                 t = str(row["tipo"]).upper()
@@ -1756,18 +1766,18 @@ with tab_wallet:
 
             df_movs["Flujo Neto"] = df_movs.apply(calcular_flujo, axis=1)
             
-            # 3. CASH FLOW (Mensual, exclusivo para la gráfica de barras)
+            # 3. CASH FLOW (Ingresos vs Egresos por mes)
             df_cashflow = df_movs.groupby(["Mes", "tipo"])["Flujo Neto"].sum().unstack(fill_value=0)
             
-            # 4. EVOLUCIÓN HISTÓRICA CONTINUA (Para la gráfica de línea suave)
-            flujo_total_registrado = df_movs["Flujo Neto"].sum()
+            # 4. EVOLUCIÓN HISTÓRICA SUAVIZADA (El antídoto contra el electrocardiograma)
+            # Agrupamos todo por DÍA para que las transferencias internas se cancelen a cero
+            df_diario = df_movs.groupby("Día")["Flujo Neto"].sum().reset_index()
+            
+            flujo_total_registrado = df_diario["Flujo Neto"].sum()
             capital_semilla = capital_total - flujo_total_registrado
             
-            # Hacemos la suma acumulada transacción por transacción, no por mes
-            df_movs["Capital Acumulado"] = capital_semilla + df_movs["Flujo Neto"].cumsum()
-            
-            # Preparamos el índice exacto de tiempo para que Streamlit dibuje suave
-            df_linea = df_movs[["created_at", "Capital Acumulado"]].set_index("created_at")
+            df_diario["Capital Acumulado"] = capital_semilla + df_diario["Flujo Neto"].cumsum()
+            df_linea = df_diario.set_index("Día")[["Capital Acumulado"]]
 
             # ── RENDERIZADO DE GRÁFICAS ──
             col_graf1, col_graf2 = st.columns(2)
@@ -1789,18 +1799,16 @@ with tab_wallet:
             
             # ── TABLA AUDITORÍA ──
             with st.expander("Ver Auditoría Completa de Transacciones (Libro Mayor)", expanded=False):
-                # Volvemos a ordenar al revés para que lo más nuevo salga hasta arriba
-                df_mostrar = df_movs.sort_values("created_at", ascending=False).copy()
+                # Ordenamos usando la Fecha Local para que lo de HOY quede estrictamente arriba
+                df_mostrar = df_movs.sort_values("Fecha Local", ascending=False).copy()
                 
-                # Mapeamos los IDs de cuenta a sus nombres reales para que sea legible
                 mapa_inverso_cuentas = dict(zip(df_cuentas["id"], df_cuentas["Institución"]))
                 df_mostrar["Cuenta"] = df_mostrar["id_cuenta"].map(mapa_inverso_cuentas)
                 
-                df_mostrar = df_mostrar[["created_at", "Cuenta", "tipo", "monto", "concepto"]]
-                df_mostrar.columns = ["Fecha", "Institución", "Tipo", "Monto (MXN)", "Concepto"]
+                df_mostrar = df_mostrar[["Fecha Local", "Cuenta", "tipo", "monto", "concepto"]]
+                df_mostrar.columns = ["Fecha (CDMX)", "Institución", "Tipo", "Monto (MXN)", "Concepto"]
                 
-                # Formateamos la fecha para que sea más limpia visualmente
-                df_mostrar["Fecha"] = df_mostrar["Fecha"].dt.strftime("%Y-%m-%d %H:%M")
+                df_mostrar["Fecha (CDMX)"] = df_mostrar["Fecha (CDMX)"].dt.strftime("%Y-%m-%d %H:%M")
                 
                 st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
         else:
