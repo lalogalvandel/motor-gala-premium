@@ -1675,18 +1675,21 @@ with tab_wallet:
                     
         with tab_mtm:
             st.caption("Concilie el saldo del sistema con el saldo real de su broker (Mark-to-Market).")
-            with st.form("form_mtm"):
-                if not df_cuentas.empty:
-                    cuenta_mtm_nom = st.selectbox("Cuenta a conciliar", list(mapa_cuentas.keys()))
-                    saldo_actual_mtm = df_cuentas.loc[df_cuentas["Institución"] == cuenta_mtm_nom, "Saldo (MXN)"].values[0]
-                    st.markdown(f"Saldo en sistema: **${saldo_actual_mtm:,.2f}**")
-                else:
-                    cuenta_mtm_nom = st.selectbox("Cuenta a conciliar", ["(Vacío)"])
-                    saldo_actual_mtm = 0.0
-                    st.markdown("Saldo en sistema: **$0.00**")
+            
+            # ── CORRECCIÓN: El selector va AFUERA del formulario para que sea dinámico ──
+            if not df_cuentas.empty:
+                cuenta_mtm_nom = st.selectbox("Cuenta a conciliar", list(mapa_cuentas.keys()))
+                saldo_actual_mtm = df_cuentas.loc[df_cuentas["Institución"] == cuenta_mtm_nom, "Saldo (MXN)"].values[0]
+                st.markdown(f"Saldo en sistema: **${saldo_actual_mtm:,.2f}**")
+            else:
+                cuenta_mtm_nom = st.selectbox("Cuenta a conciliar", ["(Vacío)"])
+                saldo_actual_mtm = 0.0
+                st.markdown("Saldo en sistema: **$0.00**")
                 
+            # ── El formulario solo encapsula la escritura a la base de datos ──
+            with st.form("form_mtm"):
                 nuevo_saldo = st.number_input("Saldo real en la plataforma (MXN)", min_value=0.0, value=float(saldo_actual_mtm), step=100.0)
-                nota_mtm = st.text_input("Concepto del ajuste", placeholder="Ej. Rendimiento SOFIPO mensual")
+                nota_mtm = st.text_input("Concepto del ajuste", placeholder="Ej. Rendimiento mensual")
                 
                 if st.form_submit_button("Ejecutar Ajuste a Mercado", use_container_width=True):
                     if not df_cuentas.empty:
@@ -1739,14 +1742,18 @@ with tab_wallet:
             df_movs["Mes"] = df_movs["created_at"].dt.to_period("M").astype(str)
             
             # ── PREPARACIÓN DE DATOS: CASH FLOW ──
-            # Asignamos signos matemáticos: Ingresos/Ajustes Positivos suman, Gastos restan
-            df_movs["Flujo Neto"] = df_movs.apply(
-                lambda x: x["monto"] if x["tipo"] in ["INGRESO", "AJUSTE MTM"] and x["monto"] > 0 else -x["monto"], 
-                axis=1
-            )
+            # CORRECCIÓN: Respetar la ley de signos de la auditoría.
+            def calcular_flujo(row):
+                m = float(row["monto"])
+                t = str(row["tipo"]).upper()
+                if t == "GASTO": return -abs(m)
+                elif t == "INGRESO": return abs(m)
+                return m # Los AJUSTE MTM pueden ser positivos o negativos, usamos su propio signo
+
+            df_movs["Flujo Neto"] = df_movs.apply(calcular_flujo, axis=1)
             
-            # Agrupamos por mes para el Cash Flow
-            df_cashflow = df_movs.groupby(["Mes", "tipo"])["monto"].sum().unstack(fill_value=0)
+            # Agrupamos por mes para el Cash Flow usando el Flujo Neto
+            df_cashflow = df_movs.groupby(["Mes", "tipo"])["Flujo Neto"].sum().unstack(fill_value=0)
             
             # ── PREPARACIÓN DE DATOS: EVOLUCIÓN HISTÓRICA ──
             df_evolucion = df_movs.groupby("Mes")["Flujo Neto"].sum().reset_index()
