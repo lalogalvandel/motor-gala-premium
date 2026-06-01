@@ -1726,7 +1726,7 @@ with tab_wallet:
                         else:
                             st.error(msg)
 
-# ══════════════════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════════════════
     # 4. ANALÍTICA HISTÓRICA Y CASH FLOW
     # ══════════════════════════════════════════════════════════════════════════════
     st.markdown("---")
@@ -1739,24 +1739,29 @@ with tab_wallet:
         if movimientos_db:
             df_movs = pd.DataFrame(movimientos_db)
             
-            # ── BLINDAJE DE DATETIME ──
-            # Forzamos la conversión a UTC. 'coerce' convierte los errores en nulos (NaT) en lugar de crashear.
+            # 1. BLINDAJE DE FECHAS (Adiós a los errores de parseo)
             df_movs["created_at"] = pd.to_datetime(df_movs["created_at"], errors="coerce", utc=True).dt.tz_localize(None)
-            
-            # Limpiamos cualquier fila que haya resultado en una fecha inválida
             df_movs = df_movs.dropna(subset=["created_at"]).copy()
-            
             df_movs["Mes"] = df_movs["created_at"].dt.to_period("M").astype(str)
             
-            # ── PREPARACIÓN DE DATOS: EVOLUCIÓN HISTÓRICA ──
-            df_evolucion = df_movs.groupby("Mes")["Flujo Neto"].sum().reset_index()
+            # 2. LEY DE SIGNOS (Creación de la columna Flujo Neto)
+            def calcular_flujo(row):
+                m = float(row["monto"])
+                t = str(row["tipo"]).upper()
+                if t == "GASTO": return -abs(m)
+                elif t == "INGRESO": return abs(m)
+                return m # Los AJUSTE MTM mantienen su propio signo
+
+            df_movs["Flujo Neto"] = df_movs.apply(calcular_flujo, axis=1)
             
-            # Conciliación Actuarial: Calculamos el Capital Semilla no registrado
-            # (La diferencia entre el capital real actual y la suma neta de los flujos históricos)
+            # 3. CASH FLOW (Ingresos vs Egresos para la gráfica de barras)
+            df_cashflow = df_movs.groupby(["Mes", "tipo"])["Flujo Neto"].sum().unstack(fill_value=0)
+            
+            # 4. EVOLUCIÓN HISTÓRICA (Capital Semilla + Acumulado)
+            df_evolucion = df_movs.groupby("Mes")["Flujo Neto"].sum().reset_index()
             flujo_total_registrado = df_evolucion["Flujo Neto"].sum()
             capital_semilla = capital_total - flujo_total_registrado
             
-            # Sumamos el flujo acumulado + el capital base
             df_evolucion["Capital Acumulado"] = df_evolucion["Flujo Neto"].cumsum() + capital_semilla
             df_evolucion = df_evolucion.set_index("Mes")
 
@@ -1769,9 +1774,13 @@ with tab_wallet:
                 
             with col_graf2:
                 st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin-bottom:.75rem;'>Cash Flow Mensual (Ingresos vs Egresos)</div>""", unsafe_allow_html=True)
-                # Renombramos y ordenamos para que Streamlit grafique barras apiladas o agrupadas
-                if "INGRESO" in df_cashflow.columns and "GASTO" in df_cashflow.columns:
-                    st.bar_chart(df_cashflow[["INGRESO", "GASTO"]], use_container_width=True)
+                # Formateamos barras para que Streamlit entienda bien
+                cols_cashflow = []
+                if "INGRESO" in df_cashflow.columns: cols_cashflow.append("INGRESO")
+                if "GASTO" in df_cashflow.columns: cols_cashflow.append("GASTO")
+                
+                if cols_cashflow:
+                    st.bar_chart(df_cashflow[cols_cashflow], use_container_width=True)
                 else:
                     st.bar_chart(df_cashflow, use_container_width=True)
             
