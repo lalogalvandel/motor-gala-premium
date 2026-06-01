@@ -1741,23 +1741,16 @@ with tab_wallet:
             df_movs["created_at"] = pd.to_datetime(df_movs["created_at"]).dt.tz_localize(None)
             df_movs["Mes"] = df_movs["created_at"].dt.to_period("M").astype(str)
             
-            # ── PREPARACIÓN DE DATOS: CASH FLOW ──
-            # CORRECCIÓN: Respetar la ley de signos de la auditoría.
-            def calcular_flujo(row):
-                m = float(row["monto"])
-                t = str(row["tipo"]).upper()
-                if t == "GASTO": return -abs(m)
-                elif t == "INGRESO": return abs(m)
-                return m # Los AJUSTE MTM pueden ser positivos o negativos, usamos su propio signo
-
-            df_movs["Flujo Neto"] = df_movs.apply(calcular_flujo, axis=1)
-            
-            # Agrupamos por mes para el Cash Flow usando el Flujo Neto
-            df_cashflow = df_movs.groupby(["Mes", "tipo"])["Flujo Neto"].sum().unstack(fill_value=0)
-            
             # ── PREPARACIÓN DE DATOS: EVOLUCIÓN HISTÓRICA ──
             df_evolucion = df_movs.groupby("Mes")["Flujo Neto"].sum().reset_index()
-            df_evolucion["Capital Acumulado"] = df_evolucion["Flujo Neto"].cumsum()
+            
+            # Conciliación Actuarial: Calculamos el Capital Semilla no registrado
+            # (La diferencia entre el capital real actual y la suma neta de los flujos históricos)
+            flujo_total_registrado = df_evolucion["Flujo Neto"].sum()
+            capital_semilla = capital_total - flujo_total_registrado
+            
+            # Sumamos el flujo acumulado + el capital base
+            df_evolucion["Capital Acumulado"] = df_evolucion["Flujo Neto"].cumsum() + capital_semilla
             df_evolucion = df_evolucion.set_index("Mes")
 
             # ── RENDERIZADO DE GRÁFICAS ──
