@@ -360,6 +360,51 @@ def guardar_cliente(datos: dict) -> tuple[bool, str]:
     except Exception as e:
         return False, f"Error al guardar: {e}"
 
+# ── Utilidades Tesorería (Wallet) ──────────────────────────────────────────────
+def obtener_cuentas_wallet(id_asesor: str) -> list:
+    try:
+        r = db.table("wallet_cuentas").select("id, institucion, tasa_anual, saldo").eq("id_asesor", id_asesor).order("institucion").execute()
+        return r.data or []
+    except Exception:
+        return []
+
+def agregar_cuenta_wallet(id_asesor: str, institucion: str, tasa_anual: float, saldo: float) -> tuple[bool, str]:
+    try:
+        db.table("wallet_cuentas").insert({
+            "id_asesor": id_asesor,
+            "institucion": institucion.strip(),
+            "tasa_anual": tasa_anual,
+            "saldo": saldo
+        }).execute()
+        return True, "Cuenta aperturada exitosamente."
+    except Exception as e:
+        return False, f"Error al crear la cuenta: {e}"
+
+def registrar_transaccion_wallet(id_cuenta: int, saldo_actual: float, tipo: str, monto: float, concepto: str) -> tuple[bool, str]:
+    try:
+        # 1. Registrar la auditoría del movimiento
+        monto_absoluto = abs(monto)
+        db.table("wallet_movimientos").insert({
+            "id_cuenta": id_cuenta,
+            "tipo": tipo,
+            "monto": monto,
+            "concepto": concepto.strip()
+        }).execute()
+        
+        # 2. Actualizar el saldo maestro de la cuenta
+        nuevo_saldo = saldo_actual
+        if tipo == "INGRESO":
+            nuevo_saldo += monto_absoluto
+        elif tipo == "GASTO":
+            nuevo_saldo -= monto_absoluto
+        elif tipo == "AJUSTE MTM":
+            nuevo_saldo += monto # Aquí el monto ya viene con signo + o -
+            
+        db.table("wallet_cuentas").update({"saldo": nuevo_saldo}).eq("id", id_cuenta).execute()
+        return True, "Transacción liquidada y saldo actualizado."
+    except Exception as e:
+        return False, f"Error en la transacción: {e}"
+
 # ── Estado de sesión ───────────────────────────────────────────────────────────
 defaults = {
     "usuario_premium": None,
@@ -1531,28 +1576,28 @@ with tab_wallet:
     _header("Consolidación de Activos", "Tesorería y Tracking Patrimonial")
     st.caption("Registro de flujos de efectivo, conciliación de saldos y cálculo de tasa ponderada efectiva.")
 
-    # ── MOCK DATA (Temporal hasta conectar con Supabase) ──
-    # Esto simula lo que te devolvería db.get_portfolio_data()
-    if "cuentas_wallet" not in st.session_state:
-        st.session_state["cuentas_wallet"] = pd.DataFrame({
-            "ID": [1, 2, 3],
-            "Institución": ["Nu México", "CetesDirecto", "GBM+ (Estrategia)"],
-            "Saldo (MXN)": [150000.0, 500000.0, 350000.0],
-            "Tasa Anual (%)": [14.75, 11.00, 12.50]
-        })
-
-    df_cuentas = st.session_state["cuentas_wallet"]
-    capital_total = df_cuentas["Saldo (MXN)"].sum()
+    # ── CONEXIÓN REAL A SUPABASE ──
+    cuentas_db = obtener_cuentas_wallet(usuario["id"])
     
-    # Cálculos actuariales (Ex ui_consultar_capital)
+    if not cuentas_db:
+        df_cuentas = pd.DataFrame(columns=["id", "institucion", "tasa_anual", "saldo"])
+        capital_total = 0.0
+    else:
+        df_cuentas = pd.DataFrame(cuentas_db)
+        # Renombramos columnas para la interfaz gráfica
+        df_cuentas = df_cuentas.rename(columns={"institucion": "Institución", "saldo": "Saldo (MXN)", "tasa_anual": "Tasa Anual (%)"})
+        capital_total = df_cuentas["Saldo (MXN)"].sum()
+    
+    # Cálculos actuariales de rendimiento
     if capital_total > 0:
         df_cuentas["Peso (%)"] = (df_cuentas["Saldo (MXN)"] / capital_total) * 100
         tasa_ponderada = (df_cuentas["Tasa Anual (%)"] * (df_cuentas["Peso (%)"] / 100)).sum()
         renta_anual = capital_total * (tasa_ponderada / 100)
     else:
-        df_cuentas["Peso (%)"] = 0
-        tasa_ponderada = 0
-        renta_anual = 0
+        if not df_cuentas.empty:
+            df_cuentas["Peso (%)"] = 0.0
+        tasa_ponderada = 0.0
+        renta_anual = 0.0
 
     # 1. DASHBOARD DE POSICIÓN
     c1, c2, c3, c4 = st.columns(4)
@@ -1568,17 +1613,20 @@ with tab_wallet:
     # 2. ESTADO DE CUENTA
     with col_tabla:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin-bottom:.75rem;'>Distribución de Capital</div>""", unsafe_allow_html=True)
-        st.dataframe(
-            df_cuentas[["Institución", "Saldo (MXN)", "Tasa Anual (%)", "Peso (%)"]],
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Saldo (MXN)": st.column_config.NumberColumn(format="$%.2f"),
-                "Peso (%)": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f%%")
-            }
-        )
+        if df_cuentas.empty:
+            st.info("No hay cuentas registradas. Utilice la 'Mesa de Operaciones' para aperturar su primera cuenta.")
+        else:
+            st.dataframe(
+                df_cuentas[["Institución", "Saldo (MXN)", "Tasa Anual (%)", "Peso (%)"]],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Saldo (MXN)": st.column_config.NumberColumn(format="$%.2f"),
+                    "Peso (%)": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f%%")
+                }
+            )
 
-    # 3. MESA DE OPERACIONES (Ex ui_registrar_movimiento y ui_gestionar_activos)
+    # 3. MESA DE OPERACIONES
     with col_ops:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5A6780;margin-bottom:.75rem;'>Mesa de Operaciones</div>""", unsafe_allow_html=True)
         
@@ -1586,40 +1634,85 @@ with tab_wallet:
         
         with tab_flujo:
             with st.form("form_flujo"):
-                cuenta_sel = st.selectbox("Cuenta de origen/destino", df_cuentas["Institución"])
+                if not df_cuentas.empty:
+                    # Creamos un diccionario para mapear el nombre de la cuenta a su ID
+                    mapa_cuentas = dict(zip(df_cuentas["Institución"], df_cuentas["id"]))
+                    cuenta_sel_nom = st.selectbox("Cuenta de origen/destino", list(mapa_cuentas.keys()))
+                else:
+                    cuenta_sel_nom = st.selectbox("Cuenta de origen/destino", ["(Vacío)"])
+                    mapa_cuentas = {}
+
                 tipo_flujo = st.radio("Tipo de movimiento", ["Aportación (Ingreso)", "Retiro (Gasto)"], horizontal=True)
                 monto_flujo = st.number_input("Monto (MXN)", min_value=1.0, step=1000.0)
                 nota_flujo = st.text_input("Concepto / Referencia")
                 
                 if st.form_submit_button("Registrar Transacción", use_container_width=True):
-                    st.info("Conectando a base de datos de auditoría...") # Placeholder para la BD
+                    if not df_cuentas.empty:
+                        id_cta = mapa_cuentas[cuenta_sel_nom]
+                        saldo_act = df_cuentas.loc[df_cuentas["id"] == id_cta, "Saldo (MXN)"].values[0]
+                        tipo_db = "INGRESO" if "Ingreso" in tipo_flujo else "GASTO"
+                        
+                        if tipo_db == "GASTO" and monto_flujo > saldo_act:
+                            st.error("Fondo insuficiente para el retiro.")
+                        else:
+                            ok, msg = registrar_transaccion_wallet(id_cta, saldo_act, tipo_db, monto_flujo, nota_flujo)
+                            if ok:
+                                st.success(msg)
+                                st.rerun()
+                            else:
+                                st.error(msg)
+                    else:
+                        st.warning("Debe aperturar una cuenta primero.")
                     
         with tab_mtm:
             st.caption("Concilie el saldo del sistema con el saldo real de su broker (Mark-to-Market).")
             with st.form("form_mtm"):
-                cuenta_mtm = st.selectbox("Cuenta a conciliar", df_cuentas["Institución"])
+                if not df_cuentas.empty:
+                    cuenta_mtm_nom = st.selectbox("Cuenta a conciliar", list(mapa_cuentas.keys()))
+                    saldo_actual_mtm = df_cuentas.loc[df_cuentas["Institución"] == cuenta_mtm_nom, "Saldo (MXN)"].values[0]
+                    st.markdown(f"Saldo en sistema: **${saldo_actual_mtm:,.2f}**")
+                else:
+                    cuenta_mtm_nom = st.selectbox("Cuenta a conciliar", ["(Vacío)"])
+                    saldo_actual_mtm = 0.0
+                    st.markdown("Saldo en sistema: **$0.00**")
                 
-                # Buscamos el saldo actual para mostrarlo como referencia
-                saldo_actual = df_cuentas.loc[df_cuentas["Institución"] == cuenta_mtm, "Saldo (MXN)"].values[0]
-                st.markdown(f"Saldo en sistema: **${saldo_actual:,.2f}**")
-                
-                nuevo_saldo = st.number_input("Saldo real en la plataforma (MXN)", min_value=0.0, value=float(saldo_actual), step=100.0)
+                nuevo_saldo = st.number_input("Saldo real en la plataforma (MXN)", min_value=0.0, value=float(saldo_actual_mtm), step=100.0)
+                nota_mtm = st.text_input("Concepto del ajuste", placeholder="Ej. Rendimiento SOFIPO mensual")
                 
                 if st.form_submit_button("Ejecutar Ajuste a Mercado", use_container_width=True):
-                    diferencia = nuevo_saldo - saldo_actual
-                    if diferencia == 0:
-                        st.success("La cuenta está perfectamente cuadrada.")
+                    if not df_cuentas.empty:
+                        diferencia = nuevo_saldo - saldo_actual_mtm
+                        if diferencia == 0:
+                            st.success("La cuenta está perfectamente cuadrada.")
+                        else:
+                            id_cta_mtm = mapa_cuentas[cuenta_mtm_nom]
+                            concepto_mtm = nota_mtm if nota_mtm.strip() else "Ajuste Mark-to-Market"
+                            
+                            ok, msg = registrar_transaccion_wallet(id_cta_mtm, saldo_actual_mtm, "AJUSTE MTM", diferencia, concepto_mtm)
+                            if ok:
+                                st.success(f"Variación de ${diferencia:,.2f} MXN contabilizada.")
+                                st.rerun()
+                            else:
+                                st.error(msg)
                     else:
-                        st.success(f"Ajuste registrado. Variación de ${diferencia:,.2f} MXN contabilizada como rendimiento/pérdida.")
+                        st.warning("Debe aperturar una cuenta primero.")
 
         with tab_nueva:
             with st.form("form_nueva_cuenta"):
                 nom_cuenta = st.text_input("Institución o Broker (Ej. Finsus, GBM)")
                 tasa_cuenta = st.number_input("Tasa de rendimiento anual esperada (%)", min_value=0.0, step=0.5)
                 saldo_ini = st.number_input("Saldo de apertura (MXN)", min_value=0.0, step=1000.0)
-                if st.form_submit_button("Crear Cuenta", use_container_width=True):
-                    st.success(f"Cuenta {nom_cuenta} aperturada correctamente.")
-
+                
+                if st.form_submit_button("Crear Cuenta Institucional", use_container_width=True):
+                    if not nom_cuenta.strip():
+                        st.warning("Ingrese un nombre de institución válido.")
+                    else:
+                        ok, msg = agregar_cuenta_wallet(usuario["id"], nom_cuenta, tasa_cuenta, saldo_ini)
+                        if ok:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — NOTICIAS DEL MERCADO
 # ══════════════════════════════════════════════════════════════════════════════
