@@ -1738,7 +1738,14 @@ with tab_wallet:
         
         if movimientos_db:
             df_movs = pd.DataFrame(movimientos_db)
-            df_movs["created_at"] = pd.to_datetime(df_movs["created_at"]).dt.tz_localize(None)
+            
+            # ── BLINDAJE DE DATETIME ──
+            # Forzamos la conversión a UTC. 'coerce' convierte los errores en nulos (NaT) en lugar de crashear.
+            df_movs["created_at"] = pd.to_datetime(df_movs["created_at"], errors="coerce", utc=True).dt.tz_localize(None)
+            
+            # Limpiamos cualquier fila que haya resultado en una fecha inválida
+            df_movs = df_movs.dropna(subset=["created_at"]).copy()
+            
             df_movs["Mes"] = df_movs["created_at"].dt.to_period("M").astype(str)
             
             # ── PREPARACIÓN DE DATOS: EVOLUCIÓN HISTÓRICA ──
