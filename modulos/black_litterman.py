@@ -58,6 +58,11 @@ def calcular_black_litterman(retornos_anuales: pd.Series,
     for k, vista in enumerate(vistas_usuario):
         tipo = vista.get("tipo", "absoluta") # 'absoluta' o 'relativa'
         activo_1 = vista["activo_1"]
+        
+        # ── BLINDAJE: Si el activo ya no existe en la matriz, ignoramos la vista ──
+        if activo_1 not in activos:
+            continue
+            
         idx_1 = activos.get_loc(activo_1)
         
         if tipo == "absoluta":
@@ -66,6 +71,8 @@ def calcular_black_litterman(retornos_anuales: pd.Series,
         elif tipo == "relativa":
             # "El activo 1 superará al activo 2 por X"
             activo_2 = vista["activo_2"]
+            if activo_2 not in activos:
+                continue
             idx_2 = activos.get_loc(activo_2)
             P[k, idx_1] = 1.0
             P[k, idx_2] = -1.0
