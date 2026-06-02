@@ -191,25 +191,33 @@ def agregar_cuenta_wallet(id_asesor: str, institucion: str, tasa_anual: float, s
     except Exception as e:
         return False, f"Error al crear la cuenta: {e}"
 
+from datetime import datetime, timezone
+
 def registrar_transaccion_wallet(id_cuenta: int, saldo_actual: float, tipo: str, monto: float, concepto: str) -> tuple[bool, str]:
     try:
-        monto_absoluto = abs(monto)
+        # Generamos la hora exacta (UTC) desde el motor de Python
+        fecha_ahora = datetime.now(timezone.utc).isoformat()
+        
+        # 1. Registrar la auditoría asegurando tipos de datos puros y fecha forzada
+        monto_absoluto = abs(float(monto))
         db.table("wallet_movimientos").insert({
-            "id_cuenta": id_cuenta,
-            "tipo": tipo,
-            "monto": monto,
-            "concepto": concepto.strip()
+            "id_cuenta": int(id_cuenta),
+            "tipo": str(tipo),
+            "monto": float(monto), # El MTM usa su propio signo
+            "concepto": str(concepto).strip(),
+            "created_at": fecha_ahora  # <── ANTÍDOTO ANTI-FANTASMAS
         }).execute()
         
-        nuevo_saldo = saldo_actual
+        # 2. Actualizar el saldo maestro de la cuenta
+        nuevo_saldo = float(saldo_actual)
         if tipo == "INGRESO":
             nuevo_saldo += monto_absoluto
         elif tipo == "GASTO":
             nuevo_saldo -= monto_absoluto
         elif tipo == "AJUSTE MTM":
-            nuevo_saldo += monto   # El monto ya viene con signo + o -
+            nuevo_saldo += float(monto) 
             
-        db.table("wallet_cuentas").update({"saldo": nuevo_saldo}).eq("id", id_cuenta).execute()
+        db.table("wallet_cuentas").update({"saldo": nuevo_saldo}).eq("id", int(id_cuenta)).execute()
         return True, "Transacción liquidada y saldo actualizado."
     except Exception as e:
         return False, f"Error en la transacción: {e}"
