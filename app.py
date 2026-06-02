@@ -361,7 +361,7 @@ if st.session_state["usuario_premium"] is None:
             with st.form("form_login_premium"):
                 email_l   = st.text_input("Correo electrónico")
                 pass_l    = st.text_input("Contraseña", type="password")
-                login_btn = st.form_submit_button("Iniciar sesión", width='stretch)
+                login_btn = st.form_submit_button("Iniciar sesión", width='stretch')
 
             if login_btn:
                 if st.session_state["login_intentos"] >= 5:
@@ -386,7 +386,7 @@ if st.session_state["usuario_premium"] is None:
                 email_r  = st.text_input("Correo electrónico")
                 pass_r   = st.text_input("Contraseña", type="password")
                 pass_r2  = st.text_input("Confirmar contraseña", type="password")
-                reg_btn  = st.form_submit_button("Crear cuenta", width='stretch)
+                reg_btn  = st.form_submit_button("Crear cuenta", width='stretch'')
 
             if reg_btn:
                 if not nombre_r or not email_r or not pass_r:
@@ -409,7 +409,7 @@ if st.session_state["usuario_premium"] is None:
             )
             with st.form("form_solicitar_token"):
                 email_rst = st.text_input("Correo electrónico registrado")
-                sol_btn   = st.form_submit_button("Generar token", width='stretch)
+                sol_btn   = st.form_submit_button("Generar token", width='stretch')
 
             if sol_btn and email_rst:
                 ok, resultado = generar_token_reset(email_rst)
@@ -424,7 +424,7 @@ if st.session_state["usuario_premium"] is None:
                 token_r     = st.text_input("Token recibido")
                 nueva_pass  = st.text_input("Nueva contraseña", type="password")
                 nueva_pass2 = st.text_input("Confirmar nueva contraseña", type="password")
-                reset_btn   = st.form_submit_button("Restablecer contraseña", width='stretch)
+                reset_btn   = st.form_submit_button("Restablecer contraseña", width='stretch')
 
             if reset_btn:
                 if nueva_pass != nueva_pass2:
@@ -480,7 +480,7 @@ with col_salir:
     st.markdown("<div style='padding-top: 2rem;'></div>", unsafe_allow_html=True)
     # Control de Modo Privacidad Integrado en Header Superior
     st.session_state.modo_privacidad = st.toggle("👁️ Ocultar saldos", value=st.session_state.modo_privacidad)
-    if st.button("Cerrar sesión", width='stretch):
+    if st.button("Cerrar sesión", width='stretch'):
         st.session_state["usuario_premium"] = None
         st.rerun()
 
@@ -576,7 +576,7 @@ with st.sidebar:
     # Botón para guardar el progreso
     with st.expander("Guardar cambios al expediente"):
         nuevo_nombre = st.text_input("Nombre del cliente", value=cliente_seleccionado if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" else "")
-        if st.button("Guardar Perfil Completo", width='stretch):
+        if st.button("Guardar Perfil Completo", width='stretch'):
             if not nuevo_nombre.strip():
                 st.warning("Ingrese un nombre.")
             else:
@@ -617,7 +617,7 @@ with st.sidebar:
             max_deuda_scr = st.slider("Deuda/Capital máximo (%)", 0, 500, 150, step=10)
             n_clusters    = st.slider("Grupos de diversificación (K-Means)", 2, 8, 4)
             incluir_refugios = st.checkbox("Incluir activos de refugio (TLT, GLD)", value=True)
-            ejecutar_scr  = st.form_submit_button("Ejecutar análisis fundamental", width='stretch)
+            ejecutar_scr  = st.form_submit_button("Ejecutar análisis fundamental", width='stretch')
     else:
         ejecutar_scr = False
 
@@ -667,7 +667,7 @@ with st.sidebar:
             "Conservador (Bonos Globales — AGG)":  "AGG",
         }
         benchmark_seleccion = st.selectbox("Perfil del benchmark", list(PERFILES_BENCHMARK.keys()))
-        ejecutar = st.form_submit_button("Ejecutar optimización", width='stretch)
+        ejecutar = st.form_submit_button("Ejecutar optimización", width='stretch')
 
         if ejecutar:
             st.session_state["tickers_procesar"] = tickers_input
@@ -865,7 +865,7 @@ with tab_wallet:
                 
             st.dataframe(
                 df_display,
-                width='stretch,
+                width='stretch',
                 hide_index=True,
                 column_config={
                     "Saldo (MXN)": st.column_config.NumberColumn(format="$%.2f") if not st.session_state.modo_privacidad else st.column_config.TextColumn(),
@@ -891,7 +891,7 @@ with tab_wallet:
                 monto_flujo = st.number_input("Monto (MXN)", min_value=1.0, step=1000.0)
                 nota_flujo = st.text_input("Concepto / Referencia")
                 
-                if st.form_submit_button("Registrar Transacción", width='stretch):
+                if st.form_submit_button("Registrar Transacción", width='stretch'):
                     if not df_cuentas.empty:
                         id_cta = mapa_cuentas[cuenta_sel_nom]
                         saldo_act = df_cuentas.loc[df_cuentas["id"] == id_cta, "Saldo (MXN)"].values[0]
@@ -925,7 +925,7 @@ with tab_wallet:
                 nuevo_saldo = st.number_input("Saldo real en la plataforma (MXN)", min_value=0.0, value=float(saldo_actual_mtm), step=100.0)
                 nota_mtm = st.text_input("Concepto del ajuste", placeholder="Ej. Rendimiento mensual")
                 
-                if st.form_submit_button("Ejecutar Ajuste a Mercado", width='stretch):
+                if st.form_submit_button("Ejecutar Ajuste a Mercado", width='stretch'):
                     if not df_cuentas.empty:
                         diferencia = nuevo_saldo - saldo_actual_mtm
                         if diferencia == 0:
@@ -949,7 +949,7 @@ with tab_wallet:
                 tasa_cuenta = st.number_input("Tasa de rendimiento anual esperada (%)", min_value=0.0, step=0.5)
                 saldo_ini = st.number_input("Saldo de apertura (MXN)", min_value=0.0, step=1000.0)
                 
-                if st.form_submit_button("Crear Cuenta Institucional", width='stretch):
+                if st.form_submit_button("Crear Cuenta Institucional", width='stretch'):
                     if not nom_cuenta.strip():
                         st.warning("Ingrese un nombre de institución válido.")
                     else:
@@ -966,7 +966,7 @@ with tab_wallet:
     with col_tit:
         st.subheader("Analítica de Flujos y Evolución de Capital")
     with col_btn:
-        if st.button("Refrescar Datos", width='stretch):
+        if st.button("Refrescar Datos", width='stretch'):
             st.rerun()
     
     if not df_cuentas.empty:
@@ -1005,7 +1005,7 @@ with tab_wallet:
             
             with col_graf1:
                 st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Evolución del Patrimonio (AUM)</div>""", unsafe_allow_html=True)
-                st.line_chart(df_linea, width='stretch, color="#17C37B")
+                st.line_chart(df_linea, width='stretch', color="#17C37B")
                 
             with col_graf2:
                 st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Cash Flow Mensual (Ingresos vs Egresos)</div>""", unsafe_allow_html=True)
@@ -1014,9 +1014,9 @@ with tab_wallet:
                 if "GASTO" in df_cashflow.columns: cols_cashflow.append("GASTO")
                 
                 if cols_cashflow:
-                    st.bar_chart(df_cashflow[cols_cashflow], width='stretch)
+                    st.bar_chart(df_cashflow[cols_cashflow], width='stretch')
                 else:
-                    st.bar_chart(df_cashflow, width='stretch)
+                    st.bar_chart(df_cashflow, width='stretch')
             
             with st.expander("Ver Auditoría Completa de Transacciones (Libro Mayor)", expanded=False):
                 df_mostrar = df_movs.sort_values("Fecha Local", ascending=False).copy()
@@ -1031,7 +1031,7 @@ with tab_wallet:
                 if st.session_state.modo_privacidad:
                     df_mostrar["Monto (MXN)"] = "$ ••••••"
                     
-                st.dataframe(df_mostrar, width='stretch, hide_index=True)
+                st.dataframe(df_mostrar, width='stretch', hide_index=True)
         else:
             st.info("Aún no hay transacciones históricas para generar la analítica.")
 
@@ -1070,12 +1070,12 @@ with tab_motor:
                     with c1:
                         st.markdown("**Instrumentos que superaron el filtro**")
                         st.dataframe(df_clusterizado.sort_values("Profit Margin %", ascending=False),
-                                     height=300, width='stretch)
+                                     height=300, width='stretch')
                     with c2:
                         st.markdown("**Selección óptima por cluster**")
                         st.dataframe(df_mejores[["Ticker","Nombre","Sector","Cluster",
                                                  "Market Cap (B)","P/E Ratio","Profit Margin %"]],
-                                     height=300, width='stretch)
+                                     height=300, width='stretch')
                     st.info(f"Cartera sugerida (guardada en memoria): **{tickers_sugeridos}**")
 
     if not ejecutar and not st.session_state.optimizado:
@@ -1212,7 +1212,7 @@ with tab_motor:
             hovertemplate=f"Sharpe: {sharpe_opt:.4f}<extra></extra>"))
         fig_markowitz.update_layout(template="plotly_dark", xaxis_title="Volatilidad Anual (%)",
             yaxis_title="Retorno Anual (%)", height=480, legend=dict(x=0.01, y=0.99), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_markowitz, width='stretch, key="chart_markowitz")
+        st.plotly_chart(fig_markowitz, width='stretch', key="chart_markowitz")
 
         st.markdown("""
         <div style='
@@ -1223,7 +1223,7 @@ with tab_motor:
         """, unsafe_allow_html=True)
         df_pesos = pd.DataFrame({"Activo": tickers, "Peso (%)": (pesos_opt*100).round(2)}) \
             .sort_values("Peso (%)", ascending=False)
-        st.dataframe(df_pesos, width='stretch)
+        st.dataframe(df_pesos, width='stretch')
 
         # Rebalanceo
         st.markdown("---")
@@ -1247,7 +1247,7 @@ with tab_motor:
             df_rebalanceo["Instrucción en Mercado"] = df_rebalanceo["Monto Objetivo (MXN)"].apply(lambda m: f"Invertir ${m:,}")
 
         st.dataframe(df_rebalanceo[["Activo","Peso Óptimo (%)","Monto Objetivo (MXN)","Instrucción en Mercado"]],
-            width='stretch,
+            width='stretch',
             column_config={
                 "Monto Objetivo (MXN)": st.column_config.NumberColumn(format="$%d") if not st.session_state.modo_privacidad else st.column_config.TextColumn(),
                 "Peso Óptimo (%)":      st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.2f%%"),
@@ -1340,7 +1340,7 @@ with tab_motor:
             mode="lines", line=dict(width=1.5, color="rgba(150,150,150,0.6)", dash="dot"), name=benchmark_ticker))
         fig_bt.update_layout(template="plotly_dark", xaxis_title="Fecha", yaxis_title="Capital (USD)",
             height=420, legend=dict(x=0.01, y=0.99), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_bt, width='stretch, key="chart_bt")
+        st.plotly_chart(fig_bt, width='stretch', key="chart_bt")
 
         capital_anual = df_equity.groupby(df_equity.index.year).last()
         anuales = capital_anual.pct_change().dropna() * 100
@@ -1368,7 +1368,7 @@ with tab_motor:
             legend=dict(x=0.01, y=0.99),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_anuales, width='stretch, key="chart_anuales")
+        st.plotly_chart(fig_anuales, width='stretch', key="chart_anuales")
 
         # Monte Carlo
         st.markdown("---")
@@ -1405,7 +1405,7 @@ with tab_motor:
             name=f"Tasa fija ({tasa_actual_banxico*100:.2f}%)"))
         fig_mc.update_layout(template="plotly_dark", xaxis_title="Meses", yaxis_title="Capital (MXN)",
             height=480, legend=dict(x=0.01, y=0.99), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_mc, width='stretch, key="chart_mc")
+        st.plotly_chart(fig_mc, width='stretch', key="chart_mc")
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Adverso (P5)",    f_val(p5[-1], "${:,.0f}"))
@@ -1445,7 +1445,7 @@ with tab_motor:
             for col in ["Adverso P5 (MXN)", "Base P50 (MXN)", "Favorable P95 (MXN)", "Tasa fija (MXN)", "Ventaja P50 vs Fija"]:
                 df_hitos[col] = "$ ••••••"
                 
-        st.dataframe(df_hitos, width='stretch, hide_index=True,
+        st.dataframe(df_hitos, width='stretch', hide_index=True,
             column_config={
                 "Adverso P5 (MXN)":   st.column_config.NumberColumn(format="$%d") if not st.session_state.modo_privacidad else st.column_config.TextColumn(),
                 "Base P50 (MXN)":     st.column_config.NumberColumn(format="$%d") if not st.session_state.modo_privacidad else st.column_config.TextColumn(),
@@ -1475,7 +1475,7 @@ with tab_motor:
         fig_var.add_vline(x=var_cvar["CVaR_95"]*100,     line_color="orange", line_dash="dash",  annotation_text="CVaR 95%")
         fig_var.add_vline(x=var_cvar["VaR_99_hist"]*100, line_color="magenta",line_dash="dot",   annotation_text="VaR 99%")
         fig_var.update_layout(template="plotly_dark", height=380, xaxis_title="Retorno Diario (%)", yaxis_title="Frecuencia", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_var, width='stretch, key="chart_var")
+        st.plotly_chart(fig_var, width='stretch', key="chart_var")
 
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin:1.5rem 0 .75rem;'>Maximum Drawdown</div>""", unsafe_allow_html=True)
         dd_serie, max_dd, inicio_dd, fin_dd, duracion_dd = calcular_drawdown(retorno_port_diario)
@@ -1489,7 +1489,7 @@ with tab_motor:
             fill="tozeroy", fillcolor="rgba(255,68,68,0.3)", line=dict(color="red", width=1), name="Drawdown"))
         fig_dd.add_hline(y=max_dd*100, line_color="gold", line_dash="dash", annotation_text=f"Max DD: {max_dd*100:.2f}%")
         fig_dd.update_layout(template="plotly_dark", height=350, xaxis_title="Fecha", yaxis_title="Drawdown (%)", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_dd, width='stretch, key="chart_dd")
+        st.plotly_chart(fig_dd, width='stretch', key="chart_dd")
 
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin:1.5rem 0 .75rem;'>Sortino vs Sharpe</div>""", unsafe_allow_html=True)
         sortino, desv_down = calcular_sortino(retorno_port_diario, ret_opt, tasa_rf)
@@ -1509,12 +1509,12 @@ with tab_motor:
                 text=[f"{p:.1f}%" for p in df_stress["Pérdida (%)"]],
                 textposition="outside"))
             fig_stress.update_layout(template="plotly_dark", height=350, xaxis_title="Impacto en Capital (%)", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig_stress, width='stretch, key="chart_stress")
+            st.plotly_chart(fig_stress, width='stretch', key="chart_stress")
             
             df_stress_disp = df_stress.copy()
             if st.session_state.modo_privacidad:
                 df_stress_disp["Pérdida Estimada (USD)"] = "$ ••••••"
-            st.dataframe(df_stress_disp, width='stretch)
+            st.dataframe(df_stress_disp, width='stretch')
         else:
             st.info(
                 " **Aviso de modelado:** No fue posible simular los escenarios de estrés histórico. "
@@ -1535,7 +1535,7 @@ with tab_motor:
             fig_corr.add_hline(y=-0.6, line_color="rgba(0,255,0,0.5)", line_dash="dot",  annotation_text="Zona de cobertura")
             fig_corr.update_layout(template="plotly_dark", height=350,
                 yaxis=dict(range=[-1.1, 1.1]), xaxis_title="Fecha", yaxis_title="Coeficiente de Pearson", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig_corr, width='stretch, key="chart_corr")
+            st.plotly_chart(fig_corr, width='stretch', key="chart_corr")
         else:
             st.info(f"Incluya BTC-USD/SPY o QQQ/TLT para ver correlación dinámica. Tickers actuales: {retornos_diarios.columns.tolist()}")
 
@@ -1554,7 +1554,7 @@ with tab_motor:
                 marker=dict(color="rgba(255,50,50,0.8)", size=6, symbol="x"), name="Régimen de tensión"))
             fig_hmm.update_layout(template="plotly_dark", height=400,
                 xaxis_title="Fecha", yaxis_title="Precio", legend=dict(x=0.01, y=0.99), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig_hmm, width='stretch, key="chart_hmm")
+            st.plotly_chart(fig_hmm, width='stretch', key="chart_hmm")
             pct = (df_regimenes["Regimen"] == 1).mean() * 100
             c1, c2 = st.columns(2)
             c1.metric("Régimen normal",   f"{100-pct:.1f}%")
@@ -1567,7 +1567,7 @@ with tab_motor:
         _header("Exportar", "Reporte Institucional")
         col_btn_pdf, col_esp = st.columns([1, 3])
         with col_btn_pdf:
-            if st.button("Generar reporte PDF", type="primary", width='stretch):
+            if st.button("Generar reporte PDF", type="primary", width='stretch'):
                 with st.spinner("Generando reporte..."):
                     try:
                         pdf_bytes = generar_reporte(
@@ -1640,7 +1640,7 @@ with tab_retiro:
 
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     
-    if st.button("Ejecutar Modelado Actuarial", type="primary", width='stretch):
+    if st.button("Ejecutar Modelado Actuarial", type="primary", width='stretch'):
             with st.spinner("Calculando proyecciones actuariales..."):
                 
                 uma_actual = obtener_uma_actual()
@@ -1789,7 +1789,7 @@ with tab_noticias:
                         st.markdown(f"{etiqueta}**{titulo}**")
                         st.caption(f"{publisher}  ·  {fecha}")
                     with col_btn:
-                        st.link_button("Leer", url_destino, width='stretch)
+                        st.link_button("Leer", url_destino, width='stretch')
                 st.markdown("---")
             except Exception:
                 continue
@@ -1817,7 +1817,7 @@ with tab_comunidad:
             "Macro y economía","Fintech y tecnología","Gestión de riesgo","Pregunta a la comunidad"])
         contenido_post = st.text_area("Contenido",
             placeholder="Comparta su análisis, perspectiva o pregunta...", height=150)
-        post_btn = st.form_submit_button("Enviar para revisión", width='stretch)
+        post_btn = st.form_submit_button("Enviar para revisión", width='stretch')
 
     if post_btn:
         if not titulo_post.strip() or not contenido_post.strip():
@@ -1921,7 +1921,7 @@ with tab_feedback:
             value="4 — Bueno")
         comentario_fb = st.text_area("Comentario",
             placeholder="Describa su experiencia, sugerencia o área de mejora...", height=120)
-        enviado = st.form_submit_button("Enviar comentario", width='stretch)
+        enviado = st.form_submit_button("Enviar comentario", width='stretch')
 
     if enviado:
         if comentario_fb.strip():
@@ -2017,7 +2017,7 @@ if es_admin and tab_admin:
                 c2.metric("Conversiones GaLa Lite",   total_lite)
                 c3.metric("Tasa de conversión Lite",
                           f"{(total_lite/total_registrados)*100:.1f}%" if total_registrados > 0 else "0%")
-                st.dataframe(df_users[["nombre_display","email","tiene_lite"]], width='stretch)
+                st.dataframe(df_users[["nombre_display","email","tiene_lite"]], width='stretch')
             else:
                 st.info("No se pudieron cargar los datos de usuarios.")
 
@@ -2066,7 +2066,7 @@ if es_admin and tab_admin:
                             st.markdown(f"**Área de interés:** {l.get('interes', 'N/A')}")
                         with col_accion:
                             if not l.get("contactado"):
-                                if st.button("Registrar contacto", key=f"lead_{l['id']}", type="primary", width='stretch):
+                                if st.button("Registrar contacto", key=f"lead_{l['id']}", type="primary", width='stretch'):
                                     try:
                                         db.table("leads_b2b").update({"contactado": True}).eq("id", l["id"]).execute()
                                         st.rerun()
