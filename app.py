@@ -479,7 +479,7 @@ with col_enc:
 with col_salir:
     st.markdown("<div style='padding-top: 2rem;'></div>", unsafe_allow_html=True)
     # Control de Modo Privacidad Integrado en Header Superior
-    st.session_state.modo_privacidad = st.toggle("👁️ Ocultar saldos", value=st.session_state.modo_privacidad)
+    st.session_state.modo_privacidad = st.toggle("Ocultar saldos", value=st.session_state.modo_privacidad)
     if st.button("Cerrar sesión", width='stretch'):
         st.session_state["usuario_premium"] = None
         st.rerun()
