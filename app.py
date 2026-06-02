@@ -386,7 +386,7 @@ if st.session_state["usuario_premium"] is None:
                 email_r  = st.text_input("Correo electrónico")
                 pass_r   = st.text_input("Contraseña", type="password")
                 pass_r2  = st.text_input("Confirmar contraseña", type="password")
-                reg_btn  = st.form_submit_button("Crear cuenta", width='stretch'')
+                reg_btn  = st.form_submit_button("Crear cuenta", width='stretch')
 
             if reg_btn:
                 if not nombre_r or not email_r or not pass_r:
