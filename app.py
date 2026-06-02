@@ -28,6 +28,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+st.markdown("""
+    <style>
+        /* Ocultar el menú de navegación multipágina nativo de Streamlit */
+        [data-testid="stSidebarNav"] {display: none !important;}
+    </style>
+""", unsafe_allow_html=True)
 # ── CSS Institucional ──────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -226,7 +232,8 @@ def obtener_historial_movimientos(ids_cuentas: list) -> list:
     if not ids_cuentas:
         return []
     try:
-        r = db.table("wallet_movimientos").select("*").in_("id_cuenta", ids_cuentas).order("created_at").execute()
+        # El .limit(10000) rompe cualquier tope por defecto de la API
+        r = db.table("wallet_movimientos").select("*").in_("id_cuenta", ids_cuentas).order("created_at").limit(10000).execute()
         return r.data or []
     except Exception as e:
         return []
