@@ -486,7 +486,6 @@ with col_enc:
 with col_salir:
     st.markdown("<div style='padding-top: 2rem;'></div>", unsafe_allow_html=True)
     # Control de Modo Privacidad Integrado en Header Superior
-    st.session_state.modo_privacidad = st.toggle("Ocultar saldos", value=st.session_state.modo_privacidad)
     if st.button("Cerrar sesión", width='stretch'):
         st.session_state["usuario_premium"] = None
         st.rerun()
@@ -822,7 +821,15 @@ tab_admin     = tabs_objetos[7] if es_admin else None
 # TAB 1 — TESORERÍA PATRIMONIAL (WALLET)
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_wallet:
-    _header("Consolidación de Activos", "Tesorería y Tracking Patrimonial")
+    col_tit, col_tog = st.columns([4, 1])
+    
+    with col_tit:
+        _header("Consolidación de Activos", "Tesorería y Tracking Patrimonial")
+        
+    with col_tog:
+        # Aquí vive ahora el switch, alineado a la derecha
+        ocultar_saldos = st.toggle("Ocultar saldos", value=False)
+    
     st.caption("Registro de flujos de efectivo, conciliación de saldos y cálculo de tasa ponderada efectiva.")
 
     # ── CONEXIÓN REAL A SUPABASE ──
