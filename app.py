@@ -237,7 +237,6 @@ def obtener_historial_movimientos(ids_cuentas: list) -> list:
         return r.data or []
     except Exception as e:
         return []
-
 # ── Estado de sesión ───────────────────────────────────────────────────────────
 defaults = {
     "usuario_premium": None,
