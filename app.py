@@ -990,7 +990,8 @@ with tab_wallet:
             df_movs = pd.DataFrame(movimientos_db)
             
             df_movs["created_at_utc"] = pd.to_datetime(df_movs["created_at"], errors="coerce", utc=True)
-            df_movs = df_movs.dropna(subset=["created_at_utc"]).copy()
+            # En lugar de borrarlos, si la fecha es Nula (NaT), le asignamos el momento actual exacto
+            df_movs["created_at_utc"] = df_movs["created_at_utc"].fillna(pd.Timestamp.now(tz="UTC"))
             df_movs["Fecha Local"] = df_movs["created_at_utc"].dt.tz_convert("America/Mexico_City").dt.tz_localize(None)
             
             df_movs["Día"] = df_movs["Fecha Local"].dt.floor("D")
