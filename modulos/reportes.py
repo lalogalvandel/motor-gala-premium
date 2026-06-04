@@ -35,6 +35,7 @@ def _estilos():
         'tecnico_titulo': ParagraphStyle('tecnico_titulo', fontSize=9, textColor=AZUL_MEDIO, fontName='Helvetica-Bold', spaceAfter=4),
         'tecnico_cuerpo': ParagraphStyle('tecnico_cuerpo', fontSize=8, textColor=AZUL_OSCURO, fontName='Helvetica', leading=12, alignment=TA_JUSTIFY),
         'formula': ParagraphStyle('formula', fontSize=8, textColor=colors.HexColor('#2c5282'), fontName='Courier-Bold', alignment=TA_CENTER, spaceBefore=4, spaceAfter=4),
+        'resumen': ParagraphStyle('resumen', fontSize=10, textColor=GRIS_CLARO, fontName='Helvetica', alignment=TA_CENTER, leading=16, leftIndent=40, rightIndent=40)
     }
 
 def _fig_a_imagen(fig, width=800, height=400, scale=2, h_inch=None):
@@ -95,16 +96,17 @@ def _on_page(canvas, doc):
         canvas.rect(0, 0, w, 25, fill=True, stroke=False)
         canvas.setFont('Helvetica', 7)
         canvas.setFillColor(colors.HexColor('#8899bb'))
-        canvas.drawString(30, 8, "Documento confidencial — Auditoría Solvencia II")
+        canvas.drawString(30, 8, "Documento confidencial — Auditoría Solvencia II / CUSF")
         canvas.drawRightString(w - 30, 8, datetime.now().strftime("%d/%m/%Y %H:%M"))
     canvas.restoreState()
 
 # ─────────────────────────────────────────────────────────────────────────────
-def generar_reporte_alm(
+def generar_reporte_alm_integral(
     institucion, valor_activos, valor_pasivos, ratio_inicial,
-    dur_activos_ini, dur_pasivos, shock_bps, scr_tasa, ratio_estresado,
+    dur_activos_ini, dur_pasivos, shock_bps, scr_tasa, scr_spread, 
+    beneficio_div, scr_total, ratio_estresado,
     tickers_activos, pesos_opt, yield_opt, dur_opt, conv_opt,
-    fig_frontera=None, fig_mc_surplus=None
+    fig_gap=None, fig_waterfall=None, fig_frontera=None, fig_mc_surplus=None
 ) -> bytes:
 
     buffer = io.BytesIO()
@@ -118,121 +120,116 @@ def generar_reporte_alm(
     story.append(Spacer(1, 1.6 * inch))
     story.append(Paragraph("MOTOR GaLa — QUANT SOLUTIONS", E['titulo']))
     story.append(Spacer(1, 0.2 * inch))
-    story.append(Paragraph("Reporte de Auditoría ALM y Reestructuración de Cartera", E['subtitulo']))
+    story.append(Paragraph("Evaluación Propia de Riesgos y Solvencia (ORSA)", E['subtitulo']))
     story.append(Spacer(1, 0.4 * inch))
     story.append(Paragraph(f"Institución: {institucion}", E['subtitulo']))
     story.append(Paragraph(f"Fecha de emisión: {datetime.now().strftime('%d de %B de %Y')}", E['subtitulo']))
     story.append(Spacer(1, 0.8 * inch))
 
-    veredicto = "CUMPLE" if ratio_estresado >= 1.0 else "NO CUMPLE"
-    color_v = "#38a169" if ratio_estresado >= 1.0 else "#e53e3e"
+    veredicto = "CUMPLE" if (valor_activos - valor_pasivos) >= scr_total else "NO CUMPLE"
+    color_v = "#38a169" if (valor_activos - valor_pasivos) >= scr_total else "#e53e3e"
     
     story.append(Paragraph(
-        f"Este documento evalúa la brecha estructural de duración entre los activos y pasivos de la institución, "
-        f"aplicando requerimientos de capital (SCR) bajo normativas análogas a Solvencia II / CUSF. "
-        f"Bajo un shock en la curva de tasas de {shock_bps} puntos base, la estructura presenta un Ratio Estresado de "
-        f"<b><font color='{color_v}'>{ratio_estresado*100:.1f}%</font></b>, obteniendo un veredicto regulatorio de <b><font color='{color_v}'>{veredicto}</font></b>.",
-        ParagraphStyle('resumen', fontSize=10, textColor=GRIS_CLARO, fontName='Helvetica', alignment=TA_CENTER, leading=16, leftIndent=40, rightIndent=40)
+        f"Este documento evalúa la brecha estructural de duración y liquidez entre los activos y pasivos de la institución. "
+        f"Al consolidar los requerimientos de capital (SCR) bajo normativas análogas a Solvencia II / CUSF, "
+        f"el portafolio actual presenta un requerimiento agregado de mercado de <b>${scr_total:,.2f} M</b>, "
+        f"obteniendo un dictamen regulatorio global de <b><font color='{color_v}'>{veredicto}</font></b>.",
+        E['resumen']
     ))
     story.append(PageBreak())
 
     # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 2 — BALANCE Y RIESGO DE TASA (SCR)
+    # PÁGINA 2 — BALANCE Y REQUERIMIENTO CUSF
     # ══════════════════════════════════════════════════════════════════════════
     story.append(Spacer(1, 0.3 * inch))
-    story += _seccion("1. Auditoría de Brecha Estructural y Capital", E['seccion'])
+    story += _seccion("1. Auditoría de Balance y Riesgo de Mercado", E['seccion'])
 
     # Balance Status Quo
-    story.append(Paragraph("Fotografía del Balance (Previo a Inmunización)", E['subseccion']))
+    story.append(Paragraph("Fotografía del Balance", E['subseccion']))
     balance_data = [
         ['Métrica', 'Valor'],
         ['Valor Total Activos', f"${valor_activos:,.2f} M"],
         ['Valor Total Pasivos (Valor Presente)', f"${valor_pasivos:,.2f} M"],
-        ['Ratio de Cobertura Inicial', f"{ratio_inicial*100:.2f}%"],
-        ['Duración de Activos Inicial', f"{dur_activos_ini:.2f} años"],
-        ['Duración de Pasivos Objetivo', f"{dur_pasivos:.2f} años"],
-        ['Brecha de Duración (Gap)', f"{abs(dur_activos_ini - dur_pasivos):.2f} años"]
+        ['Capital Disponible (Excedente)', f"${(valor_activos - valor_pasivos):,.2f} M"],
+        ['Ratio de Cobertura Base', f"{ratio_inicial*100:.2f}%"]
     ]
     story.append(_tabla_estilo(balance_data, [3.5 * inch, 2.5 * inch]))
-    
     story.append(Spacer(1, 0.2 * inch))
     
     # Pruebas de Estrés (Solvencia II)
-    story.append(Paragraph(f"2. Parámetros de Riesgo (Shock de {shock_bps} pbs)", E['subseccion']))
+    story.append(Paragraph("2. Requerimiento de Capital Estándar (CUSF)", E['subseccion']))
     scr_data = [
-        ['Indicador Regulatorio', 'Resultado', 'Estado'],
-        ['SCR Tasa de Interés (Pérdida Máx)', f"${scr_tasa:,.2f} M", '—'],
-        ['Capital Disponible vs SCR', f"${(valor_activos - valor_pasivos):,.2f} M", 'OK' if (valor_activos - valor_pasivos) > abs(scr_tasa) else 'DÉFICIT'],
-        ['Ratio de Cobertura Estresado', f"{ratio_estresado*100:.2f}%", 'CUMPLE (≥ 100%)' if ratio_estresado >= 1.0 else 'NO CUMPLE']
+        ['Componente de Riesgo', 'Impacto en Capital'],
+        ['SCR Tasa de Interés', f"${scr_tasa:,.2f} M"],
+        ['SCR Riesgo de Spread (Crédito)', f"${scr_spread:,.2f} M"],
+        ['Beneficio por Diversificación', f"-${beneficio_div:,.2f} M"],
+        ['SCR MERCADO TOTAL AGREGADO', f"${scr_total:,.2f} M"]
     ]
     
-    t_scr = _tabla_estilo(scr_data, [2.5*inch, 1.8*inch, 1.7*inch])
-    # Colorear estado
+    t_scr = _tabla_estilo(scr_data, [3.5*inch, 2.5*inch])
     t_scr.setStyle(TableStyle([
-        ('TEXTCOLOR', (2, 2), (2, -1), VERDE if ratio_estresado >= 1.0 else ROJO),
-        ('FONTNAME', (2, 2), (2, -1), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (1, 3), (1, 3), VERDE),
+        ('FONTNAME', (0, 4), (1, 4), 'Helvetica-Bold'),
+        ('BACKGROUND', (0, 4), (1, 4), colors.HexColor('#f0f4f8')),
+        ('TEXTCOLOR', (0, 4), (1, 4), AZUL_OSCURO),
     ]))
     story.append(t_scr)
 
+    if fig_waterfall:
+        story.append(Spacer(1, 0.2 * inch))
+        story.append(_fig_a_imagen(fig_waterfall, h_inch=2.8))
+
     story += _callout_tecnico(
-        titulo="Requerimiento de Capital de Solvencia (SCR)",
-        texto="El SCR de Tasa mide la pérdida máxima probable en el valor de los activos frente a un shock "
-              "paralelo en la curva de rendimientos dictado por el regulador. Si la pérdida monetaria "
-              "supera el excedente de capital, la institución entra en insolvencia técnica."
+        titulo="Agregación de Capital (Fórmula Estándar)",
+        texto="La consolidación de los requerimientos de capital asume una correlación imperfecta entre el riesgo de "
+              "tasa y el riesgo de crédito (spread). El beneficio de diversificación reduce el requerimiento bruto, "
+              "optimizando la exigencia patrimonial según la Circular Única de Seguros y Fianzas."
     )
     story.append(PageBreak())
 
     # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 3 — REESTRUCTURACIÓN (INMUNIZACIÓN SLSQP)
+    # PÁGINA 3 — LIQUIDEZ Y REESTRUCTURACIÓN
     # ══════════════════════════════════════════════════════════════════════════
     story.append(Spacer(1, 0.3 * inch))
-    story += _seccion("3. Reestructuración de Cartera (Inmunización)", E['seccion'])
-
+    story += _seccion("3. Análisis de Brecha de Liquidez", E['seccion'])
+    
     story.append(Paragraph(
-        f"Para cerrar la brecha estructural, el motor optimizó la cartera logrando un Calce de Duración de "
-        f"<b>{dur_opt:.2f} años</b> y una cobertura de convexidad de <b>{conv_opt:.2f}</b>, "
-        f"asegurando un Yield de Cartera Optimizado del <b>{yield_opt*100:.2f}%</b>.",
+        "El análisis dinámico proyecta los ingresos por cupones y amortizaciones frente a las salidas por "
+        "obligaciones técnicas. La trayectoria de liquidez acumulada determina la capacidad técnica de "
+        "absorción sin forzar liquidación de activos a descuento.", E['normal']
+    ))
+    
+    if fig_gap:
+        story.append(Spacer(1, 0.1 * inch))
+        story.append(_fig_a_imagen(fig_gap, h_inch=3.0))
+
+    story += _seccion("4. Reestructuración y Calce (Inmunización)", E['seccion'])
+    story.append(Paragraph(
+        f"Se ejecutó un algoritmo de optimización (SLSQP) para emparejar la sensibilidad de las carteras. "
+        f"El portafolio sugerido alcanza un Calce de Duración de <b>{dur_opt:.2f} años</b> y una cobertura de "
+        f"convexidad de <b>{conv_opt:.2f}</b>, preservando un Yield esperado del <b>{yield_opt*100:.2f}%</b>.",
         E['normal']
     ))
-    story.append(Spacer(1, 0.15 * inch))
 
-    # Tabla de pesos nueva
     df_pesos = pd.DataFrame({'Instrumento': tickers_activos, 'Peso (%)': (pesos_opt * 100).round(2)}).sort_values('Peso (%)', ascending=False)
-    pesos_data = [['Instrumento', 'Asignación (%)', 'Instrucción Mesa de Dinero']]
+    pesos_data = [['Instrumento', 'Asignación Sugerida (%)', 'Ejecución Target']]
     for _, row in df_pesos.iterrows():
         if row['Peso (%)'] > 0.01:
             pesos_data.append([row['Instrumento'], f"{row['Peso (%)']:.2f}%", '█' * max(1, int(row['Peso (%)'] / 3))])
-    story.append(_tabla_estilo(pesos_data, [1.5 * inch, 1.2 * inch, 3.3 * inch]))
-
-    story += _callout_tecnico(
-        titulo="Optimizador SLSQP (Inmunización Estocástica)",
-        texto="La nueva estructura de inversión fue calculada mediante métodos numéricos de optimización con restricciones (SLSQP). "
-              "El algoritmo fuerza matemáticamente a que la sensibilidad del activo empate con la sensibilidad del pasivo, logrando que "
-              "las fluctuaciones futuras de las tasas de interés no afecten el Ratio de Cobertura.",
-        formula="Restricción estricta: D_A ≈ D_L  (Duración Activos igual a Duración Pasivos)"
-    )
+    
+    story.append(Spacer(1, 0.1 * inch))
+    story.append(_tabla_estilo(pesos_data, [1.5 * inch, 1.5 * inch, 3.0 * inch]))
 
     if fig_frontera:
-        story.append(KeepTogether([
-            Spacer(1, 0.2 * inch),
-            Paragraph("Frontera Eficiente ALM (Riesgo vs Retorno)", E['subseccion']),
-            _fig_a_imagen(fig_frontera, h_inch=2.8),
-        ]))
+        story.append(PageBreak())
+        story.append(Spacer(1, 0.3 * inch))
+        story += _seccion("5. Frontera Eficiente ALM", E['seccion'])
+        story.append(_fig_a_imagen(fig_frontera, h_inch=3.5))
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 4 — MONTE CARLO SURPLUS (OPCIONAL)
-    # ══════════════════════════════════════════════════════════════════════════
     if fig_mc_surplus:
         story.append(PageBreak())
         story.append(Spacer(1, 0.3 * inch))
-        story += _seccion("4. Simulación Estocástica del Excedente", E['seccion'])
-        
-        story.append(Paragraph(
-            "El método Monte Carlo somete el portafolio inmunizado a miles de caminos aleatorios de tasas de interés. "
-            "La gráfica evalúa si el Capital Excedente (Surplus) se mantiene por encima del umbral de quiebra ($0) en todos los escenarios probables.",
-            E['normal']
-        ))
-        story.append(Spacer(1, 0.2 * inch))
+        story += _seccion("6. Simulación Estocástica del Excedente", E['seccion'])
         story.append(_fig_a_imagen(fig_mc_surplus, h_inch=3.5))
 
     doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
