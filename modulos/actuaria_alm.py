@@ -98,7 +98,7 @@ def frontera_eficiente_alm(duraciones_activos, convexidades_activos, rendimiento
     Retorna lista de diccionarios con {duracion, yield, scr_est, pesos, exito}.
     """
     ratio_ap = v_pasivos / v_activos
-    target_max = duracion_pasivo * ratio_ap
+    target_max = duracion_pasivo
     target_min = np.min(duraciones_activos)
     if target_min >= target_max:
         target_min = target_max * 0.8
