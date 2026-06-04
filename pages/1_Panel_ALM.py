@@ -406,6 +406,100 @@ if df_pasivos is not None and df_activos is not None:
         </div>
         """, unsafe_allow_html=True)
 
+        # ── Paso 3.5: Análisis de Brecha de Liquidez (Cash Flow Matching) ──
+        st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
+        st.markdown("""
+        <div style='margin-bottom: 1.75rem;'>
+            <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #5A6780; margin-bottom: 0.4rem;'>Paso 3.5 — Análisis Dinámico ALM</div>
+            <div style='font-family: "EB Garamond", Georgia, serif; font-size: 24px; color: #E8EDF5; font-weight: 400;'>Brecha de Liquidez y Perfil de Vencimientos</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 1. Generador de flujos sintéticos para activos (Aproximación Bono Bullet)
+        flujos_activos = {}
+        for _, row in df_activos.iterrows():
+            v_mercado = row['Valor_Mercado']
+            ytm = row['Tasa_YTM']
+            # Asumimos que la madurez es el entero más cercano a la duración para estructurar el flujo
+            vencimiento = max(1, int(round(row['Duracion']))) 
+            
+            cupon_estimado = v_mercado * ytm
+            for t in range(1, vencimiento):
+                flujos_activos[t] = flujos_activos.get(t, 0.0) + cupon_estimado
+            
+            # En el año de vencimiento, ingresa el principal + el último cupón
+            flujos_activos[vencimiento] = flujos_activos.get(vencimiento, 0.0) + v_mercado + cupon_estimado
+
+        # 2. Extracción de flujos de pasivos
+        flujos_pasivos = {int(row['Año']): row['Flujo_Esperado'] for _, row in df_pasivos.iterrows()}
+
+        max_year = max(max(flujos_activos.keys(), default=0), max(flujos_pasivos.keys(), default=0))
+        
+        # 3. Consolidación de la matriz de liquidez
+        df_gap = pd.DataFrame({
+            "Año": range(1, max_year + 1),
+            "Entradas (Activos)": [flujos_activos.get(y, 0.0) for y in range(1, max_year + 1)],
+            "Salidas (Pasivos)": [flujos_pasivos.get(y, 0.0) for y in range(1, max_year + 1)]
+        })
+        
+        df_gap["Gap Marginal"] = df_gap["Entradas (Activos)"] - df_gap["Salidas (Pasivos)"]
+        df_gap["Gap Acumulado"] = df_gap["Gap Marginal"].cumsum()
+
+        # 4. Renderizado Institucional (Plotly)
+        fig_gap = go.Figure()
+        
+        # Flujos marginales (Ingresos positivos, Egresos negativos)
+        fig_gap.add_trace(go.Bar(
+            x=df_gap["Año"], y=df_gap["Entradas (Activos)"], 
+            name="Entradas (Cupones/Vencimientos)", marker_color='#17C37B'
+        ))
+        fig_gap.add_trace(go.Bar(
+            x=df_gap["Año"], y=-df_gap["Salidas (Pasivos)"], 
+            name="Salidas (Siniestros/Reservas)", marker_color='#FF4B4B'
+        ))
+        
+        # Línea de Liquidez Acumulada
+        fig_gap.add_trace(go.Scatter(
+            x=df_gap["Año"], y=df_gap["Gap Acumulado"], 
+            mode='lines+markers', name="Gap Acumulado (Excedente de Caja)", 
+            line=dict(color='#4488FF', width=2), yaxis='y2'
+        ))
+
+        fig_gap.update_layout(
+            barmode='relative',
+            xaxis_title="Año de Proyección",
+            yaxis_title="Flujo de Efectivo (M MXN)",
+            yaxis2=dict(title="Liquidez Acumulada", overlaying='y', side='right', showgrid=False),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family='DM Mono', color='#B0BACA'),
+            legend=dict(orientation="h", yanchor="bottom", y=1.1, xanchor="center", x=0.5),
+            height=450,
+            margin=dict(t=50, b=30, l=10, r=10)
+        )
+        
+        st.plotly_chart(fig_gap, use_container_width=True)
+
+        # 5. Dictamen Regulatorio de Liquidez
+        año_min_gap = df_gap.loc[df_gap["Gap Acumulado"].idxmin()]
+        if año_min_gap["Gap Acumulado"] < 0:
+            st.markdown(f"""
+            <div style='margin-top: 0.5rem; padding: 1rem 1.25rem; border-left: 3px solid #d4a017; background: rgba(212,160,23,0.05); border-radius: 4px;'>
+                <span style='font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #d4a017;'>Riesgo de Liquidez Estructural</span>
+                <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; color: #B0BACA; margin-top: 0.4rem;'>
+                    El gap acumulado entra en déficit en el <b>Año {int(año_min_gap['Año'])}</b> alcanzando un faltante de <b>${abs(año_min_gap['Gap Acumulado']):,.2f} M</b>. Existe exposición a riesgo de reinversión o necesidad de liquidación anticipada de activos.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div style='margin-top: 0.5rem; padding: 1rem 1.25rem; border-left: 3px solid #17C37B; background: rgba(23,195,123,0.05); border-radius: 4px;'>
+                <span style='font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #17C37B;'>Estructura de Liquidez Sana</span>
+                <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; color: #B0BACA; margin-top: 0.4rem;'>
+                    Los flujos proyectados de los activos absorben exitosamente las salidas proyectadas de reservas técnicas en todos los horizontes temporales sin requerir ventas a descuento.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
         # ── Paso 4: Optimizador SLSQP ──
         st.markdown("<div style='margin-top: 2.5rem;'></div>", unsafe_allow_html=True)
         col_btn_opt, col_esp = st.columns([1, 3])
