@@ -534,7 +534,7 @@ if df_pasivos is not None and df_activos is not None:
                         target_duracion,
                         target_convexidad,
                         v_activos=valor_total_activos,
-                        v_pasivos=valor_total_pasivos,
+                        v_pasivos=vp_pasivo,  # <--- AQUÍ ESTÁ LA CORRECCIÓN
                         vol_activos=vol_cartera,
                         d_activos=d_activos_actual,
                         num_puntos=25 
