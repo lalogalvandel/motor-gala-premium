@@ -171,7 +171,7 @@ empresa_cliente = st.session_state.get("empresa", "Institución Financiera")
 col_logo, col_texto, col_session = st.columns([0.6, 2.4, 1], vertical_alignment="center")
 
 with col_logo:
-    st.image("logo_gala.png", use_container_width=True)
+    st.image("logo_gala.png", width='stretch')
 
 with col_texto:
     st.markdown(f"""
@@ -410,7 +410,7 @@ if df_pasivos is not None and df_activos is not None:
         st.markdown("<div style='margin-top: 2.5rem;'></div>", unsafe_allow_html=True)
         col_btn_opt, col_esp = st.columns([1, 3])
         with col_btn_opt:
-            ejecutar = st.button("Ejecutar Inmunización SLSQP", type="primary", use_container_width=True)
+            ejecutar = st.button("Ejecutar Inmunización SLSQP", type="primary", width='stretch')
 
         if ejecutar:
             with st.spinner("Modelando escenarios y calculando calce óptimo..."):
@@ -477,7 +477,7 @@ if df_pasivos is not None and df_activos is not None:
                                 file_name = f"Reporte_ALM_{empresa_cliente.replace(' ', '_')}.pdf",
                                 mime      = "application/pdf",
                                 type      = "secondary",
-                                use_container_width=True
+                                width='stretch'
                             )
                         except Exception as e:
                             pass
@@ -493,7 +493,7 @@ if df_pasivos is not None and df_activos is not None:
                         )])
                         fig_pie.add_annotation(text="Cobertura", x=0.5, y=0.5, font=dict(family='EB Garamond', size=13, color='#5A6780'), showarrow=False)
                         fig_pie.update_layout(showlegend=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=16, b=16, l=16, r=16), height=300)
-                        st.plotly_chart(fig_pie, use_container_width=True)
+                        st.plotly_chart(fig_pie, width='stretch')
 
                 else:
                     st.error(f"Riesgo estructural: No se alcanzó la inmunización. Duración objetivo: {target_duracion:.2f} años. Posibles causas: capital insuficiente, convexidad inadecuada o instrumentos insuficientes.")
@@ -561,7 +561,7 @@ if df_pasivos is not None and df_activos is not None:
                     font=dict(family='DM Mono', color='#B0BACA'), height=450,
                     hovermode="closest"
                 )
-                st.plotly_chart(fig_frontera, use_container_width=True)
+                st.plotly_chart(fig_frontera, width='stretch')
 
                 seleccion = st.selectbox("Analizar composición del portafolio:", opciones)
                 
@@ -603,7 +603,7 @@ if df_pasivos is not None and df_activos is not None:
                         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                         font=dict(family='DM Mono', color='#B0BACA'), height=300
                     )
-                    st.plotly_chart(fig_hist, use_container_width=True)
+                    st.plotly_chart(fig_hist, width='stretch')
 
                     st.markdown(f"""
                     <div style='background: rgba(68,136,255,0.05); padding: 1.5rem; border-radius: 6px; border: 0.5px solid rgba(68,136,255,0.2);'>
@@ -632,7 +632,7 @@ elif df_pasivos is None or df_activos is None:
 st.markdown("---")
 col_btn, col_esp = st.columns([1, 4])
 with col_btn:
-    if st.button("Cerrar sesión", use_container_width=True):
+    if st.button("Cerrar sesión", width='stretch'):
         st.session_state["autenticado"] = False
         st.session_state["empresa"]     = ""
         st.session_state["db_pasivos"]  = None
