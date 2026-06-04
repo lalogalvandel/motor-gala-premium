@@ -7,26 +7,19 @@ from scipy.optimize import minimize
 # ══════════════════════════════════════════════════════════════════════════════
 
 def calcular_duracion_convexidad(flujos: np.ndarray, tiempos: np.ndarray, ytm: float) -> tuple[float, float, float]:
-    # Factores de descuento 1/(1+ytm)^t  –  forma más directa y numéricamente estable
     valores_presentes = flujos * (1 + ytm) ** -tiempos
     precio = np.sum(valores_presentes)
-
     d_mac = np.dot(tiempos, valores_presentes) / precio
     d_mod = d_mac / (1 + ytm)
-
-    # Convexidad: (1/P) * Σ [t(t+1) * VP_t] / (1+y)^2
     convexidad = np.dot(tiempos * (tiempos + 1), valores_presentes) / (precio * (1 + ytm) ** 2)
-
     return precio, d_mod, convexidad
 
 
 def simular_brecha_duracion(d_activos: float, d_pasivos: float, v_activos: float, v_pasivos: float) -> float:
-    # Fórmula directa de la brecha de duración (sin cambios necesarios)
     return d_activos - (v_pasivos / v_activos) * d_pasivos
 
 
 def calcular_rcs_mercado(exposicion: float, volatilidad_anual: float, nivel_confianza: float = 0.995) -> float:
-    # Cálculo del requerimiento de capital por riesgo de mercado (VaR paramétrico)
     return exposicion * volatilidad_anual * norm.ppf(nivel_confianza)
 
 
@@ -42,7 +35,6 @@ def optimizar_inmunizacion(duraciones_activos: np.ndarray,
 
     num_activos = len(duraciones_activos)
 
-    # Maximizar rendimiento => minimizar su negativo
     def funcion_objetivo(pesos):
         return -np.dot(pesos, rendimientos_activos)
 
@@ -52,20 +44,18 @@ def optimizar_inmunizacion(duraciones_activos: np.ndarray,
         {'type': 'ineq', 'fun': lambda w: np.dot(w, convexidades_activos) - convexidad_pasivo}
     ]
 
-    # ── Restricción de capital regulatorio (Solvencia II) ──
     usa_restriccion_capital = False
     if all(v is not None for v in [v_activos, v_pasivos, vol_activos, d_activos]):
         superavit = v_activos - v_pasivos
         if superavit > 0 and d_activos > 0:
             usa_restriccion_capital = True
             z_score = norm.ppf(0.995)
-            sigma_y = vol_activos / d_activos   # volatilidad del yield implícita
+            sigma_y = vol_activos / d_activos
 
             def scr_constraint(w):
-                # Volatilidad de la cartera: sigma_y * sqrt( Σ (w_i * D_i)^2 )
                 cartera_vol = sigma_y * np.sqrt(np.sum((w * duraciones_activos) ** 2))
                 scr = v_activos * cartera_vol * z_score
-                return superavit - scr          # >= 0
+                return superavit - scr
             restricciones.append({'type': 'ineq', 'fun': scr_constraint})
 
     limites = tuple((0.0, 1.0) for _ in range(num_activos))
@@ -88,7 +78,6 @@ def optimizar_inmunizacion(duraciones_activos: np.ndarray,
         return {"exito": False, "mensaje": mensaje}
 
     pesos_optimos = resultado.x
-
     return {
         "exito": True,
         "pesos": pesos_optimos,
@@ -96,46 +85,6 @@ def optimizar_inmunizacion(duraciones_activos: np.ndarray,
         "convexidad_lograda": np.dot(pesos_optimos, convexidades_activos),
         "rendimiento_esperado": np.dot(pesos_optimos, rendimientos_activos)
     }
-
-
-# ── Pruebas unitarias internas ──
-if __name__ == "__main__":
-    print("--- DIAGNÓSTICO ALM ---")
-    flujos_pasivos = np.array([100, 100, 100, 100, 1100])
-    tiempos = np.array([1, 2, 3, 4, 5])
-    tasa_dummy = 0.065
-
-    valor_pasivo, dur_pasivo, conv_pasivo = calcular_duracion_convexidad(flujos_pasivos, tiempos, tasa_dummy)
-
-    print(f"Valor Presente de Pasivos: ${valor_pasivo:,.2f}")
-    print(f"Duración Modificada Exigida: {dur_pasivo:.2f} años")
-    print(f"Convexidad Exigida: {conv_pasivo:.2f}\n")
-
-    print("--- OPTIMIZADOR DE RESERVAS (SHOCK-PROOF) ---")
-    nombres_bonos = ["CETES 1A", "Mbono 3A", "Mbono 10A", "Deuda Corp 5A"]
-    duraciones_mercado = np.array([0.9, 2.8, 8.1, 4.2])
-    convexidades_mercado = np.array([1.2, 9.5, 78.4, 22.1])
-    yields_mercado = np.array([0.10, 0.09, 0.085, 0.11])
-
-    # Sin restricción de capital (compatibilidad)
-    resultado = optimizar_inmunizacion(
-        duraciones_mercado,
-        convexidades_mercado,
-        yields_mercado,
-        dur_pasivo,
-        conv_pasivo
-    )
-
-    if resultado["exito"]:
-        print(f"Duración Lograda: {resultado['duracion_lograda']:.2f} años")
-        print(f"Convexidad Lograda: {resultado['convexidad_lograda']:.2f} (Supera la exigida de {conv_pasivo:.2f})")
-        print(f"Rendimiento de la Cartera: {resultado['rendimiento_esperado']*100:.2f}%\n")
-        print("Pesos a Invertir:")
-        for nombre, peso in zip(nombres_bonos, resultado["pesos"]):
-            if peso > 0.001:
-                print(f"- {nombre}: {peso*100:.1f}%")
-    else:
-        print(f"Falla: {resultado['mensaje']}")
 
 
 def frontera_eficiente_alm(duraciones_activos, convexidades_activos, rendimientos_activos,
@@ -151,7 +100,6 @@ def frontera_eficiente_alm(duraciones_activos, convexidades_activos, rendimiento
     ratio_ap = v_pasivos / v_activos
     target_max = duracion_pasivo * ratio_ap
     target_min = np.min(duraciones_activos)
-    # Aseguramos que el rango tenga sentido
     if target_min >= target_max:
         target_min = target_max * 0.8
 
@@ -161,12 +109,11 @@ def frontera_eficiente_alm(duraciones_activos, convexidades_activos, rendimiento
     for d_target in objetivos:
         res = optimizar_inmunizacion(
             duraciones_activos, convexidades_activos, rendimientos_activos,
-            d_target, convexidad_pasivo,  # convexidad_pasivo ya ajustada por ratio
+            d_target, convexidad_pasivo,
             v_activos=v_activos, v_pasivos=v_pasivos,
             vol_activos=vol_activos, d_activos=d_activos
         )
         if res["exito"]:
-            # Estimar SCR de tasa para esta cartera (aproximación simple)
             sigma_y = vol_activos / d_activos if d_activos > 0 else 0
             cartera_vol = sigma_y * np.sqrt(np.sum((res["pesos"] * duraciones_activos) ** 2))
             scr_est = v_activos * cartera_vol * norm.ppf(0.995)
@@ -186,3 +133,41 @@ def frontera_eficiente_alm(duraciones_activos, convexidades_activos, rendimiento
                 "exito": False
             })
     return frontera
+
+
+if __name__ == "__main__":
+    print("--- DIAGNÓSTICO ALM ---")
+    flujos_pasivos = np.array([100, 100, 100, 100, 1100])
+    tiempos = np.array([1, 2, 3, 4, 5])
+    tasa_dummy = 0.065
+
+    valor_pasivo, dur_pasivo, conv_pasivo = calcular_duracion_convexidad(flujos_pasivos, tiempos, tasa_dummy)
+
+    print(f"Valor Presente de Pasivos: ${valor_pasivo:,.2f}")
+    print(f"Duración Modificada Exigida: {dur_pasivo:.2f} años")
+    print(f"Convexidad Exigida: {conv_pasivo:.2f}\n")
+
+    print("--- OPTIMIZADOR DE RESERVAS (SHOCK-PROOF) ---")
+    nombres_bonos = ["CETES 1A", "Mbono 3A", "Mbono 10A", "Deuda Corp 5A"]
+    duraciones_mercado = np.array([0.9, 2.8, 8.1, 4.2])
+    convexidades_mercado = np.array([1.2, 9.5, 78.4, 22.1])
+    yields_mercado = np.array([0.10, 0.09, 0.085, 0.11])
+
+    resultado = optimizar_inmunizacion(
+        duraciones_mercado,
+        convexidades_mercado,
+        yields_mercado,
+        dur_pasivo,
+        conv_pasivo
+    )
+
+    if resultado["exito"]:
+        print(f"Duración Lograda: {resultado['duracion_lograda']:.2f} años")
+        print(f"Convexidad Lograda: {resultado['convexidad_lograda']:.2f} (Supera la exigida de {conv_pasivo:.2f})")
+        print(f"Rendimiento de la Cartera: {resultado['rendimiento_esperado']*100:.2f}%\n")
+        print("Pesos a Invertir:")
+        for nombre, peso in zip(nombres_bonos, resultado["pesos"]):
+            if peso > 0.001:
+                print(f"- {nombre}: {peso*100:.1f}%")
+    else:
+        print(f"Falla: {resultado['mensaje']}")
