@@ -559,23 +559,6 @@ if df_pasivos is not None and df_activos is not None:
 
                         st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
 
-                        try:
-                            pdf_bytes = generar_pdf_inmunizacion(
-                                empresa_cliente, valor_total_activos, vp_pasivo, ratio_cobertura,
-                                resultado['duracion_lograda'], resultado['rendimiento_esperado'], resultado['convexidad_lograda'],
-                                df_activos['Instrumento'].values, resultado['pesos'], shock_bps
-                            )
-                            st.download_button(
-                                label     = "Exportar reporte regulatorio (PDF)",
-                                data      = pdf_bytes,
-                                file_name = f"Reporte_ALM_{empresa_cliente.replace(' ', '_')}.pdf",
-                                mime      = "application/pdf",
-                                type      = "secondary",
-                                width='stretch'
-                            )
-                        except Exception as e:
-                            pass
-
                     with col_res_plot:
                         labels_f  = [n for n, p in zip(df_activos['Instrumento'].values, resultado["pesos"]) if p > 0.01]
                         valores_f = [p for p in resultado["pesos"] if p > 0.01]
@@ -712,6 +695,85 @@ if df_pasivos is not None and df_activos is not None:
                     """, unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"Error en simulación estocástica: {e}")
+
+        # ══════════════════════════════════════════════════════════════════════
+        # ── Paso 6: Requerimiento de Capital CUSF (Fórmula Estándar) ──
+        # ══════════════════════════════════════════════════════════════════════
+        st.markdown("<div style='margin-top: 3.5rem;'></div>", unsafe_allow_html=True)
+        st.markdown("""
+        <div style='margin-bottom: 1.75rem;'>
+            <div style='font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #5A6780; margin-bottom: 0.4rem;'>Paso 6 — Reporte Regulatorio Final</div>
+            <div style='font-family: "EB Garamond", Georgia, serif; font-size: 24px; color: #E8EDF5; font-weight: 400;'>Matriz de Riesgo de Mercado (CUSF / Solvencia II)</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 1. Cálculo de Shock de Spread (Aproximación de estrés crediticio: 50 puntos base)
+        shock_spread = 0.0050 
+        scr_spread = np.sum(df_activos['Valor_Mercado'].values * df_activos['Duracion'].values * shock_spread)
+
+        # 2. Agregación con Matriz de Correlación Regulatoria (Tasa vs Spread = 0.25 aprox)
+        corr_tasa_spread = 0.25
+        # Fórmula de agregación de raíz cuadrada (Estándar de Solvencia II)
+        scr_mercado_agregado = np.sqrt(scr_tasa**2 + scr_spread**2 + 2 * corr_tasa_spread * scr_tasa * scr_spread)
+
+        # 3. Cálculo del beneficio por no tener todos los huevos en la misma canasta
+        beneficio_div = (scr_tasa + scr_spread) - scr_mercado_agregado
+
+        col_cusf1, col_cusf2, col_cusf3, col_cusf4 = st.columns(4)
+        col_cusf1.metric("SCR Tasa (Riesgo Base)", f"${scr_tasa:,.2f} M")
+        col_cusf2.metric("SCR Spread (Crédito)", f"${scr_spread:,.2f} M")
+        col_cusf3.metric("Beneficio Diversificación", f"-${beneficio_div:,.2f} M", delta_color="normal")
+        
+        # Métrica destacada
+        col_cusf4.markdown(f"""
+        <div style='background: rgba(68,136,255,0.1); border: 1px solid #4488FF; padding: 0.8rem; border-radius: 6px; text-align: center;'>
+            <div style='font-family: "DM Mono", monospace; font-size: 10px; color: #4488FF; text-transform: uppercase;'>SCR Mercado Total</div>
+            <div style='font-family: "DM Mono", monospace; font-size: 1.4rem; color: #E8EDF5; font-weight: 600;'>${scr_mercado_agregado:,.2f} M</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Gráfica Institucional de Cascada (Waterfall)
+        
+        fig_waterfall = go.Figure(go.Waterfall(
+            orientation = "v",
+            measure = ["relative", "relative", "relative", "total"],
+            x = ["Riesgo de Tasa", "Riesgo de Spread", "Diversificación", "Capital CUSF Requerido"],
+            textposition = "outside",
+            text = [f"${scr_tasa:,.0f} M", f"${scr_spread:,.0f} M", f"-${beneficio_div:,.0f} M", f"${scr_mercado_agregado:,.0f} M"],
+            y = [scr_tasa, scr_spread, -beneficio_div, scr_mercado_agregado],
+            connector = {"line":{"color":"#5A6780", "width":1, "dash":"dot"}},
+            decreasing = {"marker":{"color":"#17C37B"}},
+            increasing = {"marker":{"color":"#FF4B4B"}},
+            totals = {"marker":{"color":"#4488FF"}}
+        ))
+        
+        fig_waterfall.update_layout(
+            title="Estructura del Requerimiento de Capital Estándar",
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family='DM Mono', color='#B0BACA'),
+            height=400,
+            margin=dict(t=50, b=30, l=10, r=10)
+        )
+        st.plotly_chart(fig_waterfall, use_container_width=True)
+
+        # ══════════════════════════════════════════════════════════════════════
+        # ── EXPORTACIÓN DEL REPORTE INTEGRAL ──
+        # ══════════════════════════════════════════════════════════════════════
+        st.markdown("<div style='margin-top: 2rem; border-top: 0.5px solid rgba(68,136,255,0.15); padding-top: 2rem;'></div>", unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div style='display: flex; justify-content: space-between; align-items: center;'>
+            <div>
+                <div style='font-family: "EB Garamond", Georgia, serif; font-size: 18px; color: #E8EDF5;'>Consolidación de Auditoría ALM</div>
+                <div style='font-family: "EB Garamond", Georgia, serif; font-size: 14px; color: #5A6780; font-style: italic;'>Genera el documento oficial ORSA con el análisis de brechas, estreses regulatorios y propuesta de inmunización.</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Botón Maestro (Por ahora visual, listo para conectarle la librería de generación)
+        if st.button("📄 Generar Reporte Integral ALM (PDF)", type="primary", use_container_width=True):
+            st.info("El motor de renderizado PDF Institucional se está ensamblando. Próximamente incluirá las gráficas de Cash Flow y el SCR de Mercado.")
+
     except Exception as e:
         st.error(f"Error en la ejecución matemática. Verifique que los archivos base (Activos y Pasivos) estén cargados correctamente. Detalle: {e}")
 
