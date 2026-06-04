@@ -524,6 +524,8 @@ if df_pasivos is not None and df_activos is not None:
                     vol_activos=vol_cartera,
                     d_activos=d_activos_actual
                 )
+                # ¡AGREGA ESTA LÍNEA PARA GUARDAR EL CÁLCULO EN LA MEMORIA!
+                st.session_state["resultado_opt"] = resultado
 
                 if resultado["exito"]:
                     st.markdown("---")
@@ -770,9 +772,47 @@ if df_pasivos is not None and df_activos is not None:
         </div>
         """, unsafe_allow_html=True)
         
-        # Botón Maestro (Por ahora visual, listo para conectarle la librería de generación)
-        if st.button("📄 Generar Reporte Integral ALM (PDF)", type="primary", use_container_width=True):
-            st.info("El motor de renderizado PDF Institucional se está ensamblando. Próximamente incluirá las gráficas de Cash Flow y el SCR de Mercado.")
+        # Recuperamos el resultado del optimizador de la memoria de Streamlit
+        res_opt = st.session_state.get("resultado_opt")
+        
+        if res_opt and res_opt.get("exito"):
+            try:
+                pdf_bytes = generar_reporte_alm_integral(
+                    institucion=empresa_cliente, 
+                    valor_activos=valor_total_activos, 
+                    valor_pasivos=vp_pasivo, 
+                    ratio_inicial=ratio_cobertura, 
+                    dur_activos_ini=d_activos_actual, 
+                    dur_pasivos=dur_pasivo, 
+                    shock_bps=shock_bps, 
+                    scr_tasa=scr_tasa, 
+                    scr_spread=scr_spread, 
+                    beneficio_div=beneficio_div, 
+                    scr_total=scr_mercado_agregado, 
+                    ratio_estresado=ratio_estresado,
+                    tickers_activos=df_activos['Instrumento'].values, 
+                    pesos_opt=res_opt['pesos'], 
+                    yield_opt=res_opt['rendimiento_esperado'], 
+                    dur_opt=res_opt['duracion_lograda'], 
+                    conv_opt=res_opt['convexidad_lograda'],
+                    fig_gap=fig_gap, 
+                    fig_waterfall=fig_waterfall, 
+                    fig_frontera=None, 
+                    fig_mc_surplus=None
+                )
+                
+                st.download_button(
+                    label="📄 Descargar Reporte Integral ALM (PDF)",
+                    data=pdf_bytes,
+                    file_name=f"Reporte_ORSA_{empresa_cliente.replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    type="primary",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Error generando PDF: {e}")
+        else:
+            st.warning("Ejecuta la **Inmunización SLSQP (Paso 4)** primero para habilitar la descarga del reporte.")
 
     except Exception as e:
         st.error(f"Error en la ejecución matemática. Verifique que los archivos base (Activos y Pasivos) estén cargados correctamente. Detalle: {e}")
@@ -783,7 +823,6 @@ elif df_pasivos is None or df_activos is None:
         Pendiente &nbsp;·&nbsp; Cargue ambos archivos para inicializar el diagnóstico ALM.
     </div>
     """, unsafe_allow_html=True)
-
 # ── Cierre de sesión ───────────────────────────────────────────────────────────
 st.markdown("---")
 col_btn, col_esp = st.columns([1, 4])
