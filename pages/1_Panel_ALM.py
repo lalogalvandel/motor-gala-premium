@@ -7,14 +7,14 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from supabase import create_client
-import requests  # nuevo
+import requests
 
 from modulos.actuaria_alm import (
     calcular_duracion_convexidad, optimizar_inmunizacion, calcular_rcs_mercado,
-    frontera_eficiente_alm  # nueva función
+    frontera_eficiente_alm
 )
 from modulos.reportes import generar_reporte_alm
-from modulos.estocastica import generar_escenarios_tasas, calcular_var_excedente  # modificado
+from modulos.estocastica import generar_escenarios_tasas, calcular_var_excedente
 
 # ── Configuración de página ────────────────────────────────────────────────────
 st.set_page_config(
@@ -50,8 +50,7 @@ def obtener_tasa_libre_riesgo():
         pass
     return 0.065
 
-# ── CSS ────────────────────────────────────────────────────────────────────────
-# (idéntico al que ya tienes)
+# ── CSS (sin cambios) ──────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400;500&display=swap');
@@ -267,7 +266,6 @@ with col_activos:
 st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
 
 if df_pasivos is not None and df_activos is not None:
-    # Obtener tasa dinámica de mercado
     tasa_mercado = obtener_tasa_libre_riesgo()
     
     try:
@@ -295,7 +293,6 @@ if df_pasivos is not None and df_activos is not None:
                 help="Desplazamiento paralelo para simular estrés de política monetaria."
             )
 
-
         valor_total_activos = df_activos['Valor_Mercado'].sum()
 
         vp_pasivo, dur_pasivo, conv_pasivo = calcular_duracion_convexidad(
@@ -319,52 +316,42 @@ if df_pasivos is not None and df_activos is not None:
         </div>
         """, unsafe_allow_html=True)
 
-        # RCS paramétrico (VaR de mercado)
-        rcs_mercado = calcular_rcs_mercado(valor_total_activos, vol_cartera)
+        # RCS paramétrico (no se utiliza, se ha eliminado su cálculo)
 
-        # ── SCR de Tasa de Interés (Shock Técnico) ──
         delta_y = shock_bps / 10000.0
 
-        # 1) Activos estresados (Aproximación de 2do orden de Taylor)
-        valores_estresados_activos = 0.0
-        for _, row in df_activos.iterrows():
-            v = row['Valor_Mercado']
-            d_mod = row['Duracion']
-            c = row['Convexidad']
-            v_stress = v * (1 - d_mod * delta_y + 0.5 * c * (delta_y ** 2))
-            valores_estresados_activos += v_stress
+        # Vectorización: arrays de valor, duración y convexidad de los activos
+        v = df_activos['Valor_Mercado'].values
+        d_mod = df_activos['Duracion'].values
+        c = df_activos['Convexidad'].values
 
-        # 2) Pasivos estresados (Valor Presente exacto)
+        # Shock positivo
+        v_stress_pos = v * (1 - d_mod * delta_y + 0.5 * c * delta_y**2)
+        valores_estresados_activos = np.sum(v_stress_pos)
+
+        # Pasivos estresados (VP exacto)
         flujos = df_pasivos['Flujo_Esperado'].values
         tiempos = df_pasivos['Año'].values
         tasa_estresada = tasa_mercado + delta_y
         valores_presentes_estresados = flujos * (1 + tasa_estresada) ** -tiempos
         valor_estresado_pasivos = np.sum(valores_presentes_estresados)
 
-        # 3) Cálculo de excedentes
         excedente_base = valor_total_activos - vp_pasivo
-        excedente_stress = valores_estresados_activos - valor_estresado_pasivos
+        excedente_stress_pos = valores_estresados_activos - valor_estresado_pasivos
 
-        # 4) Shock inverso (Simetría de riesgo)
-        delta_y_neg = -shock_bps / 10000.0
-        valores_estresados_activos_neg = 0.0
-        for _, row in df_activos.iterrows():
-            v = row['Valor_Mercado']
-            d_mod = row['Duracion']
-            c = row['Convexidad']
-            v_stress_neg = v * (1 - d_mod * delta_y_neg + 0.5 * c * (delta_y_neg ** 2))
-            valores_estresados_activos_neg += v_stress_neg
-            
+        # Shock negativo (simetría)
+        delta_y_neg = -delta_y
+        v_stress_neg = v * (1 - d_mod * delta_y_neg + 0.5 * c * delta_y_neg**2)
+        valores_estresados_activos_neg = np.sum(v_stress_neg)
+
         tasa_estresada_neg = tasa_mercado + delta_y_neg
         vp_pasivos_neg = np.sum(flujos * (1 + tasa_estresada_neg) ** -tiempos)
         excedente_stress_neg = valores_estresados_activos_neg - vp_pasivos_neg
 
-        # Pérdida máxima
-        perdida_pos = excedente_base - excedente_stress
+        perdida_pos = excedente_base - excedente_stress_pos
         perdida_neg = excedente_base - excedente_stress_neg
         scr_tasa = max(perdida_pos, perdida_neg, 0)
 
-        # Ratio estresado
         if perdida_pos >= perdida_neg:
             ratio_estresado = valores_estresados_activos / valor_estresado_pasivos
         else:
@@ -373,7 +360,7 @@ if df_pasivos is not None and df_activos is not None:
         # ── Métricas de auditoría ──
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Activos totales",   f"${valor_total_activos:,.2f} M")
-        c2.metric("Pasivos ",      f"${vp_pasivo:,.2f} M")
+        c2.metric("Pasivos (VP)",      f"${vp_pasivo:,.2f} M")
         
         if ratio_cobertura >= 1:
             c3.metric("Ratio de cobertura", f"{ratio_cobertura*100:.1f}%", "Suficiente")
@@ -429,7 +416,6 @@ if df_pasivos is not None and df_activos is not None:
             with st.spinner("Modelando escenarios y calculando calce óptimo..."):
                 yields_estresados = df_activos['Tasa_YTM'].values + delta_y
                 
-                # Objetivo Matemático de Inmunización (Teorema de Reddington)
                 target_duracion = dur_pasivo * ratio_apalancamiento
                 target_convexidad = conv_pasivo * ratio_apalancamiento
 
@@ -494,7 +480,7 @@ if df_pasivos is not None and df_activos is not None:
                                 use_container_width=True
                             )
                         except Exception as e:
-                            pass # Reporte omitido si no existe la función en este entorno
+                            pass
 
                     with col_res_plot:
                         labels_f  = [n for n, p in zip(df_activos['Instrumento'].values, resultado["pesos"]) if p > 0.01]
@@ -511,6 +497,7 @@ if df_pasivos is not None and df_activos is not None:
 
                 else:
                     st.error(f"Riesgo estructural: No se alcanzó la inmunización. Duración objetivo: {target_duracion:.2f} años. Posibles causas: capital insuficiente, convexidad inadecuada o instrumentos insuficientes.")
+
         # ── Paso 5: Frontera Eficiente ──
         st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
         st.markdown("""
@@ -534,7 +521,7 @@ if df_pasivos is not None and df_activos is not None:
                         target_duracion,
                         target_convexidad,
                         v_activos=valor_total_activos,
-                        v_pasivos=vp_pasivo,  # <--- AQUÍ ESTÁ LA CORRECCIÓN
+                        v_pasivos=vp_pasivo,
                         vol_activos=vol_cartera,
                         d_activos=d_activos_actual,
                         num_puntos=25 
@@ -587,6 +574,7 @@ if df_pasivos is not None and df_activos is not None:
                         st.markdown(f"- **{nombre}:** {peso*100:.1f}%")
             else:
                 st.warning("Los parámetros actuales no permiten construir una frontera válida.")
+
         # ── Simulación Estocástica ──
         st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
         st.markdown("""
