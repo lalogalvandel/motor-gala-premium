@@ -10,19 +10,23 @@ from modulos.actuaria_alm import simular_brecha_duracion, calcular_rcs_mercado, 
 # ── Configuración de página Institucional ──────────────────────────────────────
 st.set_page_config(
     page_title="GaLa Institutional Solutions",
-    page_icon="🏛️",
+    page_icon="logo_gala-removebg-preview.png",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # ── Conexión a Base de Datos ───────────────────────────────────────────────────
-try:
+@st.cache_resource
+def init_supabase_b2b():
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
-    db = create_client(url, key)
+    return create_client(url, key)
+
+try:
+    db = init_supabase_b2b()
 except Exception as e:
     st.error(f"Error al inicializar la base de datos: {e}")
-
+    
 # ── Conexión API Banxico ───────────────────────────────────────────────────────
 @st.cache_data(ttl=21600)
 def obtener_tasa_libre_riesgo():
