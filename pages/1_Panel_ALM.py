@@ -406,7 +406,9 @@ if df_pasivos is not None and df_activos is not None:
         </div>
         """, unsafe_allow_html=True)
 
+        # ══════════════════════════════════════════════════════════════════════
         # ── Paso 3.5: Análisis de Brecha de Liquidez (Cash Flow Matching) ──
+        # ══════════════════════════════════════════════════════════════════════
         st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
         st.markdown("""
         <div style='margin-bottom: 1.75rem;'>
@@ -415,19 +417,17 @@ if df_pasivos is not None and df_activos is not None:
         </div>
         """, unsafe_allow_html=True)
 
-        # 1. Generador de flujos sintéticos para activos (Aproximación Bono Bullet)
+        # 1. Generador de flujos sintéticos para activos
         flujos_activos = {}
         for _, row in df_activos.iterrows():
             v_mercado = row['Valor_Mercado']
             ytm = row['Tasa_YTM']
-            # Asumimos que la madurez es el entero más cercano a la duración para estructurar el flujo
             vencimiento = max(1, int(round(row['Duracion']))) 
             
             cupon_estimado = v_mercado * ytm
             for t in range(1, vencimiento):
                 flujos_activos[t] = flujos_activos.get(t, 0.0) + cupon_estimado
             
-            # En el año de vencimiento, ingresa el principal + el último cupón
             flujos_activos[vencimiento] = flujos_activos.get(vencimiento, 0.0) + v_mercado + cupon_estimado
 
         # 2. Extracción de flujos de pasivos
@@ -448,7 +448,6 @@ if df_pasivos is not None and df_activos is not None:
         # 4. Renderizado Institucional (Plotly)
         fig_gap = go.Figure()
         
-        # Flujos marginales (Ingresos positivos, Egresos negativos)
         fig_gap.add_trace(go.Bar(
             x=df_gap["Año"], y=df_gap["Entradas (Activos)"], 
             name="Entradas (Cupones/Vencimientos)", marker_color='#17C37B'
@@ -458,7 +457,6 @@ if df_pasivos is not None and df_activos is not None:
             name="Salidas (Siniestros/Reservas)", marker_color='#FF4B4B'
         ))
         
-        # Línea de Liquidez Acumulada
         fig_gap.add_trace(go.Scatter(
             x=df_gap["Año"], y=df_gap["Gap Acumulado"], 
             mode='lines+markers', name="Gap Acumulado (Excedente de Caja)", 
@@ -500,7 +498,9 @@ if df_pasivos is not None and df_activos is not None:
             </div>
             """, unsafe_allow_html=True)
 
+        # ══════════════════════════════════════════════════════════════════════
         # ── Paso 4: Optimizador SLSQP ──
+        # ══════════════════════════════════════════════════════════════════════
         st.markdown("<div style='margin-top: 2.5rem;'></div>", unsafe_allow_html=True)
         col_btn_opt, col_esp = st.columns([1, 3])
         with col_btn_opt:
