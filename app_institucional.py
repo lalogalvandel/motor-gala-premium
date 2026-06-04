@@ -272,7 +272,7 @@ with tab_demo:
             },
         ))
         fig.update_layout(height=280, margin=dict(l=24, r=24, t=85, b=8), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font={'family': 'EB Garamond'})
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     st.markdown("---")
     st.markdown("<div style='font-family: \"DM Mono\", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #4488FF; margin-bottom: 1rem;'>Motor de Inmunización (SLSQP)</div>", unsafe_allow_html=True)
@@ -325,7 +325,7 @@ with tab_demo:
                     valores_f = [p for p in resultado["pesos"] if p > 0.01]
                     fig_pie = go.Figure(data=[go.Pie(labels=labels_f, values=valores_f, hole=.5, textinfo='label+percent', marker=dict(colors=['#4488FF', '#17C37B', '#d4a017', '#FF4B4B']))])
                     fig_pie.update_layout(showlegend=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=10, b=10, l=10, r=10), height=250, font={'family': 'DM Mono', 'color': '#B0BACA', 'size': 11})
-                    st.plotly_chart(fig_pie, use_container_width=True)
+                    st.plotly_chart(fig_pie, width='stretch')
             else:
                 st.error(f"Riesgo estructural: {resultado['mensaje']} "
                          f"(Target duración: {target_duracion:.2f} años)")
@@ -359,7 +359,7 @@ with tab_contacto:
                 default=["Análisis Integral (Suite Completa)"]
             )
             comentarios = st.text_area("Detalles del requerimiento o comentarios (Opcional)", height=68)
-            submit_demo = st.form_submit_button("Solicitar demostración técnica", type="primary", use_container_width=True)
+            submit_demo = st.form_submit_button("Solicitar demostración técnica", type="primary", width='stretch')
 
             if submit_demo:
                 if nombre_demo and empresa_demo and email_demo and intereses_lista:
@@ -407,7 +407,7 @@ with tab_login:
         pass_corp = st.text_input("Clave de acceso",         placeholder="Token de autenticación", type="password")
         st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
 
-        if st.button("Iniciar sesión", use_container_width=True, type="primary"):
+        if st.button("Iniciar sesión", width='stretch', type="primary"):
             if id_corp and pass_corp:
                 with st.spinner("Validando credenciales..."):
                     try:
