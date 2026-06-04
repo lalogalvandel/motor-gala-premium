@@ -21,6 +21,7 @@ def generar_escenarios_tasas(tasa_inicial, n_escenarios, n_pasos, kappa, theta, 
         tasas[t] = a * tasas[t-1] + b + std * Z
     return tasas
 
+
 def valorizar_portafolio_en_escenarios(tasas_escenarios, flujos, vencimientos):
     """
     Calcula el valor presente del portafolio en cada escenario
@@ -29,16 +30,16 @@ def valorizar_portafolio_en_escenarios(tasas_escenarios, flujos, vencimientos):
     vencimientos: array de tiempos en años
     Retorna array 1D con el VP para cada escenario.
     """
-    # tasas_escenarios[-1] tiene la tasa final de cada camino
     tasas_finales = tasas_escenarios[-1]
-    # VP = sum(flujo / (1+r)^t)
     factores = (1 + tasas_finales[:, None]) ** vencimientos[None, :]
     vp = np.sum(flujos[None, :] / factores, axis=1)
     return vp
 
+
 def calcular_var_estocastico(valores_portafolio, confianza=0.995):
     """VaR no paramétrico sobre los valores del portafolio."""
     return np.percentile(valores_portafolio, (1 - confianza) * 100)
+
 
 def calcular_var_excedente(flujos_pasivos, tiempos_pasivos,
                            activos_valor, activos_duracion, activos_convexidad,
@@ -47,30 +48,56 @@ def calcular_var_excedente(flujos_pasivos, tiempos_pasivos,
     """
     Calcula el VaR del excedente (activos - pasivos) mediante Monte Carlo
     usando el modelo Vasicek exacto con variables antitéticas.
-    Retorna: var_99_5, distribucion_perdidas, escenarios_finales_tasa.
+    
+    Los pasivos se valoran con la fórmula cerrada de Vasicek
+    para bonos cupón cero, evitando la aproximación de tasa única.
     """
     # Generar caminos de tasa
     tasas = generar_escenarios_tasas(tasa_inicial, n_escenarios, n_pasos, kappa, theta, sigma)
-    tasas_finales = tasas[-1]  # tasas al final del horizonte (1 año = 12 pasos mensuales)
+    tasas_finales = tasas[-1]          # r(1) en cada escenario
 
-    # Valor presente de pasivos en cada escenario (usando la tasa final como tasa de descuento simple)
-    vp_pasivos = np.sum(flujos_pasivos * (1 + tasas_finales[:, np.newaxis]) ** -tiempos_pasivos, axis=1)
+    # --- Valor presente de los pasivos en cada escenario (Fórmula exacta Vasicek) ---
+    T_liab = np.asarray(tiempos_pasivos, dtype=float)
+    flujos = np.asarray(flujos_pasivos, dtype=float)
+    # Tiempo restante hasta cada vencimiento desde el horizonte (t=1 año)
+    tau = T_liab - 1.0                 # años que faltan para el pago
 
-    # Valor de activos en cada escenario: aproximación de segundo orden con duración y convexidad
-    # Δy = tasa_final - tasa_inicial
+    # Parámetros del modelo
+    k = kappa
+    th = theta
+    s = sigma
+
+    # Calcular B(tau) y A(tau) para cada vencimiento
+    # Si tau <= 0, el bono ya venció y su valor es 1 (se paga el flujo completo)
+    B = np.where(tau > 0, (1 - np.exp(-k * tau)) / k, 0.0)
+    A = np.where(
+        tau > 0,
+        (th - s**2/(2*k**2)) * (B - tau) - (s**2 * B**2) / (4*k),
+        0.0
+    )
+    # Precio de cada bono cupón cero: P(tau, r) = exp(A - B * r)
+    # Expandimos a dimensión de escenarios: (n_escenarios, n_flujos)
+    descuentos = np.exp(A - B * tasas_finales[:, np.newaxis])
+    vp_pasivos = np.sum(flujos * descuentos, axis=1)
+
+    # --- Valor presente base (t=0) usando la misma fórmula de Vasicek ---
+    tau0 = T_liab                          # años al vencimiento desde hoy
+    B0 = (1 - np.exp(-k * tau0)) / k
+    A0 = (th - s**2/(2*k**2)) * (B0 - tau0) - (s**2 * B0**2) / (4*k)
+    precios_base = np.exp(A0 - B0 * tasa_inicial)
+    vp_pasivos_base = np.sum(flujos * precios_base)
+
+    # --- Valor de los activos en cada escenario (aproximación de Taylor) ---
     delta_y = tasas_finales - tasa_inicial
-    v_activos_esc = activos_valor * (1 - activos_duracion * delta_y + 0.5 * activos_convexidad * delta_y**2)
+    v_activos_esc = activos_valor * (1 - activos_duracion * delta_y +
+                                     0.5 * activos_convexidad * delta_y**2)
 
-    # Excedente
+    # --- Excedente y pérdidas ---
     excedente_esc = v_activos_esc - vp_pasivos
-
-    # Pérdida respecto al excedente base (calculado con tasa_inicial)
-    vp_pasivos_base = np.sum(flujos_pasivos * (1 + tasa_inicial) ** -tiempos_pasivos)
-    v_activos_base = activos_valor  # asumimos que a tasa_inicial no hay cambio
-    excedente_base = v_activos_base - vp_pasivos_base
+    excedente_base = activos_valor - vp_pasivos_base
     perdidas = excedente_base - excedente_esc
 
-    # VaR al nivel de confianza (percentil de las pérdidas)
+    # VaR al nivel de confianza
     var = np.percentile(perdidas, confianza * 100)
 
     return var, perdidas, tasas_finales
