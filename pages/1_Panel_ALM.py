@@ -13,7 +13,7 @@ from modulos.actuaria_alm import (
     calcular_duracion_convexidad, optimizar_inmunizacion, calcular_rcs_mercado,
     frontera_eficiente_alm  # nueva función
 )
-from modulos.reportes import generar_pdf_inmunizacion
+from modulos.reportes import generar_reporte_alm
 from modulos.estocastica import generar_escenarios_tasas, calcular_var_excedente  # modificado
 
 # ── Configuración de página ────────────────────────────────────────────────────
