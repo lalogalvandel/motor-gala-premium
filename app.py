@@ -302,6 +302,19 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+# ── Función de limpieza de estados dependientes del cliente ─────────────────
+def limpiar_estados_cliente():
+    """Elimina todas las claves de session_state relacionadas con análisis y cliente actual."""
+    claves_a_limpiar = [
+        "optimizado", "pesos_opt", "ret_opt", "vol_opt", "sharpe_opt",
+        "resultados", "df_regimenes", "df_screening", "vistas_bl",
+        "usar_bl", "riesgo_objetivo_ldi", "perfil_ldi_nombre",
+        "pension_imss", "brecha", "cliente_activo_id",
+    ]
+    for clave in claves_a_limpiar:
+        if clave in st.session_state:
+            del st.session_state[clave]
+
 # Función Helper para ocultar valores sensibles si el modo está activo
 def f_val(valor, formato="${:,.2f}"):
     return "$ ••••••" if st.session_state.modo_privacidad else formato.format(valor)
@@ -310,6 +323,10 @@ def f_val(valor, formato="${:,.2f}"):
 # LANDING — AUTH
 # ══════════════════════════════════════════════════════════════════════════════
 if st.session_state["usuario_premium"] is None:
+    # Limpieza absoluta al entrar en modo login (sin sesión)
+    limpiar_estados_cliente()
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
 
     st.markdown("""
     <div style='padding: 3rem 0 1.5rem; text-align: left;'>
@@ -524,6 +541,8 @@ with col_salir:
     # Control de Modo Privacidad Integrado en Header Superior
     if st.button("Cerrar sesión", width='stretch'):
         st.session_state["usuario_premium"] = None
+        limpiar_estados_cliente()
+        st.session_state.clear()  # Limpieza total opcional, garantiza borrar todo lo privado
         st.rerun()
 
 st.markdown(
@@ -576,6 +595,8 @@ with st.sidebar:
         datos_c = nombres_clientes[cliente_seleccionado]
         if st.session_state.get("cliente_activo_id") != datos_c["id"]:
             st.session_state["cliente_activo_id"] = datos_c["id"]
+            limpiar_estados_cliente()
+            
             st.session_state["semanas_cotizadas"] = int(datos_c.get("semanas_cotizadas", 1800))
             st.session_state["salario_promedio"]  = float(datos_c.get("salario_promedio", 2000.0))
             st.session_state["meta_mensual"]      = float(datos_c.get("meta_mensual", 30000.0))
@@ -601,18 +622,7 @@ with st.sidebar:
     else:
         if st.session_state.get("cliente_activo_id") is not None:
             st.session_state["cliente_activo_id"] = None
-
-            # Limpiar estados de análisis anteriores
-            st.session_state["vistas_bl"] = []
-            st.session_state["usar_bl"] = False
-            st.session_state.pop("riesgo_objetivo_ldi", None)
-            st.session_state.pop("perfil_ldi_nombre", None)
-            st.session_state.pop("pension_imss", None)
-            st.session_state.pop("brecha", None)
-            st.session_state["optimizado"] = False
-            st.session_state["pesos_opt"] = None
-            st.session_state["resultados"] = None
-
+            limpiar_estados_cliente()
             st.rerun()
 
     # Botón para guardar el progreso
