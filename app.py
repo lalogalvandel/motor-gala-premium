@@ -430,6 +430,7 @@ if st.session_state["usuario_premium"] is None:
                     st.warning("Complete todos los campos.")
                 else:
                     ok, usuario = autenticar_premium(email_l, pass_l)
+                    st.write(f"Resultado autenticación: ok={ok}, usuario={usuario}")
                     if ok:
                         st.session_state["usuario_premium"] = usuario
                         st.session_state["login_intentos"]  = 0
