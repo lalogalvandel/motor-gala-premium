@@ -424,6 +424,9 @@ with tab_login:
                             
                             st.session_state["db_pasivos"]  = cliente.get("pasivos_json")
                             st.session_state["db_activos"]  = cliente.get("activos_json")
+                            
+                            # ── EL CAJÓN DE MEMORIA DE LA INTERFAZ ──
+                            st.session_state["config_ui"]   = cliente.get("configuracion_ui") or {}
                             st.rerun()
                         else:
                             st.error("Credenciales inválidas o acceso revocado. Contacte al equipo técnico.")
