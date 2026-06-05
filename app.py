@@ -900,6 +900,58 @@ with tab_wallet:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Mesa de Operaciones</div>""", unsafe_allow_html=True)
         
         tab_flujo, tab_transf, tab_mtm, tab_nueva, tab_eliminar = st.tabs(["Flujo", "Transferencia", "MTM", "Nueva", "Eliminar"])
+
+        with tab_transf:
+            st.caption("Migración de capital entre cuentas sin alterar el patrimonio total.")
+            with st.form("form_transferencia"):
+                if len(df_cuentas) >= 2:
+                    cta_origen = st.selectbox("Origen (Retiro)", list(mapa_cuentas.keys()), key="cta_orig")
+                    cta_destino = st.selectbox("Destino (Aportación)", list(mapa_cuentas.keys()), key="cta_dest")
+                    monto_transf = st.number_input("Monto a migrar (MXN)", min_value=1.0, step=1000.0)
+                    nota_transf = st.text_input("Concepto", value="Rebalanceo / Migración de tasa")
+                    
+                    if st.form_submit_button("Ejecutar Transferencia", width='stretch'):
+                        if cta_origen == cta_destino:
+                            st.warning("Seleccione cuentas distintas para la migración.")
+                        else:
+                            id_origen = mapa_cuentas[cta_origen]
+                            id_destino = mapa_cuentas[cta_destino]
+                            saldo_origen = df_cuentas.loc[df_cuentas["id"] == id_origen, "Saldo (MXN)"].values[0]
+                            saldo_destino = df_cuentas.loc[df_cuentas["id"] == id_destino, "Saldo (MXN)"].values[0]
+                            
+                            if monto_transf > saldo_origen:
+                                st.error(f"Fondo insuficiente en {cta_origen}.")
+                            else:
+                                # 1. Retiro de la cuenta origen
+                                registrar_transaccion_wallet(id_origen, saldo_origen, "GASTO", monto_transf, f"{nota_transf} (Hacia {cta_destino})")
+                                # 2. Aportación a la cuenta destino
+                                registrar_transaccion_wallet(id_destino, saldo_destino, "INGRESO", monto_transf, f"{nota_transf} (Desde {cta_origen})")
+                                st.success("Migración de capital liquidada exitosamente.")
+                                st.rerun()
+                else:
+                    st.info("Requiere al menos 2 cuentas aperturadas para realizar transferencias.")
+
+        with tab_eliminar:
+            st.caption("Cierre definitivo de cuentas inactivas.")
+            with st.form("form_eliminar_cuenta"):
+                if not df_cuentas.empty:
+                    cta_eliminar = st.selectbox("Seleccione la cuenta a cerrar", list(mapa_cuentas.keys()))
+                    
+                    if st.form_submit_button("Cerrar Cuenta", type="primary", width='stretch'):
+                        id_baja = mapa_cuentas[cta_eliminar]
+                        saldo_baja = df_cuentas.loc[df_cuentas["id"] == id_baja, "Saldo (MXN)"].values[0]
+                        
+                        if saldo_baja > 0:
+                            st.error("Protocolo de seguridad: No puede eliminar una cuenta con capital activo. Utilice la pestaña 'Transferencia' para vaciarla a $0.00 primero.")
+                        else:
+                            ok, msg = eliminar_cuenta_wallet(id_baja)
+                            if ok:
+                                st.success(msg)
+                                st.rerun()
+                            else:
+                                st.error(msg)
+                else:
+                    st.info("No hay cuentas disponibles en el sistema.")
         
         with tab_flujo:
             with st.form("form_flujo"):
