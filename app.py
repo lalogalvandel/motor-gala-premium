@@ -237,6 +237,15 @@ def obtener_historial_movimientos(ids_cuentas: list) -> list:
         return r.data or []
     except Exception as e:
         return []
+
+def eliminar_cuenta_wallet(id_cuenta: int) -> tuple[bool, str]:
+    try:
+        # Supabase se encargará de borrar los movimientos asociados si tienes "Cascade Delete" activado, 
+        # o fallará de forma segura si la cuenta aún tiene historial que deba preservarse.
+        db.table("wallet_cuentas").delete().eq("id", int(id_cuenta)).execute()
+        return True, "Cuenta eliminada permanentemente del sistema."
+    except Exception as e:
+        return False, f"Error al eliminar (asegúrese de transferir los fondos primero): {e}"
 # ── Estado de sesión ───────────────────────────────────────────────────────────
 defaults = {
     "usuario_premium": None,
@@ -890,7 +899,7 @@ with tab_wallet:
     with col_ops:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Mesa de Operaciones</div>""", unsafe_allow_html=True)
         
-        tab_flujo, tab_mtm, tab_nueva = st.tabs(["Registrar Flujo", "Ajuste Mark-to-Market", "Nueva Cuenta"])
+        tab_flujo, tab_transf, tab_mtm, tab_nueva, tab_eliminar = st.tabs(["Flujo", "Transferencia", "MTM", "Nueva", "Eliminar"])
         
         with tab_flujo:
             with st.form("form_flujo"):
