@@ -836,7 +836,7 @@ with tab_wallet:
         
     with col_tog:
         # Aquí vive ahora el switch, alineado a la derecha
-        ocultar_saldos = st.toggle("Ocultar saldos", value=False)
+        st.toggle("Ocultar saldos", key="modo_privacidad")
     
     st.caption("Registro de flujos de efectivo, conciliación de saldos y cálculo de tasa ponderada efectiva.")
 
