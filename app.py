@@ -70,7 +70,7 @@ def tiene_cuenta_lite(email: str) -> bool:
     except Exception:
         return False
 
-def registrar_premium(nombre: str, email: str, password: str) -> tuple[bool, str]:
+def registrar_premium(nombre: str, email: str, password: str, id_corp: str = "admin_tenant") -> tuple[bool, str]:
     try:
         existe = db.table("usuarios_premium").select("id").eq("email", email.lower()).execute()
         if existe.data:
@@ -81,6 +81,7 @@ def registrar_premium(nombre: str, email: str, password: str) -> tuple[bool, str
             "email":          email.strip().lower(),
             "password_hash":  hashear(password),
             "tiene_lite":     lite,
+            "id_corp":        id_corp  # ── SELLO MULTI-TENANT BLINDADO ──
         }).execute()
         msg = "Cuenta creada. Se detectó acceso GaLa Lite — su descuento ha sido registrado." if lite \
               else "Cuenta creada correctamente."
@@ -91,7 +92,7 @@ def registrar_premium(nombre: str, email: str, password: str) -> tuple[bool, str
 def autenticar_premium(email: str, password: str) -> tuple[bool, dict]:
     try:
         r = db.table("usuarios_premium") \
-            .select("id, nombre_display, email, tiene_lite") \
+            .select("id, nombre_display, email, tiene_lite, id_corp, configuracion_ui") \
             .eq("email", email.strip().lower()) \
             .eq("password_hash", hashear(password)) \
             .execute()
@@ -159,15 +160,17 @@ def obtener_posts_aprobados():
         return []
 
 # ── Utilidades CRM (Gestión de Clientes) ───────────────────────────────────────
-def obtener_clientes(id_asesor: str) -> list:
+def obtener_clientes(id_corp: str) -> list:
     try:
-        r = db.table("clientes_asesor").select("*").eq("id_asesor", id_asesor).order("nombre_cliente").execute()
+        # Extrae expedientes únicamente de la empresa activa
+        r = db.table("clientes_asesor").select("*").eq("id_corp", id_corp).order("nombre_cliente").execute()
         return r.data or []
     except Exception:
         return []
 
-def guardar_cliente(datos: dict) -> tuple[bool, str]:
+def guardar_cliente(datos: dict, id_corp: str) -> tuple[bool, str]:
     try:
+        datos["id_corp"] = id_corp # Estampamos la llave corporativa antes de guardar
         if "id" in datos and datos["id"]:
             cliente_id = datos.pop("id")
             db.table("clientes_asesor").update(datos).eq("id", cliente_id).execute()
@@ -178,17 +181,19 @@ def guardar_cliente(datos: dict) -> tuple[bool, str]:
         return False, f"Error al guardar: {e}"
 
 # ── Utilidades Tesorería (Wallet) ──────────────────────────────────────────────
-def obtener_cuentas_wallet(id_asesor: str) -> list:
+def obtener_cuentas_wallet(id_corp: str) -> list:
     try:
-        r = db.table("wallet_cuentas").select("id, institucion, tasa_anual, saldo").eq("id_asesor", id_asesor).order("institucion").execute()
+        # Filtro de seguridad perimetral por corporativo
+        r = db.table("wallet_cuentas").select("id, institucion, tasa_anual, saldo").eq("id_corp", id_corp).order("institucion").execute()
         return r.data or []
     except Exception:
         return []
 
-def agregar_cuenta_wallet(id_asesor: str, institucion: str, tasa_anual: float, saldo: float) -> tuple[bool, str]:
+def agregar_cuenta_wallet(id_asesor: str, id_corp: str, institucion: str, tasa_anual: float, saldo: float) -> tuple[bool, str]:
     try:
         db.table("wallet_cuentas").insert({
             "id_asesor": id_asesor,
+            "id_corp": id_corp,
             "institucion": institucion.strip(),
             "tasa_anual": tasa_anual,
             "saldo": saldo
@@ -199,29 +204,25 @@ def agregar_cuenta_wallet(id_asesor: str, institucion: str, tasa_anual: float, s
 
 from datetime import datetime, timezone
 
-def registrar_transaccion_wallet(id_cuenta: int, saldo_actual: float, tipo: str, monto: float, concepto: str) -> tuple[bool, str]:
+def registrar_transaccion_wallet(id_cuenta: int, saldo_actual: float, tipo: str, antiqued_monto: float, concepto: str) -> tuple[bool, str]:
     try:
-        # Generamos la hora exacta (UTC) desde el motor de Python
         fecha_ahora = datetime.now(timezone.utc).isoformat()
-        
-        # 1. Registrar la auditoría asegurando tipos de datos puros y fecha forzada
-        monto_absoluto = abs(float(monto))
+        monto_absoluto = abs(float(antiqued_monto))
         db.table("wallet_movimientos").insert({
             "id_cuenta": int(id_cuenta),
             "tipo": str(tipo),
-            "monto": float(monto), # El MTM usa su propio signo
+            "monto": float(antiqued_monto), 
             "concepto": str(concepto).strip(),
-            "created_at": fecha_ahora  # <── ANTÍDOTO ANTI-FANTASMAS
+            "created_at": fecha_ahora  
         }).execute()
         
-        # 2. Actualizar el saldo maestro de la cuenta
         nuevo_saldo = float(saldo_actual)
         if tipo == "INGRESO":
             nuevo_saldo += monto_absoluto
         elif tipo == "GASTO":
             nuevo_saldo -= monto_absoluto
         elif tipo == "AJUSTE MTM":
-            nuevo_saldo += float(monto) 
+            nuevo_saldo += float(antiqued_monto) 
             
         db.table("wallet_cuentas").update({"saldo": nuevo_saldo}).eq("id", int(id_cuenta)).execute()
         return True, "Transacción liquidada y saldo actualizado."
@@ -232,16 +233,19 @@ def obtener_historial_movimientos(ids_cuentas: list) -> list:
     if not ids_cuentas:
         return []
     try:
-        # El .limit(10000) rompe cualquier tope por defecto de la API
         r = db.table("wallet_movimientos").select("*").in_("id_cuenta", ids_cuentas).order("created_at").limit(10000).execute()
         return r.data or []
     except Exception as e:
         return []
 
+    try:
+        db.table("wallet_cuentas").delete().eq("id", int(id_cuenta)).execute()
+        return True, "Cuenta eliminada permanentemente del sistema."
+    except Exception as e:
+        return False, f"Error al eliminar (asegúrese de transferir los fondos primero): {e}"
+
 def eliminar_cuenta_wallet(id_cuenta: int) -> tuple[bool, str]:
     try:
-        # Supabase se encargará de borrar los movimientos asociados si tienes "Cascade Delete" activado, 
-        # o fallará de forma segura si la cuenta aún tiene historial que deba preservarse.
         db.table("wallet_cuentas").delete().eq("id", int(id_cuenta)).execute()
         return True, "Cuenta eliminada permanentemente del sistema."
     except Exception as e:
@@ -537,7 +541,7 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("👥 Expedientes (CRM)")
 
-    clientes_db = obtener_clientes(usuario["id"])
+    clientes_db = obtener_clientes(usuario.get("id_corp", "admin_tenant"))
     nombres_clientes = {c["nombre_cliente"]: c for c in clientes_db}
     opciones_cliente = ["✚ Nuevo Cliente (Sin seleccionar)"] + list(nombres_clientes.keys())
 
@@ -608,7 +612,7 @@ with st.sidebar:
                 if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" and nuevo_nombre == cliente_seleccionado:
                     datos_guardar["id"] = st.session_state["cliente_activo_id"]
 
-                ok, msg = guardar_cliente(datos_guardar)
+                ok, msg = guardar_cliente(datos_guardar, usuario.get("id_corp", "admin_tenant"))
                 if ok:
                     st.success(msg)
                     st.rerun()
@@ -841,7 +845,7 @@ with tab_wallet:
     st.caption("Registro de flujos de efectivo, conciliación de saldos y cálculo de tasa ponderada efectiva.")
 
     # ── CONEXIÓN REAL A SUPABASE ──
-    cuentas_db = obtener_cuentas_wallet(usuario["id"])
+    cuentas_db = obtener_cuentas_wallet(usuario.get("id_corp", "admin_tenant"))
     
     if not cuentas_db:
         df_cuentas = pd.DataFrame(columns=["id", "institucion", "tasa_anual", "saldo"])
@@ -1027,7 +1031,7 @@ with tab_wallet:
                     if not nom_cuenta.strip():
                         st.warning("Ingrese un nombre de institución válido.")
                     else:
-                        ok, msg = agregar_cuenta_wallet(usuario["id"], nom_cuenta, tasa_cuenta, saldo_ini)
+                        ok, msg = agregar_cuenta_wallet(usuario["id"], usuario.get("id_corp", "admin_tenant"), nom_cuenta, tasa_cuenta, saldo_ini)
                         if ok:
                             st.success(msg)
                             st.rerun()
