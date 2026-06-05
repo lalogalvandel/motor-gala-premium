@@ -115,10 +115,14 @@ def autenticar_premium(email: str, password: str) -> tuple[bool, dict]:
         if not verificar_hash(password, usuario["password_hash"]):
             return False, {}
         
-        # Migración automática a bcrypt si el hash almacenado es SHA-256 antiguo
-        if not usuario["password_hash"].startswith("$2"):
-            nuevo_hash = hashear(password)
-            db.table("usuarios_premium").update({"password_hash": nuevo_hash}).eq("id", usuario["id"]).execute()
+     # Migración automática a bcrypt (no bloquea el login si falla)
+        try:
+            if not usuario["password_hash"].startswith("$2"):
+                nuevo_hash = hashear(password)
+                db.table("usuarios_premium").update({"password_hash": nuevo_hash}).eq("id", usuario["id"]).execute()
+        except Exception:
+            # Si la migración falla, continuamos con el login normalmente
+            pass
         
         # Por seguridad, no mantenemos el hash en la sesión
         del usuario["password_hash"]
