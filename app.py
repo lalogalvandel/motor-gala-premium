@@ -327,10 +327,6 @@ def f_val(valor, formato="${:,.2f}"):
 # LANDING — AUTH
 # ══════════════════════════════════════════════════════════════════════════════
 if st.session_state["usuario_premium"] is None:
-    # Limpieza absoluta al entrar en modo login (sin sesión)
-    limpiar_estados_cliente()
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
 
     st.markdown("""
     <div style='padding: 3rem 0 1.5rem; text-align: left;'>
