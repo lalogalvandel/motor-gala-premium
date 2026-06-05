@@ -188,17 +188,20 @@ def obtener_posts_aprobados():
         return []
 
 # ── Utilidades CRM (Gestión de Clientes) ───────────────────────────────────────
-def obtener_clientes(id_corp: str) -> list:
+def obtener_clientes(id_usuario: str) -> list:
     try:
-        # Extrae expedientes únicamente de la empresa activa
-        r = db.table("clientes_asesor").select("*").eq("id_corp", id_corp).order("nombre_cliente").execute()
+        r = db.table("clientes_asesor") \
+            .select("*") \
+            .eq("id_asesor", id_usuario) \
+            .order("nombre_cliente") \
+            .execute()
         return r.data or []
     except Exception:
         return []
 
 def guardar_cliente(datos: dict, id_corp: str) -> tuple[bool, str]:
     try:
-        datos["id_corp"] = id_corp # Estampamos la llave corporativa antes de guardar
+        #datos["id_corp"] = id_corp # Estampamos la llave corporativa antes de guardar
         if "id" in datos and datos["id"]:
             cliente_id = datos.pop("id")
             db.table("clientes_asesor").update(datos).eq("id", cliente_id).execute()
@@ -209,10 +212,13 @@ def guardar_cliente(datos: dict, id_corp: str) -> tuple[bool, str]:
         return False, f"Error al guardar: {e}"
 
 # ── Utilidades Tesorería (Wallet) ──────────────────────────────────────────────
-def obtener_cuentas_wallet(id_corp: str) -> list:
+def obtener_cuentas_wallet(id_usuario: str) -> list:
     try:
-        # Filtro de seguridad perimetral por corporativo
-        r = db.table("wallet_cuentas").select("id, institucion, tasa_anual, saldo").eq("id_corp", id_corp).order("institucion").execute()
+        r = db.table("wallet_cuentas") \
+            .select("id, institucion, tasa_anual, saldo") \
+            .eq("id_asesor", id_usuario) \
+            .order("institucion") \
+            .execute()
         return r.data or []
     except Exception:
         return []
@@ -585,7 +591,7 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("👥 Expedientes (CRM)")
 
-    clientes_db = obtener_clientes(usuario.get("id_corp", "admin_tenant"))
+    clientes_db = obtener_clientes(usuario["id"])
     nombres_clientes = {c["nombre_cliente"]: c for c in clientes_db}
     opciones_cliente = ["✚ Nuevo Cliente (Sin seleccionar)"] + list(nombres_clientes.keys())
 
@@ -880,7 +886,7 @@ with tab_wallet:
     st.caption("Registro de flujos de efectivo, conciliación de saldos y cálculo de tasa ponderada efectiva.")
 
     # ── CONEXIÓN REAL A SUPABASE ──
-    cuentas_db = obtener_cuentas_wallet(usuario.get("id_corp", "admin_tenant"))
+    cuentas_db = obtener_cuentas_wallet(usuario["id"])
     
     if not cuentas_db:
         df_cuentas = pd.DataFrame(columns=["id", "institucion", "tasa_anual", "saldo"])
