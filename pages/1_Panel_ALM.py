@@ -16,6 +16,18 @@ from modulos.actuaria_alm import (
 from modulos.reportes import generar_reporte_alm_integral
 from modulos.estocastica import generar_escenarios_tasas, calcular_var_excedente
 
+# ── Persistencia de Estado en Segundo Plano ──
+def guardar_memoria_ui():
+    try:
+        nueva_config = {
+            "vol_cartera": st.session_state.get("ui_vol_cartera", 0.08),
+            "shock_bps": st.session_state.get("ui_shock_bps", 0)
+        }
+        # Dispara la actualización silenciosa a Supabase
+        db.table("usuarios_b2b").update({"configuracion_ui": nueva_config}).eq("id_corp", st.session_state.get("id_corp")).execute()
+    except Exception:
+        pass
+
 # ── Configuración de página ────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Panel ALM | Motor GaLa",
@@ -279,17 +291,26 @@ if df_pasivos is not None and df_activos is not None:
         </div>
         """, unsafe_allow_html=True)
 
+        # Leemos la memoria actual (o aplicamos defaults si está vacía)
+        memoria = st.session_state.get("config_ui", {})
+        val_vol_cartera = float(memoria.get("vol_cartera", 0.08))
+        val_shock_bps   = int(memoria.get("shock_bps", 0))
+
         col_param1, col_param2 = st.columns(2, gap="large")
         with col_param1:
             vol_cartera = st.slider(
                 "Volatilidad Anual del Portafolio (%)",
-                min_value=0.0, max_value=0.30, value=0.08, step=0.01, format="%.2f",
+                min_value=0.0, max_value=0.30, 
+                value=val_vol_cartera, step=0.01, format="%.2f",
+                key="ui_vol_cartera", on_change=guardar_memoria_ui, # <── Conexión mágica
                 help="Nivel de volatilidad estimado para el cálculo regulatorio del RCS."
             )
         with col_param2:
             shock_bps = st.slider(
                 "Shock en Curva de Tasas (Puntos Base)", 
-                min_value=-300, max_value=300, value=0, step=25,
+                min_value=-300, max_value=300, 
+                value=val_shock_bps, step=25,
+                key="ui_shock_bps", on_change=guardar_memoria_ui,   # <── Conexión mágica
                 help="Desplazamiento paralelo para simular estrés de política monetaria."
             )
 
