@@ -5,6 +5,7 @@ import numpy as np
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import hashlib
+import bcrypt
 import secrets as secrets_lib
 import yfinance as yf
 
@@ -61,7 +62,19 @@ db = init_supabase()
 
 # ── Utilidades de autenticación ────────────────────────────────────────────────
 def hashear(texto: str) -> str:
-    return hashlib.sha256(texto.encode()).hexdigest()
+    """Devuelve el hash bcrypt de una contraseña (incluye salt)."""
+    return bcrypt.hashpw(texto.encode(), bcrypt.gensalt()).decode()
+
+def verificar_hash(texto: str, hash_almacenado: str) -> bool:
+    """
+    Verifica una contraseña contra su hash almacenado.
+    Soporta bcrypt (prefijo $2b$/$2a$) y SHA-256 legacy para migración.
+    """
+    # Si es un hash bcrypt moderno
+    if hash_almacenado.startswith("$2"):
+        return bcrypt.checkpw(texto.encode(), hash_almacenado.encode())
+    # Si no, asumimos SHA-256 legacy (usuarios antiguos)
+    return hashlib.sha256(texto.encode()).hexdigest() == hash_almacenado
 
 def tiene_cuenta_lite(email: str) -> bool:
     try:
@@ -92,13 +105,24 @@ def registrar_premium(nombre: str, email: str, password: str, id_corp: str = "ad
 def autenticar_premium(email: str, password: str) -> tuple[bool, dict]:
     try:
         r = db.table("usuarios_premium") \
-            .select("id, nombre_display, email, tiene_lite, id_corp, configuracion_ui") \
+            .select("id, nombre_display, email, tiene_lite, id_corp, configuracion_ui, password_hash") \
             .eq("email", email.strip().lower()) \
-            .eq("password_hash", hashear(password)) \
             .execute()
-        if r.data:
-            return True, r.data[0]
-        return False, {}
+        if not r.data:
+            return False, {}
+        usuario = r.data[0]
+        
+        if not verificar_hash(password, usuario["password_hash"]):
+            return False, {}
+        
+        # Migración automática a bcrypt si el hash almacenado es SHA-256 antiguo
+        if not usuario["password_hash"].startswith("$2"):
+            nuevo_hash = hashear(password)
+            db.table("usuarios_premium").update({"password_hash": nuevo_hash}).eq("id", usuario["id"]).execute()
+        
+        # Por seguridad, no mantenemos el hash en la sesión
+        del usuario["password_hash"]
+        return True, usuario
     except Exception:
         return False, {}
 
