@@ -12,3 +12,4 @@ lxml
 requests
 kaleido==0.2.1
 fpdf
+bcrypt
