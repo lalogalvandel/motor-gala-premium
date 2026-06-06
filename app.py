@@ -81,24 +81,24 @@ def tiene_cuenta_lite(email: str) -> bool:
     except Exception:
         return False
 
-def registrar_premium(nombre: str, email: str, password: str, id_corp: str = None) -> tuple[bool, str]:
+def registrar_premium(nombre: str, email: str, password: str) -> tuple[bool, str]:
     try:
         existe = db.table("usuarios_premium").select("id").eq("email", email.lower()).execute()
         if existe.data:
             return False, "Ya existe una cuenta Premium con ese correo."
         lite = tiene_cuenta_lite(email)
         
-        # ── LA MAGIA DEL AISLAMIENTO (MULTI-TENANT) ──
-        # Si no se provee un corporativo, le creamos un "edificio" único en el mundo.
-        tenant_asignado = id_corp if id_corp else f"corp_{secrets_lib.token_hex(6)}"
+        # ── GENERACIÓN DE BÓVEDA ÚNICA PARA EL NUEVO USUARIO ──
+        nuevo_id_corp = f"corp_{secrets_lib.token_hex(6)}"
         
         db.table("usuarios_premium").insert({
             "nombre_display": nombre.strip(),
             "email":          email.strip().lower(),
             "password_hash":  hashear(password),
             "tiene_lite":     lite,
-            "id_corp":        tenant_asignado  # <── SELLO ÚNICO INDETRASPASABLE
+            "id_corp":        nuevo_id_corp  # <── SELLO ÚNICO, IMPOSIBLE DE CRUZAR
         }).execute()
+        
         msg = "Cuenta creada. Se detectó acceso GaLa Lite — su descuento ha sido registrado." if lite else "Cuenta creada correctamente."
         return True, msg
     except Exception as e:
@@ -593,7 +593,7 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("👥 Expedientes (CRM)")
 
-    clientes_db = obtener_clientes(usuario.get("id_corp", "admin_tenant"))
+    clientes_db = obtener_clientes(usuario.get("id_corp"))
     nombres_clientes = {c["nombre_cliente"]: c for c in clientes_db}
     opciones_cliente = ["✚ Nuevo Cliente (Sin seleccionar)"] + list(nombres_clientes.keys())
 
@@ -644,7 +644,7 @@ with st.sidebar:
                 if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" and nuevo_nombre == cliente_seleccionado:
                     datos_guardar["id"] = st.session_state["cliente_activo_id"]
 
-                ok, msg = guardar_cliente(datos_guardar, usuario.get("id_corp", "admin_tenant"))
+                ok, msg = guardar_cliente(datos_guardar, usuario.get("id_corp"))
                 if ok:
                     st.success(msg)
                     st.rerun()
@@ -878,7 +878,7 @@ with tab_wallet:
     st.caption("Registro de flujos de efectivo, conciliación de saldos y cálculo de tasa ponderada efectiva.")
 
     # ── CONEXIÓN REAL A SUPABASE ──
-    cuentas_db = obtener_cuentas_wallet(usuario.get("id_corp", "admin_tenant"))
+    cuentas_db = obtener_cuentas_wallet(usuario.get("id_corp"))
     
     if not cuentas_db:
         df_cuentas = pd.DataFrame(columns=["id", "institucion", "tasa_anual", "saldo"])
@@ -1064,7 +1064,7 @@ with tab_wallet:
                     if not nom_cuenta.strip():
                         st.warning("Ingrese un nombre de institución válido.")
                     else:
-                        ok, msg = agregar_cuenta_wallet(usuario["id"], usuario.get("id_corp", "admin_tenant"), nom_cuenta, tasa_cuenta, saldo_ini)
+                        ok, msg = agregar_cuenta_wallet(usuario["id"], usuario.get("id_corp"), nom_cuenta, tasa_cuenta, saldo_ini)
                         if ok:
                             st.success(msg)
                             st.rerun()
