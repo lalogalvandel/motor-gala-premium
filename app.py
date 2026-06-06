@@ -81,18 +81,23 @@ def tiene_cuenta_lite(email: str) -> bool:
     except Exception:
         return False
 
-def registrar_premium(nombre: str, email: str, password: str, id_corp: str = "admin_tenant") -> tuple[bool, str]:
+def registrar_premium(nombre: str, email: str, password: str, id_corp: str = None) -> tuple[bool, str]:
     try:
         existe = db.table("usuarios_premium").select("id").eq("email", email.lower()).execute()
         if existe.data:
             return False, "Ya existe una cuenta Premium con ese correo."
         lite = tiene_cuenta_lite(email)
+        
+        # ── LA MAGIA DEL AISLAMIENTO (MULTI-TENANT) ──
+        # Si no se provee un corporativo, le creamos un "edificio" único en el mundo.
+        tenant_asignado = id_corp if id_corp else f"corp_{secrets_lib.token_hex(6)}"
+        
         db.table("usuarios_premium").insert({
             "nombre_display": nombre.strip(),
             "email":          email.strip().lower(),
             "password_hash":  hashear(password),
             "tiene_lite":     lite,
-            "id_corp":        id_corp  # ── SELLO MULTI-TENANT BLINDADO ──
+            "id_corp":        tenant_asignado  # <── SELLO ÚNICO INDETRASPASABLE
         }).execute()
         msg = "Cuenta creada. Se detectó acceso GaLa Lite — su descuento ha sido registrado." if lite else "Cuenta creada correctamente."
         return True, msg
