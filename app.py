@@ -70,10 +70,8 @@ def verificar_hash(texto: str, hash_almacenado: str) -> bool:
     Verifica una contraseña contra su hash almacenado.
     Soporta bcrypt (prefijo $2b$/$2a$) y SHA-256 legacy para migración.
     """
-    # Si es un hash bcrypt moderno
     if hash_almacenado.startswith("$2"):
         return bcrypt.checkpw(texto.encode(), hash_almacenado.encode())
-    # Si no, asumimos SHA-256 legacy (usuarios antiguos)
     return hashlib.sha256(texto.encode()).hexdigest() == hash_almacenado
 
 def tiene_cuenta_lite(email: str) -> bool:
@@ -96,8 +94,7 @@ def registrar_premium(nombre: str, email: str, password: str, id_corp: str = "ad
             "tiene_lite":     lite,
             "id_corp":        id_corp  # ── SELLO MULTI-TENANT BLINDADO ──
         }).execute()
-        msg = "Cuenta creada. Se detectó acceso GaLa Lite — su descuento ha sido registrado." if lite \
-              else "Cuenta creada correctamente."
+        msg = "Cuenta creada. Se detectó acceso GaLa Lite — su descuento ha sido registrado." if lite else "Cuenta creada correctamente."
         return True, msg
     except Exception as e:
         return False, f"Error al registrar: {e}"
@@ -115,16 +112,14 @@ def autenticar_premium(email: str, password: str) -> tuple[bool, dict]:
         if not verificar_hash(password, usuario["password_hash"]):
             return False, {}
         
-     # Migración automática a bcrypt (no bloquea el login si falla)
+        # Migración automática a bcrypt
         try:
             if not usuario["password_hash"].startswith("$2"):
                 nuevo_hash = hashear(password)
                 db.table("usuarios_premium").update({"password_hash": nuevo_hash}).eq("id", usuario["id"]).execute()
         except Exception:
-            # Si la migración falla, continuamos con el login normalmente
             pass
         
-        # Por seguridad, no mantenemos el hash en la sesión
         del usuario["password_hash"]
         return True, usuario
     except Exception:
@@ -158,8 +153,7 @@ def verificar_y_resetear(email: str, token: str, nueva_pass: str) -> tuple[bool,
         expira = datetime.fromisoformat(r.data[0]["expira_at"].replace("Z", ""))
         if datetime.utcnow() > expira:
             return False, "El token ha expirado. Solicite uno nuevo."
-        db.table("usuarios_premium").update({"password_hash": hashear(nueva_pass)}) \
-            .eq("email", email.lower()).execute()
+        db.table("usuarios_premium").update({"password_hash": hashear(nueva_pass)}).eq("email", email.lower()).execute()
         db.table("reset_tokens").update({"usado": True}).eq("id", r.data[0]["id"]).execute()
         return True, "Contraseña actualizada correctamente."
     except Exception as e:
@@ -181,44 +175,35 @@ def guardar_post(data: dict) -> tuple[bool, str]:
 
 def obtener_posts_aprobados():
     try:
-        r = db.table("comunidad").select("*").eq("aprobado", True) \
-            .order("created_at", desc=True).limit(20).execute()
+        r = db.table("comunidad").select("*").eq("aprobado", True).order("created_at", desc=True).limit(20).execute()
         return r.data or []
     except Exception:
         return []
 
 # ── Utilidades CRM (Gestión de Clientes) ───────────────────────────────────────
-def obtener_clientes(id_usuario: str) -> list:
+def obtener_clientes(id_corp: str) -> list:
     try:
-        r = db.table("clientes_asesor") \
-            .select("*") \
-            .eq("id_asesor", id_usuario) \
-            .order("nombre_cliente") \
-            .execute()
+        r = db.table("clientes_asesor").select("*").eq("id_corp", id_corp).order("nombre_cliente").execute()
         return r.data or []
     except Exception:
         return []
 
 def guardar_cliente(datos: dict, id_corp: str) -> tuple[bool, str]:
     try:
-        #datos["id_corp"] = id_corp # Estampamos la llave corporativa antes de guardar
+        datos["id_corp"] = id_corp
         if "id" in datos and datos["id"]:
             cliente_id = datos.pop("id")
             db.table("clientes_asesor").update(datos).eq("id", cliente_id).execute()
         else:
             db.table("clientes_asesor").insert(datos).execute()
-        return True, "Expediente guardado exitosamente en la base de datos."
+        return True, "Expediente guardado exitosamente en la base de datos corporativa."
     except Exception as e:
         return False, f"Error al guardar: {e}"
 
 # ── Utilidades Tesorería (Wallet) ──────────────────────────────────────────────
-def obtener_cuentas_wallet(id_usuario: str) -> list:
+def obtener_cuentas_wallet(id_corp: str) -> list:
     try:
-        r = db.table("wallet_cuentas") \
-            .select("id, institucion, tasa_anual, saldo") \
-            .eq("id_asesor", id_usuario) \
-            .order("institucion") \
-            .execute()
+        r = db.table("wallet_cuentas").select("id, institucion, tasa_anual, saldo").eq("id_corp", id_corp).order("institucion").execute()
         return r.data or []
     except Exception:
         return []
@@ -272,18 +257,29 @@ def obtener_historial_movimientos(ids_cuentas: list) -> list:
     except Exception as e:
         return []
 
-    try:
-        db.table("wallet_cuentas").delete().eq("id", int(id_cuenta)).execute()
-        return True, "Cuenta eliminada permanentemente del sistema."
-    except Exception as e:
-        return False, f"Error al eliminar (asegúrese de transferir los fondos primero): {e}"
-
 def eliminar_cuenta_wallet(id_cuenta: int) -> tuple[bool, str]:
     try:
         db.table("wallet_cuentas").delete().eq("id", int(id_cuenta)).execute()
         return True, "Cuenta eliminada permanentemente del sistema."
     except Exception as e:
         return False, f"Error al eliminar (asegúrese de transferir los fondos primero): {e}"
+
+# ── NUEVO: GUARDADO DE MEMORIA EN SEGUNDO PLANO ──
+def guardar_memoria_ui_premium(peso_max, horizonte, sims):
+    try:
+        usuario_actual = st.session_state.get("usuario_premium", {})
+        if not usuario_actual: return
+        nueva_config = {
+            "peso_maximo": peso_max,
+            "horizonte": horizonte,
+            "simulaciones": sims
+        }
+        db.table("usuarios_premium").update({"configuracion_ui": nueva_config}).eq("id", usuario_actual["id"]).execute()
+        # Actualizamos la memoria RAM actual para que no se borre si recargas sin salir de la sesión
+        st.session_state["usuario_premium"]["configuracion_ui"] = nueva_config
+    except Exception:
+        pass
+
 # ── Estado de sesión ───────────────────────────────────────────────────────────
 defaults = {
     "usuario_premium": None,
@@ -306,7 +302,7 @@ defaults = {
     "vistas_bl": [],
     "usar_bl": False,
     "limite_riesgo_manual": 80,
-    "modo_privacidad": False, # Nuevo control de UX Bancaria
+    "modo_privacidad": False, 
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -319,13 +315,14 @@ def limpiar_estados_cliente():
         "optimizado", "pesos_opt", "ret_opt", "vol_opt", "sharpe_opt",
         "resultados", "df_regimenes", "df_screening", "vistas_bl",
         "usar_bl", "riesgo_objetivo_ldi", "perfil_ldi_nombre",
-        "pension_imss", "brecha", "cliente_activo_id",
+        "pension_imss", "brecha" 
+        # (El cliente_activo_id fue retirado de aquí para evitar el bucle)
     ]
     for clave in claves_a_limpiar:
         if clave in st.session_state:
             del st.session_state[clave]
 
-# Función Helper para ocultar valores sensibles si el modo está activo
+# Función Helper para ocultar valores sensibles
 def f_val(valor, formato="${:,.2f}"):
     return "$ ••••••" if st.session_state.modo_privacidad else formato.format(valor)
 
@@ -436,7 +433,6 @@ if st.session_state["usuario_premium"] is None:
                     st.warning("Complete todos los campos.")
                 else:
                     ok, usuario = autenticar_premium(email_l, pass_l)
-                    st.write(f"Resultado autenticación: ok={ok}, usuario={usuario}")
                     if ok:
                         st.session_state["usuario_premium"] = usuario
                         st.session_state["login_intentos"]  = 0
@@ -512,6 +508,8 @@ usuario        = st.session_state["usuario_premium"]
 nombre_display = usuario["nombre_display"]
 tiene_lite     = usuario.get("tiene_lite", False)
 es_admin       = (usuario["email"] == "gal259148@gmail.com")
+# Recuperamos la memoria guardada en Supabase (si no hay, inicia vacío)
+mem_ui         = usuario.get("configuracion_ui") or {}
 
 # ── Encabezado ─────────────────────────────────────────────────────────────────
 col_enc, col_salir = st.columns([3, 1])
@@ -545,11 +543,10 @@ with col_enc:
 
 with col_salir:
     st.markdown("<div style='padding-top: 2rem;'></div>", unsafe_allow_html=True)
-    # Control de Modo Privacidad Integrado en Header Superior
     if st.button("Cerrar sesión", width='stretch'):
         st.session_state["usuario_premium"] = None
         limpiar_estados_cliente()
-        st.session_state.clear()  # Limpieza total opcional, garantiza borrar todo lo privado
+        st.session_state.clear()
         st.rerun()
 
 st.markdown(
@@ -591,7 +588,7 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("👥 Expedientes (CRM)")
 
-    clientes_db = obtener_clientes(usuario["id"])
+    clientes_db = obtener_clientes(usuario.get("id_corp", "admin_tenant"))
     nombres_clientes = {c["nombre_cliente"]: c for c in clientes_db}
     opciones_cliente = ["✚ Nuevo Cliente (Sin seleccionar)"] + list(nombres_clientes.keys())
 
@@ -612,17 +609,6 @@ with st.sidebar:
             st.session_state["tickers_procesar"]  = str(datos_c.get("tickers_guardados", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"))
             pm_db = float(datos_c.get("peso_maximo", 40))
             st.session_state["peso_maximo"] = int(pm_db * 100) if pm_db <= 1.0 else int(pm_db)
-
-            # ── LIMPIEZA DE ESTADOS DEPENDIENTES DEL CLIENTE ANTERIOR ──
-            st.session_state["vistas_bl"] = []
-            st.session_state["usar_bl"] = False
-            st.session_state.pop("riesgo_objetivo_ldi", None)
-            st.session_state.pop("perfil_ldi_nombre", None)
-            st.session_state.pop("pension_imss", None)
-            st.session_state.pop("brecha", None)
-            st.session_state["optimizado"] = False
-            st.session_state["pesos_opt"] = None
-            st.session_state["resultados"] = None
 
             st.rerun()
         st.caption(f"Cargado desde base de datos")
@@ -694,7 +680,7 @@ with st.sidebar:
         st.markdown("---")
         st.subheader("Restricciones de concentración")
         
-        pm_sesion = st.session_state.get("peso_maximo", 40)
+        pm_sesion = st.session_state.get("peso_maximo", int(mem_ui.get("peso_maximo", 40)))
         pm_valido = int(pm_sesion * 100) if isinstance(pm_sesion, float) and pm_sesion <= 1.0 else int(pm_sesion)
         pm_valido = max(10, min(100, pm_valido))
         
@@ -703,7 +689,6 @@ with st.sidebar:
         
         if "limite_riesgo_manual" not in st.session_state:
             st.session_state["limite_riesgo_manual"] = 80
-        # El slider de exposición global se mostrará si no se activa LDI (se decide después)
         peso_min = st.slider("Exposición mínima por activo (%)", 0, 10, 2) / 100
         peso_max = max(peso_max, peso_min)
         
@@ -714,8 +699,8 @@ with st.sidebar:
         capital_inicial       = st.number_input("Capital inicial (MXN)", min_value=0, value=100_000, step=10_000)
         frecuencia_aportacion = st.selectbox("Frecuencia de aportación", ["Mensual", "Trimestral", "Anual"], index=2)
         aportacion_mensual    = st.number_input("Aportación periódica (MXN)", min_value=0, value=100_000, step=10_000)
-        horizonte_años        = st.slider("Horizonte de inversión (años)", min_value=1, max_value=40, value=10)
-        num_sims              = st.slider("Simulaciones Monte Carlo", 500, 5000, 2000, step=500)
+        horizonte_años        = st.slider("Horizonte de inversión (años)", min_value=1, max_value=40, value=int(mem_ui.get("horizonte", 10)))
+        num_sims              = st.slider("Simulaciones Monte Carlo", 500, 5000, int(mem_ui.get("simulaciones", 2000)), step=500)
         
         st.markdown("---")
         st.subheader("Benchmark comparativo")
@@ -731,6 +716,8 @@ with st.sidebar:
         if ejecutar:
             st.session_state["tickers_procesar"] = tickers_input
             st.session_state["peso_maximo"] = peso_max_val
+            # ── SE DISPARA EL GUARDADO DE ESTADO AQUÍ ──
+            guardar_memoria_ui_premium(peso_max_val, horizonte_años, num_sims)
 
     # ── Prescripción Actuarial LDI (ubicada fuera del formulario) ──
     usar_perfil_ldi = False
