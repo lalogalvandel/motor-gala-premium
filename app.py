@@ -873,7 +873,7 @@ with tab_wallet:
     st.caption("Registro de flujos de efectivo, conciliación de saldos y cálculo de tasa ponderada efectiva.")
 
     # ── CONEXIÓN REAL A SUPABASE ──
-    cuentas_db = obtener_cuentas_wallet(usuario["id"])
+    cuentas_db = obtener_cuentas_wallet(usuario.get("id_corp", "admin_tenant"))
     
     if not cuentas_db:
         df_cuentas = pd.DataFrame(columns=["id", "institucion", "tasa_anual", "saldo"])
