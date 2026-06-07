@@ -488,9 +488,11 @@ def generar_reporte(
         "ordenada de mayor a menor ponderación. La columna de intensidad de asignación permite "
         "apreciar de forma intuitiva la concentración relativa por instrumento.", E['justificado']
     ))
-    df_pesos = pd.DataFrame({'Activo': tickers, 'Peso (%)': (pesos_opt * 100).round(2)}).sort_values('Peso (%)', ascending=False)
+    # Filtrar solo activos con asignación real (> 0)
+    df_pesos_reales = df_pesos[df_pesos['Peso (%)'] > 0]
+    
     pesos_data = [['Instrumento / Activo', 'Ponderación (%)', 'Intensidad de asignación']]
-    for _, row in df_pesos.iterrows():
+    for _, row in df_pesos_reales.iterrows():
         barra = '█' * max(1, int(row['Peso (%)'] / 3))
         pesos_data.append([row['Activo'], f"{row['Peso (%)']:.2f} %", barra])
     story.append(_tabla_estilo(pesos_data, [1.8 * inch, 1.4 * inch, 3.3 * inch]))
