@@ -13,27 +13,27 @@ from reportlab.platypus import (
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 
 # ── Paleta institucional premium ──────────────────────────────────────────────
-AZUL_NOCHE   = colors.HexColor('#040e22')   # fondo portada — profundidad máxima
-AZUL_OSCURO  = colors.HexColor('#0a1128')   # header / footer internos
+AZUL_NOCHE   = colors.HexColor('#040e22')   # fondo principal de todo el documento
+AZUL_OSCURO  = colors.HexColor('#0a1128')   # header / footer y tablas
 AZUL_MEDIO   = colors.HexColor('#12235c')   # subtítulos de sección
 AZUL_BASE    = colors.HexColor('#1a3280')   # elementos de marca secundarios
 AZUL_ACENTO  = colors.HexColor('#3b82f6')   # acento primario institucional
 AZUL_BRILLO  = colors.HexColor('#60a5fa')   # acento claro sobre fondos oscuros
-AZUL_ICE     = colors.HexColor('#dbeafe')   # fondo notas informativas
-GRIS_LINEA   = colors.HexColor('#c8d2e0')   # rejilla de tablas
-GRIS_FONDO   = colors.HexColor('#f4f6fa')   # fondo callouts y tarjetas KPI
-GRIS_CLARO   = colors.HexColor('#e8ecf2')   # filas alternadas de tabla
-GRIS_TEXTO   = colors.HexColor('#2d3748')   # cuerpo de texto principal
-GRIS_SUAVE   = colors.HexColor('#64748b')   # texto secundario / pies de figura
+AZUL_ICE     = colors.HexColor('#1e293b')   # fondo notas informativas (OSCURECIDO)
+GRIS_LINEA   = colors.HexColor('#334155')   # rejilla de tablas (OSCURECIDO)
+GRIS_FONDO   = colors.HexColor('#0f172a')   # fondo callouts y tarjetas KPI (OSCURECIDO)
+GRIS_CLARO   = colors.HexColor('#1e293b')   # filas alternadas de tabla (OSCURECIDO)
+GRIS_TEXTO   = colors.HexColor('#e2e8f0')   # cuerpo de texto principal (ACLARADO PARA MODO NOCHE)
+GRIS_SUAVE   = colors.HexColor('#94a3b8')   # texto secundario / pies de figura
 BLANCO       = colors.white
-ROJO         = colors.HexColor('#c53030')   # métricas de pérdida / drawdown
-ROJO_SUAVE   = colors.HexColor('#fff5f5')   # fondo filas adversas
-VERDE        = colors.HexColor('#276749')   # métricas positivas
-VERDE_SUAVE  = colors.HexColor('#f0fff4')   # fondo filas favorables
-AMBAR        = colors.HexColor('#b45309')   # alertas / escenarios moderados
-AMBAR_SUAVE  = colors.HexColor('#fffbeb')   # fondo filas moderadas
+ROJO         = colors.HexColor('#ef4444')   # métricas de pérdida / drawdown
+ROJO_SUAVE   = colors.HexColor('#451a1a')   # fondo filas adversas
+VERDE        = colors.HexColor('#10b981')   # métricas positivas
+VERDE_SUAVE  = colors.HexColor('#064e3b')   # fondo filas favorables
+AMBAR        = colors.HexColor('#f59e0b')   # alertas / escenarios moderados
+AMBAR_SUAVE  = colors.HexColor('#451a03')   # fondo filas moderadas
 ORO          = colors.HexColor('#d4a017')
-DORADO_SUAVE = colors.HexColor('#fefcbf')
+DORADO_SUAVE = colors.HexColor('#423812')
 
 PAGE_W = 6.5 * inch
 
@@ -208,10 +208,20 @@ def _callout_alerta(titulo: str, texto: str) -> list:
 
 
 def _fig_a_imagen(fig, width=800, height=400, scale=2, w_inch=None, h_inch=None, **kwargs):
-    """Convierte figura Plotly a objeto Image de ReportLab, ajustado al ancho de página."""
+    """Convierte figura Plotly a objeto Image de ReportLab, inyectando el Modo Noche."""
     if fig is None:
         return Spacer(1, 0.1 * inch)
-    fig.update_layout(margin=dict(l=110, r=40, t=40, b=60))
+    
+    # ── LA MAGIA: Forzamos el fondo oscuro y ejes tenues antes de exportar ──
+    fig.update_layout(
+        paper_bgcolor='#040e22',  # Mismo color que AZUL_NOCHE
+        plot_bgcolor='#040e22',
+        font=dict(color='#94a3b8'), # Letras gris claro
+        margin=dict(l=110, r=40, t=40, b=60)
+    )
+    fig.update_xaxes(showgrid=True, gridcolor='rgba(255,255,255,0.05)', zerolinecolor='rgba(255,255,255,0.1)')
+    fig.update_yaxes(showgrid=True, gridcolor='rgba(255,255,255,0.05)', zerolinecolor='rgba(255,255,255,0.1)')
+
     img_bytes = fig.to_image(format="png", width=width * 1.5, height=height * 1.5, scale=scale)
     ancho_fisico = 6.5 * inch
     alto_fisico  = h_inch * inch if h_inch else (height / width) * ancho_fisico
@@ -377,6 +387,10 @@ def _on_page(canvas, doc):
                                f"Motor GaLa ©  {datetime.now().year}  ·  Todos los derechos reservados")
 
     else:
+        # ── Fondo páginas internas (Noche Total) ───────────────────────────
+        canvas.setFillColor(AZUL_NOCHE)
+        canvas.rect(0, 0, w, h, fill=True, stroke=False)
+
         # ── Header páginas internas ──────────────────────────────────────────
         canvas.setFillColor(AZUL_OSCURO)
         canvas.rect(0, h - 34, w, 34, fill=True, stroke=False)
