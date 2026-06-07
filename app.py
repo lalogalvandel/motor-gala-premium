@@ -1543,13 +1543,21 @@ with tab_motor:
         filas_hitos = []
         for m in hitos_meses:
             idx = min(m, len(p50) - 1)
+            
+            # ── ANTÍDOTO ANTI-NAN ──
+            # Si un ticker mal escrito corrompe la simulación, forzamos el valor a 0 para evitar el crash de Python
+            val_p5    = p5[idx] if not np.isnan(p5[idx]) else 0
+            val_p50   = p50[idx] if not np.isnan(p50[idx]) else 0
+            val_p95   = p95[idx] if not np.isnan(p95[idx]) else 0
+            val_bench = benchmark_fijo[idx] if not np.isnan(benchmark_fijo[idx]) else 0
+            
             filas_hitos.append({
                 "Horizonte":           hitos_labels.get(m, f"Mes {m}"),
-                "Adverso P5 (MXN)":   int(p5[idx]),
-                "Base P50 (MXN)":     int(p50[idx]),
-                "Favorable P95 (MXN)":int(p95[idx]),
-                "Tasa fija (MXN)":    int(benchmark_fijo[idx]),
-                "Ventaja P50 vs Fija":int(p50[idx] - benchmark_fijo[idx]),
+                "Adverso P5 (MXN)":    int(val_p5),
+                "Base P50 (MXN)":      int(val_p50),
+                "Favorable P95 (MXN)": int(val_p95),
+                "Tasa fija (MXN)":     int(val_bench),
+                "Ventaja P50 vs Fija": int(val_p50 - val_bench),
             })
             
         df_hitos = pd.DataFrame(filas_hitos)
