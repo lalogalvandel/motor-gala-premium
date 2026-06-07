@@ -778,7 +778,7 @@ def generar_reporte(
     t_stress = Table(stress_data, colWidths=[3.2 * inch, 1.5 * inch, 1.8 * inch])
     t_stress.setStyle(TableStyle([
         ('BACKGROUND',    (0, 0), (-1, 0),  AZUL_OSCURO),
-        ('TEXTCOLOR',     (0, 0), (-1, 0),  BLANCO),
+        ('TEXTCOLOR',     (0, 0), (-1, 0),  AZUL_BRILLO), # <── Header azul brillante
         ('FONTNAME',      (0, 0), (-1, 0),  'Helvetica-Bold'),
         ('FONTSIZE',      (0, 0), (-1, -1), 9),
         ('TOPPADDING',    (0, 0), (-1, 0),  9),
@@ -786,11 +786,18 @@ def generar_reporte(
         ('LINEBELOW',     (0, 0), (-1, 0),  2,   AZUL_ACENTO),
         ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
         ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-        ('ROWBACKGROUNDS',(0, 1), (-1, -1), [BLANCO, GRIS_CLARO]),
+        
+        # <── Fondos oscuros alternados ──>
+        ('ROWBACKGROUNDS',(0, 1), (-1, -1), [GRIS_FONDO, GRIS_CLARO]),
+        
+        # <── Forzar texto claro en las filas ──>
+        ('TEXTCOLOR',     (0, 1), (0, -1),  GRIS_TEXTO), # Nombres de las crisis
+        ('TEXTCOLOR',     (1, 1), (1, -1),  ROJO),       # Porcentajes
+        ('TEXTCOLOR',     (2, 1), (2, -1),  ROJO),       # Dinero
+        
         ('GRID',          (0, 0), (-1, -1), 0.4, GRIS_LINEA),
         ('TOPPADDING',    (0, 1), (-1, -1), 7),
         ('BOTTOMPADDING', (0, 1), (-1, -1), 7),
-        ('TEXTCOLOR',     (1, 1), (1, -1),  ROJO),
         ('FONTNAME',      (1, 1), (1, -1),  'Helvetica-Bold'),
     ]))
     story.append(t_stress)
