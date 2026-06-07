@@ -12,28 +12,28 @@ from reportlab.platypus import (
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 
-# ── Paleta institucional premium ──────────────────────────────────────────────
+# ── Paleta institucional premium (Modo Oscuro Corregido) ───────────────────
 AZUL_NOCHE   = colors.HexColor('#040e22')   # fondo principal de todo el documento
-AZUL_OSCURO  = colors.HexColor('#0a1128')   # header / footer y tablas
+AZUL_OSCURO  = colors.HexColor('#0a1128')   # header / footer
 AZUL_MEDIO   = colors.HexColor('#12235c')   # subtítulos de sección
 AZUL_BASE    = colors.HexColor('#1a3280')   # elementos de marca secundarios
 AZUL_ACENTO  = colors.HexColor('#3b82f6')   # acento primario institucional
 AZUL_BRILLO  = colors.HexColor('#60a5fa')   # acento claro sobre fondos oscuros
-AZUL_ICE     = colors.HexColor('#1e293b')   # fondo notas informativas (OSCURECIDO)
-GRIS_LINEA   = colors.HexColor('#334155')   # rejilla de tablas (OSCURECIDO)
-GRIS_FONDO   = colors.HexColor('#0f172a')   # fondo callouts y tarjetas KPI (OSCURECIDO)
-GRIS_CLARO   = colors.HexColor('#1e293b')   # filas alternadas de tabla (OSCURECIDO)
-GRIS_TEXTO   = colors.HexColor('#e2e8f0')   # cuerpo de texto principal (ACLARADO PARA MODO NOCHE)
+AZUL_ICE     = colors.HexColor('#0f172a')   # fondo notas informativas (Más oscuro)
+
+GRIS_LINEA   = colors.HexColor('#1e293b')   # rejilla de tablas sutil
+GRIS_FONDO   = colors.HexColor('#0b1329')   # fondo base para tablas (Casi negro)
+GRIS_CLARO   = colors.HexColor('#111c38')   # filas alternadas de tabla (Contraste leve)
+GRIS_TEXTO   = colors.HexColor('#e2e8f0')   # texto principal muy claro y legible
 GRIS_SUAVE   = colors.HexColor('#94a3b8')   # texto secundario / pies de figura
+
 BLANCO       = colors.white
-ROJO         = colors.HexColor('#ef4444')   # métricas de pérdida / drawdown
-ROJO_SUAVE   = colors.HexColor('#451a1a')   # fondo filas adversas
-VERDE        = colors.HexColor('#10b981')   # métricas positivas
-VERDE_SUAVE  = colors.HexColor('#064e3b')   # fondo filas favorables
-AMBAR        = colors.HexColor('#f59e0b')   # alertas / escenarios moderados
-AMBAR_SUAVE  = colors.HexColor('#451a03')   # fondo filas moderadas
-ORO          = colors.HexColor('#d4a017')
-DORADO_SUAVE = colors.HexColor('#423812')
+ROJO         = colors.HexColor('#ef4444')   
+ROJO_SUAVE   = colors.HexColor('#3a131a')   # Fondo de alerta sutil
+VERDE        = colors.HexColor('#10b981')   
+VERDE_SUAVE  = colors.HexColor('#0f2923')   # Fondo favorable sutil
+AMBAR        = colors.HexColor('#f59e0b')   
+AMBAR_SUAVE  = colors.HexColor('#362511')   # Fondo moderado sutil
 
 PAGE_W = 6.5 * inch
 
@@ -80,17 +80,17 @@ def _estilos() -> dict:
             alignment=TA_JUSTIFY),
         # ── Callouts y cajas metodológicas ────────────────────────────────────
         'metodo': ParagraphStyle(
-            'metodo', fontSize=8, textColor=colors.HexColor('#374151'),
+            'metodo', fontSize=8, textColor=colors.HexColor('#cbd5e1'), 
             fontName='Helvetica-Oblique', spaceAfter=0, leading=12,
             leftIndent=10, rightIndent=10),
         'caja_titulo': ParagraphStyle(
-            'caja_titulo', fontSize=8, textColor=AZUL_MEDIO,
+            'caja_titulo', fontSize=8, textColor=AZUL_BRILLO, # <── BRILLANTE
             fontName='Helvetica-Bold', spaceAfter=4, charSpace=1, leading=11),
         'caja_titulo_alerta': ParagraphStyle(
             'caja_titulo_alerta', fontSize=8, textColor=AMBAR,
             fontName='Helvetica-Bold', spaceAfter=4, charSpace=1, leading=11),
         'caja_cuerpo': ParagraphStyle(
-            'caja_cuerpo', fontSize=8.5, textColor=GRIS_TEXTO,
+            'caja_cuerpo', fontSize=8.5, textColor=GRIS_TEXTO, # <── CLARO
             fontName='Helvetica', leading=13.5, alignment=TA_JUSTIFY),
         'formula': ParagraphStyle(
             'formula', fontSize=8.5, textColor=AZUL_BASE,
@@ -231,24 +231,26 @@ def _fig_a_imagen(fig, width=800, height=400, scale=2, w_inch=None, h_inch=None,
 def _tabla_estilo(data: list, col_widths: list, header_color=None) -> Table:
     """
     Tabla institucional con encabezado oscuro, línea de acento post-header
-    y filas alternadas de alto contraste.
+    y filas alternadas de alto contraste (adaptado a Noche).
     """
     hdr = header_color or AZUL_OSCURO
     t = Table(data, colWidths=col_widths)
     t.setStyle(TableStyle([
         # Encabezado
         ('BACKGROUND',    (0, 0), (-1, 0),  hdr),
-        ('TEXTCOLOR',     (0, 0), (-1, 0),  BLANCO),
+        ('TEXTCOLOR',     (0, 0), (-1, 0),  AZUL_BRILLO), # <── Letras header
         ('FONTNAME',      (0, 0), (-1, 0),  'Helvetica-Bold'),
         ('FONTSIZE',      (0, 0), (-1, 0),  8.5),
         ('TOPPADDING',    (0, 0), (-1, 0),  9),
         ('BOTTOMPADDING', (0, 0), (-1, 0),  9),
         ('LINEBELOW',     (0, 0), (-1, 0),  2, AZUL_ACENTO),
         # Cuerpo
+        ('TEXTCOLOR',     (0, 1), (-1, -1), GRIS_TEXTO), # <── Forzamos letras claras
         ('FONTSIZE',      (0, 1), (-1, -1), 9),
         ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
         ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-        ('ROWBACKGROUNDS',(0, 1), (-1, -1), [BLANCO, GRIS_CLARO]),
+        # <── Fondos oscuros alternados ──>
+        ('ROWBACKGROUNDS',(0, 1), (-1, -1), [GRIS_FONDO, GRIS_CLARO]),
         ('GRID',          (0, 0), (-1, -1), 0.4, GRIS_LINEA),
         ('TOPPADDING',    (0, 1), (-1, -1), 7),
         ('BOTTOMPADDING', (0, 1), (-1, -1), 7),
@@ -684,7 +686,7 @@ def generar_reporte(
     t_riesgo = Table(riesgo_data, colWidths=[2.8 * inch, 1.5 * inch, 2.2 * inch])
     t_riesgo.setStyle(TableStyle([
         ('BACKGROUND',    (0, 0), (-1, 0),  AZUL_OSCURO),
-        ('TEXTCOLOR',     (0, 0), (-1, 0),  BLANCO),
+        ('TEXTCOLOR',     (0, 0), (-1, 0),  AZUL_BRILLO),
         ('FONTNAME',      (0, 0), (-1, 0),  'Helvetica-Bold'),
         ('FONTSIZE',      (0, 0), (-1, -1), 9),
         ('TOPPADDING',    (0, 0), (-1, 0),  9),
@@ -692,12 +694,15 @@ def generar_reporte(
         ('LINEBELOW',     (0, 0), (-1, 0),  2,   AZUL_ACENTO),
         ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
         ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-        ('ROWBACKGROUNDS',(0, 1), (-1, -1), [BLANCO, GRIS_CLARO]),
+        # <── Fondos oscuros en vez de blancos ──>
+        ('ROWBACKGROUNDS',(0, 1), (-1, -1), [GRIS_FONDO, GRIS_CLARO]),
+        ('TEXTCOLOR',     (0, 1), (0, -1),  GRIS_TEXTO), # Columna de nombres
+        ('TEXTCOLOR',     (1, 1), (1, -1),  ROJO), # Columna de porcentajes
+        ('TEXTCOLOR',     (2, 1), (2, -1),  ROJO), # Columna de dinero
         ('GRID',          (0, 0), (-1, -1), 0.4, GRIS_LINEA),
         ('TOPPADDING',    (0, 1), (-1, -1), 7),
         ('BOTTOMPADDING', (0, 1), (-1, -1), 7),
-        ('TEXTCOLOR',     (1, 1), (1, -1),  ROJO),
-        ('FONTNAME',      (1, 1), (1, -1),  'Helvetica-Bold'),
+        ('FONTNAME',      (1, 1), (-1, -1), 'Helvetica-Bold'),
     ]))
     story.append(t_riesgo)
     story.append(Spacer(1, 0.08 * inch))
@@ -860,7 +865,7 @@ def generar_reporte(
     t_mc = Table(mc_data, colWidths=[2.5 * inch, 2.2 * inch, 1.8 * inch])
     t_mc.setStyle(TableStyle([
         ('BACKGROUND',    (0, 0), (-1, 0),  AZUL_OSCURO),
-        ('TEXTCOLOR',     (0, 0), (-1, 0),  BLANCO),
+        ('TEXTCOLOR',     (0, 0), (-1, 0),  AZUL_BRILLO),
         ('FONTNAME',      (0, 0), (-1, 0),  'Helvetica-Bold'),
         ('FONTSIZE',      (0, 0), (-1, -1), 9.5),
         ('TOPPADDING',    (0, 0), (-1, 0),  9),
@@ -868,18 +873,20 @@ def generar_reporte(
         ('LINEBELOW',     (0, 0), (-1, 0),  2,   AZUL_ACENTO),
         ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
         ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-        # Fondos de escenario diferenciados
+        # Nombres de escenarios claros
+        ('TEXTCOLOR',     (0, 1), (0, -1),  GRIS_TEXTO), 
+        # Fondos de escenario diferenciados sutiles para Noche
         ('BACKGROUND',    (0, 1), (-1, 1),  ROJO_SUAVE),
         ('BACKGROUND',    (0, 2), (-1, 2),  AMBAR_SUAVE),
-        ('BACKGROUND',    (0, 3), (-1, 3),  VERDE_SUAVE),
-        ('BACKGROUND',    (0, 4), (-1, 4),  AZUL_ICE),
-        ('BACKGROUND',    (0, 5), (-1, 5),  colors.HexColor('#eff6ff')),
+        ('BACKGROUND',    (0, 3), (-1, 3),  GRIS_FONDO),  # Base en neutro
+        ('BACKGROUND',    (0, 4), (-1, 4),  VERDE_SUAVE),
+        ('BACKGROUND',    (0, 5), (-1, 5),  AZUL_ICE),
         # Color de crecimiento según escenario
-        ('TEXTCOLOR',     (2, 1), (2, 1),   ROJO),
-        ('TEXTCOLOR',     (2, 2), (2, 2),   AMBAR),
-        ('TEXTCOLOR',     (2, 3), (2, 3),   VERDE),
-        ('TEXTCOLOR',     (2, 4), (2, 4),   AZUL_BASE),
-        ('TEXTCOLOR',     (2, 5), (2, 5),   AZUL_ACENTO),
+        ('TEXTCOLOR',     (1, 1), (-1, 1),  ROJO),
+        ('TEXTCOLOR',     (1, 2), (-1, 2),  AMBAR),
+        ('TEXTCOLOR',     (1, 3), (-1, 3),  GRIS_TEXTO),  # Base neutral
+        ('TEXTCOLOR',     (1, 4), (-1, 4),  VERDE),
+        ('TEXTCOLOR',     (1, 5), (-1, 5),  AZUL_BRILLO),
         ('FONTNAME',      (1, 1), (-1, -1), 'Helvetica-Bold'),
         ('GRID',          (0, 0), (-1, -1), 0.4, GRIS_LINEA),
         ('TOPPADDING',    (0, 1), (-1, -1), 9),
