@@ -65,10 +65,10 @@ def _estilos() -> dict:
             fontName='Helvetica-Bold', spaceBefore=14, spaceAfter=2,
             charSpace=2, leading=10),
         'seccion': ParagraphStyle(
-            'seccion', fontSize=14, textColor=AZUL_OSCURO,
+            'seccion', fontSize=14, textColor=BLANCO, # <── CAMBIO A BLANCO
             fontName='Helvetica-Bold', spaceBefore=4, spaceAfter=4, leading=18),
         'subseccion': ParagraphStyle(
-            'subseccion', fontSize=10.5, textColor=AZUL_MEDIO,
+            'subseccion', fontSize=10.5, textColor=AZUL_BRILLO, # <── CAMBIO A AZUL BRILLANTE
             fontName='Helvetica-Bold', spaceBefore=10, spaceAfter=4, leading=14),
         # ── Texto corrido ─────────────────────────────────────────────────────
         'normal': ParagraphStyle(
@@ -102,7 +102,7 @@ def _estilos() -> dict:
             fontName='Helvetica-Bold', alignment=TA_CENTER,
             spaceAfter=2, charSpace=1, leading=10),
         'kpi_valor': ParagraphStyle(
-            'kpi_valor', fontSize=22, textColor=AZUL_OSCURO,
+            'kpi_valor', fontSize=22, textColor=BLANCO, # <── CAMBIO A BLANCO
             fontName='Helvetica-Bold', alignment=TA_CENTER,
             spaceAfter=2, leading=26),
         'kpi_sub': ParagraphStyle(
