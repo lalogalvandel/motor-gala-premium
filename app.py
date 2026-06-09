@@ -1691,6 +1691,13 @@ with tab_motor:
                 with st.spinner("Generando reporte..."):
                     try:
                         pdf_bytes = generar_reporte(
+                            # ── NUEVOS PARÁMETROS DE PERSONALIZACIÓN ──
+                            nombre_cliente=nombre_display,
+                            meta_mensual=st.session_state.get('meta_mensual', 40000),
+                            tasa_retiro_swr=st.session_state.get('tasa_retiro', 0.04),
+                            regimen_pensional=st.session_state.get('regimen', 'PPR Puro'),
+                            
+                            # ── PARÁMETROS EXISTENTES ──
                             tickers=tickers, pesos_opt=pesos_opt, ret_opt=ret_opt, vol_opt=vol_opt,
                             sharpe_opt=sharpe_opt, sortino=sortino, desv_down=desv_down, df_t=df_t,
                             var_cvar=var_cvar, max_dd=max_dd, duracion_dd=duracion_dd,
@@ -1733,7 +1740,7 @@ with tab_retiro:
     regimen = st.radio(
         "Selecciona tu Régimen Pensional:",
         ["PPR Puro / Ley 97 (Generación Afore)", "Ley 73 (Beneficio IMSS + Suplemento Privado)"],
-        horizontal=True
+        horizontal=True, key="regimen"
     )
     
     st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
@@ -1768,7 +1775,7 @@ with tab_retiro:
     with col_priv:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>2. Capitalización Privada y Meta</div>""", unsafe_allow_html=True)
         
-        meta_mensual = st.number_input("Ingreso Mensual Objetivo (Pesos de Hoy)", min_value=10000, step=5000, value=40000)
+        meta_mensual = st.number_input("Ingreso Mensual Objetivo (Pesos de Hoy)", min_value=10000, step=5000, value=40000, key="meta_mensual")
         
         col_cap1, col_cap2 = st.columns(2)
         capital_actual = col_cap1.number_input("Capital Inicial (MXN)", min_value=0, step=50000, value=200000)
@@ -1781,8 +1788,8 @@ with tab_retiro:
         col_tasas1, col_tasas2, col_tasas3 = st.columns(3)
         inflacion = col_tasas1.number_input("Inflación (%)", value=4.0, step=0.5) / 100
         tasa_portafolio = col_tasas2.number_input("Rend. Anual (%)", value=15.0, step=1.0) / 100
-        tasa_retiro = col_tasas3.number_input("Tasa SWR (%)", value=4.0, step=0.5, help="Regla del 4%") / 100
-
+        tasa_retiro = col_tasas3.number_input("Tasa SWR (%)", value=4.0, step=0.5) / 100
+        st.session_state["tasa_retiro"] = tasa_retiro # Guárdalo manual porque lo divides entre 100
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     
     if st.button("Ejecutar Modelado Actuarial", type="primary", width='stretch'):
