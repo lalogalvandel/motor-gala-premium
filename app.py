@@ -1723,100 +1723,116 @@ with tab_motor:
                         st.exception(e)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — PLANEACIÓN DE RETIRO (LDI PERSONAL)
-# ══════════════════════════════════════════════════════════════════════════════
-# ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — PLANEACIÓN DE RETIRO (LDI PERSONAL EN TÉRMINOS REALES)
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_retiro:
     _header("Modelado Actuarial LDI", "Planeación de Retiro Integral")
-    st.caption("Proyección de flujos (Pensión IMSS + PPR) ajustados a poder adquisitivo actual mediante la Ecuación de Fisher.")
+    st.caption("Proyección de flujos ajustados a poder adquisitivo actual mediante la Ecuación de Fisher.")
 
-    col_imss, col_priv = st.columns(2, gap="large")
+    # ── EL CEREBRO DEL TAB: Selector de Régimen ──
+    regimen = st.radio(
+        "Selecciona tu Régimen Pensional:",
+        ["PPR Puro / Ley 97 (Generación Afore)", "Ley 73 (Beneficio IMSS + Suplemento Privado)"],
+        horizontal=True
+    )
     
-    with col_imss:
-        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin:1.5rem 0 .75rem;'>1. Parámetros IMSS (Ley 73)</div>""", unsafe_allow_html=True)
-        
-        simular_m40 = st.toggle("Activar Estrategia: Modalidad 40 Topada", key="simular_m40")
-        semanas_cotizadas = st.slider("Semanas Cotizadas Estimadas", min_value=500, max_value=3000, step=50, value=1500)
-        tiene_pareja = st.checkbox("Aplicar Asignación Familiar (15%)", value=False, help="Aplica solo si se cuenta con cónyuge, concubina o dependientes legales.")
-        
-        if simular_m40:
-            st.info("**Modo M40 Activado:** El Salario Promedio se fuerza al tope legal de 25 UMAs.")
-            salario_promedio = 25 * obtener_uma_actual()
-            st.metric("Salario Promedio Diario (Topado)", f_val(salario_promedio))
-        else:
-            salario_promedio = st.number_input("Salario Promedio Diario (MXN)", min_value=100.0, max_value=3500.0, step=100.0, value=800.0)
+    st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+    
+    col_param, col_priv = st.columns(2, gap="large")
+    
+    pension_imss = 0.0  # Por defecto 0 para PPR Puro
+    
+    with col_param:
+        if "Ley 73" in regimen:
+            st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>1. Parámetros IMSS (Ley 73)</div>""", unsafe_allow_html=True)
+            simular_m40 = st.toggle("Activar Estrategia: Modalidad 40 Topada", key="simular_m40")
+            semanas_cotizadas = st.slider("Semanas Cotizadas Estimadas", min_value=500, max_value=3000, value=1500, step=50)
+            tiene_pareja = st.checkbox("Aplicar Asignación Familiar (15%)", value=False)
             
-        edad_retiro = st.selectbox("Edad de retiro proyectada", [60, 61, 62, 63, 64, 65], index=5)
+            if simular_m40:
+                st.info("**M40 Activado:** Salario Promedio topado a 25 UMAs.")
+                salario_promedio = 25 * obtener_uma_actual()
+                st.metric("Salario Promedio Diario", f_val(salario_promedio))
+            else:
+                salario_promedio = st.number_input("Salario Promedio Diario (MXN)", min_value=100.0, max_value=3500.0, value=800.0, step=100.0)
+                
+            edad_retiro = st.selectbox("Edad de retiro proyectada", [60, 61, 62, 63, 64, 65], index=5)
         
+        else:
+            # ── VISTA PARA PPR PURO ──
+            st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>1. Horizonte de Acumulación (PPR)</div>""", unsafe_allow_html=True)
+            st.info("Bajo este régimen, el **100%** de tu flujo de retiro provendrá de la desacumulación de tu capital privado. No se estiman rentas vitalicias gubernamentales.")
+            anios_horizonte = st.slider("Años faltantes para el retiro", min_value=1, max_value=50, value=40, help="Horizonte de tiempo para el interés compuesto.")
+            edad_retiro = 65 # Solo de referencia
+            
     with col_priv:
-        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin:1.5rem 0 .75rem;'>2. Acumulación Privada (PPR) y Meta</div>""", unsafe_allow_html=True)
+        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>2. Capitalización Privada y Meta</div>""", unsafe_allow_html=True)
         
         meta_mensual = st.number_input("Ingreso Mensual Objetivo (Pesos de Hoy)", min_value=10000, step=5000, value=40000)
         
-        st.markdown("<div style='font-size:12px; color:#94A3B8; margin-top:10px;'>Parámetros de Capitalización</div>", unsafe_allow_html=True)
         col_cap1, col_cap2 = st.columns(2)
         capital_actual = col_cap1.number_input("Capital Inicial (MXN)", min_value=0, step=50000, value=200000)
         aportacion_mensual = col_cap2.number_input("Aportación Mensual (MXN)", min_value=0, step=1000, value=5000)
-        anios_horizonte = st.slider("Años faltantes para el retiro", min_value=1, max_value=40, value=10)
         
+        if "Ley 73" in regimen:
+            anios_horizonte = st.slider("Años de acumulación restantes", min_value=1, max_value=40, value=10)
+            
         st.markdown("<div style='font-size:12px; color:#94A3B8; margin-top:10px;'>Calibración Estocástica</div>", unsafe_allow_html=True)
         col_tasas1, col_tasas2, col_tasas3 = st.columns(3)
         inflacion = col_tasas1.number_input("Inflación (%)", value=4.0, step=0.5) / 100
         tasa_portafolio = col_tasas2.number_input("Rend. Anual (%)", value=15.0, step=1.0) / 100
-        tasa_retiro = col_tasas3.number_input("Tasa SWR (%)", value=4.0, step=0.5, help="Safe Withdrawal Rate (Tasa Segura de Retiro)") / 100
+        tasa_retiro = col_tasas3.number_input("Tasa SWR (%)", value=4.0, step=0.5, help="Regla del 4%") / 100
 
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     
     if st.button("Ejecutar Modelado Actuarial", type="primary", width='stretch'):
         with st.spinner("Descontando flujos por inflación y calculando Ecuación de Fisher..."):
             
-            # Asegurar que se importó la clase correcta (Debe estar arriba en tu app.py)
-            # from modulos.pensiones import MotorActuarial 
-            
             uma_actual = obtener_uma_actual()
             
-            # 1. Calcular Pensión IMSS con el nuevo motor
-            pension_imss = MotorActuarial.estimar_pension_ley73(
-                semanas_cotizadas, salario_promedio, edad_retiro, uma_actual, tiene_pareja
-            )
+            # Condicional del motor actuarial
+            if "Ley 73" in regimen:
+                pension_imss = MotorActuarial.estimar_pension_ley73(semanas_cotizadas, salario_promedio, edad_retiro, uma_actual, tiene_pareja)
+            else:
+                pension_imss = 0.0 # Cero absoluto para PPR
             
-            # 2. Proyección Privada en TÉRMINOS REALES
-            capital_acumulado_real = MotorActuarial.proyeccion_ppr_real(
-                capital_actual, aportacion_mensual, anios_horizonte, tasa_portafolio, inflacion
-            )
+            # El cálculo real de acumulación (Fisher) aplica para ambos
+            capital_acumulado_real = MotorActuarial.proyeccion_ppr_real(capital_actual, aportacion_mensual, anios_horizonte, tasa_portafolio, inflacion)
             
-            # 3. Cálculo de Brecha
-            ingreso_total, brecha, flujo_privado = MotorActuarial.calcular_brecha_pensional_real(
-                meta_mensual, pension_imss, capital_acumulado_real, tasa_retiro
-            )
+            ingreso_total, brecha, flujo_privado = MotorActuarial.calcular_brecha_pensional_real(meta_mensual, pension_imss, capital_acumulado_real, tasa_retiro)
             
             st.session_state['pension_imss'] = pension_imss
             st.session_state['brecha'] = brecha
-            st.session_state['salario_promedio'] = salario_promedio
+            
+            if "Ley 73" in regimen:
+                st.session_state['salario_promedio'] = salario_promedio
 
             st.markdown("---")
             st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#17C37B;margin-bottom:.75rem;'>Diagnóstico Actuarial (Valores Reales - Pesos de Hoy)</div>""", unsafe_allow_html=True)
             
-            st.info(f"**Proyección del Fondo Privado:** Al finalizar el periodo de {anios_horizonte} años, el capital acumulado equivaldrá a **${capital_acumulado_real:,.2f} MXN en poder adquisitivo actual**, habiendo descontado una erosión inflacionaria del {inflacion*100:.1f}% anual.")
+            st.info(f"💰 **Proyección del Fondo Privado:** Al finalizar el periodo de {anios_horizonte} años, el capital acumulado equivaldrá a **${capital_acumulado_real:,.2f} MXN en poder adquisitivo actual**, habiendo descontado una erosión inflacionaria del {inflacion*100:.1f}% anual.")
             
             m1, m2, m3 = st.columns(3)
-            m1.metric("Pensión IMSS Estimada", f_val(pension_imss), "Base vitalicia")
+            
+            if "Ley 73" in regimen:
+                m1.metric("Pensión IMSS Estimada", f_val(pension_imss), "Base vitalicia")
+            else:
+                m1.metric("Pensión Gubernamental", "$0.00", "Régimen PPR Puro")
+                
             m2.metric("Flujo Privado (SWR)", f_val(flujo_privado), f"Retiro: {tasa_retiro*100:.1f}% anual")
             
             if brecha <= 0:
                 m3.metric("Ingreso Total Mensual", f_val(ingreso_total), f"+{f_val(abs(brecha))} sobre la meta")
-                st.success(f"**Superávit Estructural:** La combinación supera la meta de {f_val(meta_mensual)}. El enfoque debe centrarse en preservación patrimonial.")
+                st.success(f"**Superávit Estructural:** La acumulación supera la meta de {f_val(meta_mensual)}. El enfoque debe centrarse en preservación patrimonial.")
                 riesgo_sugerido = 0.20 
                 perfil_estrategico = "Conservador Institucional (LDI Preservación)"
             else:
                 m3.metric("Ingreso Total Mensual", f_val(ingreso_total), f"-{f_val(abs(brecha))} de déficit", delta_color="inverse")
-                st.warning(f"**Déficit de Cobertura:** Existe una brecha de {f_val(brecha)} mensuales (valor real). Se requiere incrementar aportaciones, retrasar el retiro o asumir mayor riesgo en el portafolio.")
+                st.warning(f"**Déficit de Cobertura:** Existe una brecha de {f_val(brecha)} mensuales (valor real). Se requiere incrementar aportaciones, alargar el horizonte de acumulación o asumir mayor riesgo en el portafolio.")
                 
                 deficit_tolerable = 30000.0
                 factor_necesidad = min(brecha / deficit_tolerable, 1.0)
-                riesgo_sugerido = min(0.20 + (0.60 * factor_necesidad), 0.85) # Techo del 85% de RV
+                riesgo_sugerido = min(0.20 + (0.60 * factor_necesidad), 0.85)
                 perfil_estrategico = "Moderado / Crecimiento Actuarial"
 
             st.session_state["riesgo_objetivo_ldi"] = riesgo_sugerido
@@ -1828,6 +1844,8 @@ with tab_retiro:
             st.info(f"**Perfil asignado:** {perfil_estrategico}\n\n"
                     f"**Límite Máximo de Renta Variable Sugerido:** {riesgo_sugerido*100:.1f}%\n\n"
                     f"El Motor GaLa ha calibrado automáticamente esta restricción. Ejecuta el Optimizador SLSQP en la pestaña 'Motor Cuantitativo' para acatar este mandato de riesgo.")
+
+# ══════════════════════════════════════════════════════════════════════════════
 # TAB 4 — NOTICIAS DEL MERCADO
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_noticias:
