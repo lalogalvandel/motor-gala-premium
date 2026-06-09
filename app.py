@@ -20,6 +20,7 @@ from modulos.riesgo      import calcular_var_cvar, calcular_drawdown, calcular_s
 from modulos.regimenes   import entrenar_modelo_markov
 from modulos.pensiones import estimar_pension_ley73, calcular_brecha_pensional
 from modulos.black_litterman import calcular_black_litterman
+from modulos.pensiones import MotorActuarial
 
 # ── Configuración de página ────────────────────────────────────────────────────
 st.set_page_config(
@@ -1725,86 +1726,109 @@ with tab_motor:
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — PLANEACIÓN DE RETIRO (LDI PERSONAL)
 # ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — PLANEACIÓN DE RETIRO (LDI PERSONAL EN TÉRMINOS REALES)
+# ══════════════════════════════════════════════════════════════════════════════
 with tab_retiro:
-    _header("Modelado Actuarial LDI", "Planeación de Retiro (Ley 73)")
-    st.caption("Proyección de ingresos combinando pensión gubernamental y flujo de portafolio privado.")
+    _header("Modelado Actuarial LDI", "Planeación de Retiro Integral")
+    st.caption("Proyección de flujos (Pensión IMSS + PPR) ajustados a poder adquisitivo actual mediante la Ecuación de Fisher.")
 
     col_imss, col_priv = st.columns(2, gap="large")
     
     with col_imss:
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin:1.5rem 0 .75rem;'>1. Parámetros IMSS (Ley 73)</div>""", unsafe_allow_html=True)
         
-        simular_m40 = st.toggle("Activar Estrategia: Modalidad 40 Topada", key="simular_m40",
-                                help="Asume inversión en M40 los últimos 5 años para topar el salario a 25 UMAs.")
-        
-        semanas_cotizadas = st.slider("Semanas Cotizadas Estimadas", min_value=500, max_value=3000, step=50, key="semanas_cotizadas")
+        simular_m40 = st.toggle("Activar Estrategia: Modalidad 40 Topada", key="simular_m40")
+        semanas_cotizadas = st.slider("Semanas Cotizadas Estimadas", min_value=500, max_value=3000, step=50, value=1500)
+        tiene_pareja = st.checkbox("Aplicar Asignación Familiar (15%)", value=False, help="Aplica solo si se cuenta con cónyuge, concubina o dependientes legales.")
         
         if simular_m40:
-            st.info("**Modo M40 Activado:** El Salario Promedio se fuerza al tope legal de 25 UMAs. Recuerda restar ~$10,000 a $12,000 MXN mensuales del flujo libre de inversión privada.")
+            st.info("**Modo M40 Activado:** El Salario Promedio se fuerza al tope legal de 25 UMAs.")
             salario_promedio = 25 * obtener_uma_actual()
-            st.session_state["salario_promedio"] = salario_promedio
             st.metric("Salario Promedio Diario (Topado)", f_val(salario_promedio))
         else:
-            salario_promedio = st.number_input("Salario Promedio Diario (Últimos 5 años) MXN", 
-                                               min_value=100.0, max_value=3500.0, step=100.0, key="salario_promedio")
+            salario_promedio = st.number_input("Salario Promedio Diario (MXN)", min_value=100.0, max_value=3500.0, step=100.0, value=800.0)
             
         edad_retiro = st.selectbox("Edad de retiro proyectada", [60, 61, 62, 63, 64, 65], index=5)
         
     with col_priv:
-        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin:1.5rem 0 .75rem;'>2. Portafolio Privado y Meta</div>""", unsafe_allow_html=True)
+        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin:1.5rem 0 .75rem;'>2. Acumulación Privada (PPR) y Meta</div>""", unsafe_allow_html=True)
         
-        meta_mensual = st.number_input("Ingreso Mensual Objetivo (MXN)", min_value=10000, step=5000, key="meta_mensual")
-        capital_acumulado = st.number_input("Capital Acumulado Proyectado al Retiro (MXN)", min_value=0, step=100000, key="capital_acumulado")
-        tasa_retiro = st.slider("Tasa de Retiro Segura Anual (%)", 2.0, 8.0, 4.0, step=0.5,
-                                help="Regla del 4%: Porcentaje del capital que se puede retirar anualmente sin descapitalizar el portafolio.") / 100
+        meta_mensual = st.number_input("Ingreso Mensual Objetivo (Pesos de Hoy)", min_value=10000, step=5000, value=40000)
+        
+        st.markdown("<div style='font-size:12px; color:#94A3B8; margin-top:10px;'>Parámetros de Capitalización</div>", unsafe_allow_html=True)
+        col_cap1, col_cap2 = st.columns(2)
+        capital_actual = col_cap1.number_input("Capital Inicial (MXN)", min_value=0, step=50000, value=200000)
+        aportacion_mensual = col_cap2.number_input("Aportación Mensual (MXN)", min_value=0, step=1000, value=5000)
+        anios_horizonte = st.slider("Años faltantes para el retiro", min_value=1, max_value=40, value=10)
+        
+        st.markdown("<div style='font-size:12px; color:#94A3B8; margin-top:10px;'>Calibración Estocástica</div>", unsafe_allow_html=True)
+        col_tasas1, col_tasas2, col_tasas3 = st.columns(3)
+        inflacion = col_tasas1.number_input("Inflación (%)", value=4.0, step=0.5) / 100
+        tasa_portafolio = col_tasas2.number_input("Rend. Anual (%)", value=15.0, step=1.0) / 100
+        tasa_retiro = col_tasas3.number_input("Tasa SWR (%)", value=4.0, step=0.5, help="Safe Withdrawal Rate (Tasa Segura de Retiro)") / 100
 
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     
     if st.button("Ejecutar Modelado Actuarial", type="primary", width='stretch'):
-            with st.spinner("Calculando proyecciones actuariales..."):
-                
-                uma_actual = obtener_uma_actual()
-                
-                pension_imss = estimar_pension_ley73(semanas_cotizadas, salario_promedio, edad_retiro, uma_actual)
-                ingreso_total, brecha, flujo_privado = calcular_brecha_pensional(meta_mensual, pension_imss, capital_acumulado, tasa_retiro)
-                
-                st.session_state['pension_imss'] = pension_imss
-                st.session_state['brecha'] = brecha
-    
-                st.markdown("---")
-                st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#17C37B;margin-bottom:.75rem;'>Diagnóstico de Flujo Generado</div>""", unsafe_allow_html=True)
-                
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Pensión IMSS Estimada", f_val(pension_imss), "Base vitalicia")
-                m2.metric("Flujo de Portafolio Privado", f_val(flujo_privado), f"Tasa de retiro: {tasa_retiro*100:.1f}%")
-                
-                if brecha <= 0:
-                    m3.metric("Ingreso Total Mensual", f_val(ingreso_total), f"+{f_val(abs(brecha))} sobre la meta")
-                    st.success(f"**Superávit Estructural:** La combinación de la pensión IMSS y el portafolio supera la meta de {f_val(meta_mensual)}. El enfoque del portafolio debe centrarse en la preservación de capital y protección contra la inflación (UDIBONOS), limitando la exposición a renta variable de alto riesgo.")
-                    
-                    riesgo_sugerido = 0.15 
-                    perfil_estrategico = "Conservador Institucional (Preservación de Capital)"
-                else:
-                    m3.metric("Ingreso Total Mensual", f_val(ingreso_total), f"-{f_val(abs(brecha))} de déficit", delta_color="inverse")
-                    st.warning(f"**Déficit Detectado:** Existe una brecha de {f_val(brecha)} mensuales. Se requiere incrementar el capital acumulado mediante aportaciones adicionales o implementar estrategias de Modalidad 40 para maximizar el Salario Promedio Diario del IMSS.")
-                    
-                    defcit_maximo_esperado = 20000.0
-                    factor_necesidad = min(brecha / defcit_maximo_esperado, 1.0)
-                    
-                    riesgo_sugerido = 0.15 + (0.30 * factor_necesidad)
-                    perfil_estrategico = "Moderado Actuarial (Crecimiento Táctico)"
-    
-                st.session_state["riesgo_objetivo_ldi"] = riesgo_sugerido
-                st.session_state["perfil_ldi_nombre"] = perfil_estrategico
-                
-                st.markdown("---")
-                st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#4488FF;margin-bottom:.75rem;'>Prescripción Algorítmica de Portafolio</div>""", unsafe_allow_html=True)
-                
-                st.info(f"**Perfil asignado:** {perfil_estrategico}\n\n"
-                        f"**Límite Máximo de Renta Variable Sugerido:** {riesgo_sugerido*100:.1f}%\n\n"
-                        f"El Motor GaLa ha calibrado automáticamente esta restricción. Puede ir al 'Motor Cuantitativo' para ejecutar la optimización de activos bajo esta frontera matemática.")
+        with st.spinner("Descontando flujos por inflación y calculando Ecuación de Fisher..."):
+            
+            # Asegurar que se importó la clase correcta (Debe estar arriba en tu app.py)
+            # from modulos.pensiones import MotorActuarial 
+            
+            uma_actual = obtener_uma_actual()
+            
+            # 1. Calcular Pensión IMSS con el nuevo motor
+            pension_imss = MotorActuarial.estimar_pension_ley73(
+                semanas_cotizadas, salario_promedio, edad_retiro, uma_actual, tiene_pareja
+            )
+            
+            # 2. Proyección Privada en TÉRMINOS REALES
+            capital_acumulado_real = MotorActuarial.proyeccion_ppr_real(
+                capital_actual, aportacion_mensual, anios_horizonte, tasa_portafolio, inflacion
+            )
+            
+            # 3. Cálculo de Brecha
+            ingreso_total, brecha, flujo_privado = MotorActuarial.calcular_brecha_pensional_real(
+                meta_mensual, pension_imss, capital_acumulado_real, tasa_retiro
+            )
+            
+            st.session_state['pension_imss'] = pension_imss
+            st.session_state['brecha'] = brecha
+            st.session_state['salario_promedio'] = salario_promedio
 
-# ══════════════════════════════════════════════════════════════════════════════
+            st.markdown("---")
+            st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#17C37B;margin-bottom:.75rem;'>Diagnóstico Actuarial (Valores Reales - Pesos de Hoy)</div>""", unsafe_allow_html=True)
+            
+            st.info(f"**Proyección del Fondo Privado:** Al finalizar el periodo de {anios_horizonte} años, el capital acumulado equivaldrá a **${capital_acumulado_real:,.2f} MXN en poder adquisitivo actual**, habiendo descontado una erosión inflacionaria del {inflacion*100:.1f}% anual.")
+            
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Pensión IMSS Estimada", f_val(pension_imss), "Base vitalicia")
+            m2.metric("Flujo Privado (SWR)", f_val(flujo_privado), f"Retiro: {tasa_retiro*100:.1f}% anual")
+            
+            if brecha <= 0:
+                m3.metric("Ingreso Total Mensual", f_val(ingreso_total), f"+{f_val(abs(brecha))} sobre la meta")
+                st.success(f"**Superávit Estructural:** La combinación supera la meta de {f_val(meta_mensual)}. El enfoque debe centrarse en preservación patrimonial.")
+                riesgo_sugerido = 0.20 
+                perfil_estrategico = "Conservador Institucional (LDI Preservación)"
+            else:
+                m3.metric("Ingreso Total Mensual", f_val(ingreso_total), f"-{f_val(abs(brecha))} de déficit", delta_color="inverse")
+                st.warning(f"**Déficit de Cobertura:** Existe una brecha de {f_val(brecha)} mensuales (valor real). Se requiere incrementar aportaciones, retrasar el retiro o asumir mayor riesgo en el portafolio.")
+                
+                deficit_tolerable = 30000.0
+                factor_necesidad = min(brecha / deficit_tolerable, 1.0)
+                riesgo_sugerido = min(0.20 + (0.60 * factor_necesidad), 0.85) # Techo del 85% de RV
+                perfil_estrategico = "Moderado / Crecimiento Actuarial"
+
+            st.session_state["riesgo_objetivo_ldi"] = riesgo_sugerido
+            st.session_state["perfil_ldi_nombre"] = perfil_estrategico
+            
+            st.markdown("---")
+            st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#4488FF;margin-bottom:.75rem;'>Prescripción Algorítmica de Portafolio</div>""", unsafe_allow_html=True)
+            
+            st.info(f"**Perfil asignado:** {perfil_estrategico}\n\n"
+                    f"**Límite Máximo de Renta Variable Sugerido:** {riesgo_sugerido*100:.1f}%\n\n"
+                    f"El Motor GaLa ha calibrado automáticamente esta restricción. Ejecuta el Optimizador SLSQP en la pestaña 'Motor Cuantitativo' para acatar este mandato de riesgo.")
 # TAB 4 — NOTICIAS DEL MERCADO
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_noticias:
