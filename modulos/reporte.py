@@ -498,9 +498,10 @@ def generar_reporte(
     story.append(Paragraph("El portafolio fue sometido a retroproyección sistemática (backtesting de estrés) sobre los principales episodios de dislocación sistémica registrados en los mercados financieros globales. Los factores de choque aplicados corresponden a las caídas efectivamente observadas en los activos del universo durante cada crisis, sin suavizamiento temporal ni ajuste de supervivencia.", E['justificado']))
     story.append(Spacer(1, 0.08 * inch))
 
-    stress_data = [['Escenario Histórico de Estrés', 'Impacto  (%)', 'Pérdida estimada (USD)']]
+    # ── CORRECCIÓN: Cambiamos (USD) por (MXN) en el Header y en el llamado a la fila ──
+    stress_data = [['Escenario Histórico de Estrés', 'Impacto  (%)', 'Pérdida estimada (MXN)']]
     for _, row in df_stress.iterrows():
-        stress_data.append([row['Escenario'], f"{row['Pérdida (%)']:.1f} %", f"${abs(row['Pérdida (USD)']):,.0f}"])
+        stress_data.append([row['Escenario'], f"{row['Pérdida (%)']:.1f} %", f"${abs(row['Pérdida (MXN)']):,.0f}"])
     
     t_stress = Table(stress_data, colWidths=[3.2 * inch, 1.5 * inch, 1.8 * inch])
     t_stress.setStyle(TableStyle([
