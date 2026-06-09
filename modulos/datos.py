@@ -6,8 +6,29 @@ import streamlit as st  # <-- AÑADIDO: Vital para usar st.secrets
 from datetime import datetime
 
 def cargar_datos(tickers: list, start: str = '2020-01-01', end: str = '2026-05-08') -> pd.DataFrame:
-    """Descarga precios de cierre y elimina filas con NaN."""
-    datos = yf.download(tickers, start=start, end=end, auto_adjust=True)['Close']
+    """Descarga precios de cierre, normaliza activos USD a MXN y elimina filas con NaN."""
+    
+    # 1. Inyectar el ticker del dólar si hay activos internacionales
+    ticker_dolar = 'USDMXN=X'
+    tickers_descarga = tickers.copy()
+    if ticker_dolar not in tickers_descarga:
+        tickers_descarga.append(ticker_dolar)
+        
+    # 2. Descarga masiva
+    datos = yf.download(tickers_descarga, start=start, end=end, auto_adjust=True)['Close']
+    
+    # 3. Normalización Divisa (Mexicanización / Riesgo Cambiario)
+    if ticker_dolar in datos.columns:
+        tipo_cambio = datos[ticker_dolar]
+        for col in datos.columns:
+            # Si el ticker NO es mexicano (.MX) y NO es el dólar en sí, lo convertimos a Pesos
+            if col != ticker_dolar and not col.endswith('.MX'):
+                datos[col] = datos[col] * tipo_cambio
+        
+        # Eliminamos la columna del tipo de cambio para no optimizarla como un activo
+        if ticker_dolar not in tickers:
+            datos = datos.drop(columns=[ticker_dolar])
+            
     return datos.dropna()
 
 def calcular_retornos(datos: pd.DataFrame):
