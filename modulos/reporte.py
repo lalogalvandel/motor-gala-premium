@@ -555,18 +555,24 @@ def generar_reporte(
     flujo_p5 = ((p5_final * tasa_retiro_swr) / 12) + pension_base
     flujo_p25 = ((p25_final * tasa_retiro_swr) / 12) + pension_base
     flujo_p50 = ((p50_final * tasa_retiro_swr) / 12) + pension_base
+    flujo_p75 = ((p75_final * tasa_retiro_swr) / 12) + pension_base
     flujo_p95 = ((p95_final * tasa_retiro_swr) / 12) + pension_base
 
+    # ── Corrección Visual: Textos institucionales concisos ──
     mc_data = [
-        ['Escenario Probabilístico', 'Alcancía Final (Pesos de Hoy)', f'Renta Mensual Total (SWR {tasa_retiro_swr*100:.1f}%)'],
+        ['Escenario Probabilístico', 'Capital Real (Pesos de Hoy)', f'Renta Mensual (SWR {tasa_retiro_swr*100:.1f}%)'],
         ['Adverso extremo  — P5',         f"${p5_final:,.0f}", f"${flujo_p5:,.0f} / mes"],
         ['Moderadamente adverso  — P25',  f"${p25_final:,.0f}", f"${flujo_p25:,.0f} / mes"],
         ['Escenario base  — P50',         f"${p50_final:,.0f}", f"${flujo_p50:,.0f} / mes"],
+        ['Moderadamente favorable  — P75', f"${p75_final:,.0f}", f"${flujo_p75:,.0f} / mes"],
         ['Favorable extremo  — P95',       f"${p95_final:,.0f}", f"${flujo_p95:,.0f} / mes"],
     ]
     
-    t_mc = Table(mc_data, colWidths=[2.5 * inch, 2.2 * inch, 1.8 * inch])
+    # ── Corrección Visual: Balanceo de anchos (2.1 + 2.2 + 2.2 = 6.5 inch) ──
+    t_mc = Table(mc_data, colWidths=[2.1 * inch, 2.2 * inch, 2.2 * inch])
+    
     t_mc.setStyle(TableStyle([
+        # Headers
         ('BACKGROUND',    (0, 0), (-1, 0),  AZUL_OSCURO),
         ('TEXTCOLOR',     (0, 0), (-1, 0),  AZUL_BRILLO),
         ('FONTNAME',      (0, 0), (-1, 0),  'Helvetica-Bold'),
@@ -577,20 +583,24 @@ def generar_reporte(
         ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
         ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
         
+        # Columna 1 (Nombres de escenarios) en gris claro
         ('TEXTCOLOR',     (0, 1), (0, -1),  GRIS_TEXTO), 
         
-        # 4 Filas de datos con sus respectivos fondos
-        ('BACKGROUND',    (0, 1), (-1, 1),  ROJO_SUAVE),
-        ('BACKGROUND',    (0, 2), (-1, 2),  AMBAR_SUAVE),
-        ('BACKGROUND',    (0, 3), (-1, 3),  GRIS_FONDO),  
-        ('BACKGROUND',    (0, 4), (-1, 4),  AZUL_ICE),
+        # ── FONDOS POR ESCENARIO ──
+        ('BACKGROUND',    (0, 1), (-1, 1),  ROJO_SUAVE),    # P5
+        ('BACKGROUND',    (0, 2), (-1, 2),  AMBAR_SUAVE),   # P25
+        ('BACKGROUND',    (0, 3), (-1, 3),  GRIS_FONDO),    # P50
+        ('BACKGROUND',    (0, 4), (-1, 4),  VERDE_SUAVE),   # P75 
+        ('BACKGROUND',    (0, 5), (-1, 5),  AZUL_ICE),      # P95
         
-        # Colores de la columna de resultados financieros
-        ('TEXTCOLOR',     (1, 1), (-1, 1),  ROJO),
-        ('TEXTCOLOR',     (1, 2), (-1, 2),  AMBAR),
-        ('TEXTCOLOR',     (1, 3), (-1, 3),  GRIS_TEXTO),  
-        ('TEXTCOLOR',     (1, 4), (-1, 4),  AZUL_BRILLO),
+        # ── COLORES DE TEXTO DE RESULTADOS ──
+        ('TEXTCOLOR',     (1, 1), (-1, 1),  ROJO),          # P5
+        ('TEXTCOLOR',     (1, 2), (-1, 2),  AMBAR),         # P25
+        ('TEXTCOLOR',     (1, 3), (-1, 3),  GRIS_TEXTO),    # P50
+        ('TEXTCOLOR',     (1, 4), (-1, 4),  VERDE),         # P75 
+        ('TEXTCOLOR',     (1, 5), (-1, 5),  AZUL_BRILLO),   # P95
         
+        # Formato de la tabla general
         ('FONTNAME',      (1, 1), (-1, -1), 'Helvetica-Bold'),
         ('GRID',          (0, 0), (-1, -1), 0.5, GRIS_LINEA),
         ('TOPPADDING',    (0, 1), (-1, -1), 9),
