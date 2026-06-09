@@ -1810,7 +1810,7 @@ with tab_retiro:
             st.markdown("---")
             st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#17C37B;margin-bottom:.75rem;'>Diagnóstico Actuarial (Valores Reales - Pesos de Hoy)</div>""", unsafe_allow_html=True)
             
-            st.info(f"💰 **Proyección del Fondo Privado:** Al finalizar el periodo de {anios_horizonte} años, el capital acumulado equivaldrá a **${capital_acumulado_real:,.2f} MXN en poder adquisitivo actual**, habiendo descontado una erosión inflacionaria del {inflacion*100:.1f}% anual.")
+            st.info(f"**Proyección del Fondo Privado:** Al finalizar el periodo de {anios_horizonte} años, el capital acumulado equivaldrá a **${capital_acumulado_real:,.2f} MXN en poder adquisitivo actual**, habiendo descontado una erosión inflacionaria del {inflacion*100:.1f}% anual.")
             
             m1, m2, m3 = st.columns(3)
             
