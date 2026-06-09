@@ -284,7 +284,7 @@ def _on_page(canvas, doc):
 
 # ─────────────────────────────────────────────────────────────────────────────
 def generar_reporte(
-    nombre_cliente, meta_mensual, tasa_retiro_swr, regimen_pensional, # <── AGREGADOS
+    nombre_cliente, meta_mensual, tasa_retiro_swr, regimen_pensional, # <── ¡AQUÍ ESTÁN LOS NUEVOS!
     tickers, pesos_opt, ret_opt, vol_opt, sharpe_opt, sortino, desv_down, df_t,
     var_cvar, max_dd, duracion_dd, inicio_dd, fin_dd, df_stress, capital_riesgo,
     p5_final, p25_final, p50_final, p75_final, p95_final,
@@ -314,19 +314,18 @@ def generar_reporte(
     story.append(Paragraph("Reporte Institucional de Portafolio  ·  Metodología White-Box", E['subtitulo']))
     story.append(Spacer(1, 0.12 * inch))
     story.append(Paragraph(datetime.now().strftime("%d de %B de %Y").upper(), E['titulo_marca']))
-    story.append(Spacer(1, 0.4 * inch))
+    
+    # ── EL TOQUE INSTITUCIONAL: NOMBRE DEL CLIENTE ──
+    story.append(Spacer(1, 0.35 * inch))
     story.append(Paragraph(f"Análisis preparado exclusivamente para: {nombre_cliente.upper()}", 
-                 ParagraphStyle('cliente', fontSize=12, textColor=VERDE, fontName='Helvetica-Bold', alignment=TA_CENTER)))
-                 
-    story.append(Spacer(1, 0.4 * inch))
-    story.append(Paragraph(datetime.now().strftime("%d de %B de %Y").upper(), E['titulo_marca']))
-    story.append(Spacer(1, 0.3 * inch))
+                 ParagraphStyle('cliente', fontSize=10, textColor=VERDE, fontName='Helvetica-Bold', alignment=TA_CENTER, charSpace=1)))
+    story.append(Spacer(1, 0.35 * inch))
+
     story.append(Paragraph("  ·  ".join(tickers), ParagraphStyle('universo_portada', fontSize=10, textColor=GRIS_SUAVE, fontName='Helvetica', alignment=TA_CENTER, spaceAfter=0, leading=15)))
     story.append(Spacer(1, 0.75 * inch))
     story.append(Paragraph("El presente reporte expone, con transparencia metodológica íntegra, la arquitectura algorítmica empleada en la estructuración del portafolio óptimo. El universo de inversión fue procesado a través de un motor estocástico de segunda generación, calibrado con distribuciones asimétricas de cola pesada y parámetros macroeconómicos actualizados, con el propósito expreso de superar las limitaciones estadísticas inherentes a los modelos de varianza media convencionales.", E['portada_cuerpo']))
     story.append(Paragraph("Cada sección de este documento detalla el fundamento cuantitativo subyacente a las decisiones adoptadas, proveyendo al lector institucional los elementos necesarios para la auditoría, replicación y validación independiente de los resultados presentados.", E['portada_cuerpo']))
     story.append(PageBreak())
-
     # ══════════════════════════════════════════════════════════════════════════
     # PÁGINA CONDICIONAL — MODELADO LDI (AHORA ES DINÁMICA: LEY 73 vs PPR)
     if brecha_pensional is not None:
