@@ -284,6 +284,7 @@ def _on_page(canvas, doc):
 
 # ─────────────────────────────────────────────────────────────────────────────
 def generar_reporte(
+    nombre_cliente, meta_mensual, tasa_retiro_swr, regimen_pensional, # <── AGREGADOS
     tickers, pesos_opt, ret_opt, vol_opt, sharpe_opt, sortino, desv_down, df_t,
     var_cvar, max_dd, duracion_dd, inicio_dd, fin_dd, df_stress, capital_riesgo,
     p5_final, p25_final, p50_final, p75_final, p95_final,
@@ -312,6 +313,12 @@ def generar_reporte(
     story.append(Spacer(1, 0.22 * inch))
     story.append(Paragraph("Reporte Institucional de Portafolio  ·  Metodología White-Box", E['subtitulo']))
     story.append(Spacer(1, 0.12 * inch))
+    story.append(Paragraph(datetime.now().strftime("%d de %B de %Y").upper(), E['titulo_marca']))
+    story.append(Spacer(1, 0.4 * inch))
+    story.append(Paragraph(f"Análisis preparado exclusivamente para: {nombre_cliente.upper()}", 
+                 ParagraphStyle('cliente', fontSize=12, textColor=VERDE, fontName='Helvetica-Bold', alignment=TA_CENTER)))
+                 
+    story.append(Spacer(1, 0.4 * inch))
     story.append(Paragraph(datetime.now().strftime("%d de %B de %Y").upper(), E['titulo_marca']))
     story.append(Spacer(1, 0.3 * inch))
     story.append(Paragraph("  ·  ".join(tickers), ParagraphStyle('universo_portada', fontSize=10, textColor=GRIS_SUAVE, fontName='Helvetica', alignment=TA_CENTER, spaceAfter=0, leading=15)))
@@ -544,14 +551,21 @@ def generar_reporte(
         texto="La proyección de capital no se sustenta en tasas de crecimiento lineales ni en modelos deterministas que omitan la volatilidad intrínseca del portafolio. El Motor implementa un Movimiento Browniano Geométrico (Geometric Brownian Motion) de frecuencia mensual, con shocks de distribución t-Student calibrados a la volatilidad histórica real de la cartera y ajustados por el drift esperado neto de aportaciones periódicas. El percentil Adverso (P5) proporciona un intervalo de confianza del 95% para la supervivencia financiera del portafolio, exhibiendo con rigor matemático el Riesgo de Secuencia de Retornos: el orden cronológico en que se materializan los retornos negativos puede erosionar el capital de forma irreversible, incluso cuando el retorno promedio del período completo resulte positivo."
     )
 
+    # ── TABLA DE RENTA VITALICIA REAL ──
+    pension_base = pension_imss if pension_imss is not None else 0.0
+    flujo_p5 = ((p5_final * tasa_retiro_swr) / 12) + pension_base
+    flujo_p25 = ((p25_final * tasa_retiro_swr) / 12) + pension_base
+    flujo_p50 = ((p50_final * tasa_retiro_swr) / 12) + pension_base
+    flujo_p95 = ((p95_final * tasa_retiro_swr) / 12) + pension_base
+
     mc_data = [
-        ['Escenario  (Percentil)', 'Capital Final Proyectado', 'Crecimiento total acumulado'],
-        ['Adverso extremo  — P5',         f"${p5_final:,.0f}", f"{((p5_final  / capital_inicial) - 1) * 100:.1f} %"],
-        ['Moderadamente adverso  — P25',  f"${p25_final:,.0f}", f"{((p25_final / capital_inicial) - 1) * 100:.1f} %"],
-        ['Escenario base  — P50',         f"${p50_final:,.0f}", f"{((p50_final / capital_inicial) - 1) * 100:.1f} %"],
-        ['Moderadamente favorable  — P75', f"${p75_final:,.0f}", f"{((p75_final / capital_inicial) - 1) * 100:.1f} %"],
-        ['Favorable extremo  — P95',       f"${p95_final:,.0f}", f"{((p95_final / capital_inicial) - 1) * 100:.1f} %"],
+        ['Escenario Probabilístico', 'Alcancía Final (Pesos de Hoy)', f'Renta Mensual Total (SWR {tasa_retiro_swr*100:.1f}%)'],
+        ['Adverso extremo  — P5',         f"${p5_final:,.0f}", f"${flujo_p5:,.0f} / mes"],
+        ['Moderadamente adverso  — P25',  f"${p25_final:,.0f}", f"${flujo_p25:,.0f} / mes"],
+        ['Escenario base  — P50',         f"${p50_final:,.0f}", f"${flujo_p50:,.0f} / mes"],
+        ['Favorable extremo  — P95',       f"${p95_final:,.0f}", f"${flujo_p95:,.0f} / mes"],
     ]
+    
     t_mc = Table(mc_data, colWidths=[2.5 * inch, 2.2 * inch, 1.8 * inch])
     t_mc.setStyle(TableStyle([
         ('BACKGROUND',    (0, 0), (-1, 0),  AZUL_OSCURO),
@@ -563,17 +577,21 @@ def generar_reporte(
         ('LINEBELOW',     (0, 0), (-1, 0),  1.5, AZUL_ACENTO),
         ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
         ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        
         ('TEXTCOLOR',     (0, 1), (0, -1),  GRIS_TEXTO), 
+        
+        # 4 Filas de datos con sus respectivos fondos
         ('BACKGROUND',    (0, 1), (-1, 1),  ROJO_SUAVE),
         ('BACKGROUND',    (0, 2), (-1, 2),  AMBAR_SUAVE),
         ('BACKGROUND',    (0, 3), (-1, 3),  GRIS_FONDO),  
-        ('BACKGROUND',    (0, 4), (-1, 4),  VERDE_SUAVE),
-        ('BACKGROUND',    (0, 5), (-1, 5),  AZUL_ICE),
+        ('BACKGROUND',    (0, 4), (-1, 4),  AZUL_ICE),
+        
+        # Colores de la columna de resultados financieros
         ('TEXTCOLOR',     (1, 1), (-1, 1),  ROJO),
         ('TEXTCOLOR',     (1, 2), (-1, 2),  AMBAR),
         ('TEXTCOLOR',     (1, 3), (-1, 3),  GRIS_TEXTO),  
-        ('TEXTCOLOR',     (1, 4), (-1, 4),  VERDE),
-        ('TEXTCOLOR',     (1, 5), (-1, 5),  AZUL_BRILLO),
+        ('TEXTCOLOR',     (1, 4), (-1, 4),  AZUL_BRILLO),
+        
         ('FONTNAME',      (1, 1), (-1, -1), 'Helvetica-Bold'),
         ('GRID',          (0, 0), (-1, -1), 0.5, GRIS_LINEA),
         ('TOPPADDING',    (0, 1), (-1, -1), 9),
@@ -585,9 +603,38 @@ def generar_reporte(
         story.append(KeepTogether([
             Spacer(1, 0.2 * inch),
             Paragraph(f"Distribución de Trayectorias de Capital — {num_sims:,} Simulaciones", E['subseccion']),
-            Paragraph("El haz de trayectorias visualiza la dispersión probabilística de resultados posibles. Las bandas de percentiles delimitan el espacio de confianza institucional para la toma de decisiones sobre estrategias de retiro, aportaciones y rebalanceo dinámico.", E['normal']),
+            Paragraph("Las trayectorias visualizan la dispersión probabilística de resultados posibles. La métrica crítica es la 'Renta Mensual Total' proyectada en el Escenario Adverso (P5), ya que representa su nivel de vida mínimo garantizado ante un estrés de mercado prolongado.", E['normal']),
             _fig_a_imagen(fig_mc, h_inch=3.2),
         ]))
+
+    # ── MOTOR LÓGICO DE DICTAMEN ──
+    story.append(Spacer(1, 0.2 * inch))
+    
+    if flujo_p5 >= meta_mensual:
+        titulo_dictamen = "DICTAMEN ACTUARIAL: ESTRUCTURA PATRIMONIAL INVULNERABLE"
+        texto_dictamen = (
+            f"Felicidades, {nombre_cliente}. Tras someter su estructura a {num_sims:,} escenarios de estrés, "
+            f"el modelo confirma que en el peor de los casos históricos (Percentil 5), su flujo total esperado "
+            f"(${flujo_p5:,.0f} MXN mensuales) superará su meta vital de ${meta_mensual:,.0f} MXN reales.\n\n"
+            "El mandato de inversión dictamina que su portafolio no requiere asumir riesgos adicionales en renta "
+            "variable agresiva. Su enfoque primario debe transicionar de inmediato hacia la Preservación Patrimonial, "
+            "optimización fiscal mediante fideicomisos y protección estructural contra inflación sistémica."
+        )
+        story += _callout_tecnico(titulo_dictamen, texto_dictamen)
+    else:
+        deficit = meta_mensual - flujo_p5
+        titulo_dictamen = "DICTAMEN ACTUARIAL: RIESGO DE RUPTURA ESTRUCTURAL EN ESCENARIO ADVERSO"
+        texto_dictamen = (
+            f"Atención, {nombre_cliente}. Si se materializa un régimen de estrés macroeconómico sostenido "
+            f"(Escenario P5), su flujo proyectado será de ${flujo_p5:,.0f} MXN mensuales, dejando un DÉFICIT de "
+            f"${deficit:,.0f} MXN respecto a su nivel de vida objetivo.\n\n"
+            "PRESCRIPCIÓN EJECUTIVA: La matemática institucional requiere la activación inmediata de contramedidas. "
+            "Debe aplicar al menos una de las siguientes palancas: 1) Incrementar radicalmente la aportación mensual "
+            "en su fase actual de acumulación. 2) Retrasar la edad de liquidación de su capital. 3) Ajustar a la baja "
+            "su expectativa de gasto (Meta Mensual) en el futuro. 4) Migrar hacia una frontera eficiente más agresiva "
+            "solo si su perfil de tolerancia al riesgo lo permite."
+        )
+        story += _callout_alerta(titulo_dictamen, texto_dictamen)
 
     # ── Disclaimer y nota legal ────────────────────────────────────────────────
     story.append(Spacer(1, 0.45 * inch))
