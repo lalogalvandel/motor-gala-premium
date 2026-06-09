@@ -1695,14 +1695,22 @@ with tab_motor:
         # Reporte PDF
         st.markdown("---")
         _header("Exportar", "Reporte Institucional")
+        
+        # ── NUEVO: Lógica inteligente para el nombre del reporte ──
+        # Si tienes un cliente en el CRM, usa su nombre. Si no, usa uno genérico.
+        nombre_defecto = cliente_seleccionado if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" else "Cliente Institucional"
+        
+        # Le damos al asesor un campo para confirmar o editar el nombre antes de imprimir
+        nombre_imprimir = st.text_input("Nombre a imprimir en la portada del PDF:", value=nombre_defecto)
+
         col_btn_pdf, col_esp = st.columns([1, 3])
         with col_btn_pdf:
             if st.button("Generar reporte PDF", type="primary", width='stretch'):
                 with st.spinner("Generando reporte..."):
                     try:
                         pdf_bytes = generar_reporte(
-                            # ── NUEVOS PARÁMETROS DE PERSONALIZACIÓN ──
-                            nombre_cliente=nombre_display,
+                            # ── CORRECCIÓN: Le pasamos 'nombre_imprimir' en lugar de 'nombre_display' ──
+                            nombre_cliente=nombre_imprimir,
                             meta_mensual=st.session_state.get('meta_mensual', 40000),
                             tasa_retiro_swr=st.session_state.get('tasa_retiro', 0.04),
                             regimen_pensional=st.session_state.get('regimen', 'PPR Puro'),
@@ -1730,9 +1738,11 @@ with tab_motor:
                             salario_promedio=st.session_state.get('salario_promedio', None),
                             simular_m40=st.session_state.get('simular_m40', False),
                         )
+                        
+                        # También cambiamos el nombre del archivo descargado
                         st.download_button(
                             label="Descargar reporte PDF", data=pdf_bytes,
-                            file_name=f"MotorGaLa_{nombre_display}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                            file_name=f"MotorGaLa_{nombre_imprimir.replace(' ', '')}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
                             mime="application/pdf")
                         st.success("Reporte generado correctamente.")
                     except Exception as e:
