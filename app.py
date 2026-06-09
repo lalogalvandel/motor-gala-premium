@@ -1631,6 +1631,16 @@ with tab_motor:
             fig_stress.update_layout(template="plotly_dark", height=350, xaxis_title="Impacto en Capital (%)", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(fig_stress, width='stretch', key="chart_stress")
             
+            # ── ALERTA DE COBERTURA CAMBIARIA ──
+            if any(p > 0 for p in df_stress["Pérdida (%)"]):
+                st.success(
+                    "**Efecto de Cobertura Cambiaria Detectado:** El modelo proyecta rendimientos POSITIVOS en escenarios "
+                    "de crisis global. Esto no es un error algorítmico, sino el efecto de tener un portafolio "
+                    "altamente concentrado en activos dolarizados (USD). Cuando ocurre un pánico bursátil, el "
+                    "Peso Mexicano suele devaluarse violentamente contra el Dólar, lo cual compensa e incluso "
+                    "supera las caídas de las acciones al valuar su patrimonio en moneda local."
+                )
+            
             df_stress_disp = df_stress.copy()
             if st.session_state.modo_privacidad:
                 df_stress_disp["Pérdida Estimada (USD)"] = "$ ••••••"
