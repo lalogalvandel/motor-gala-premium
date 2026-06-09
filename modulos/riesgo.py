@@ -87,7 +87,7 @@ def calcular_stress_test(
 ) -> pd.DataFrame:
     """
     Stress test con períodos históricos reales.
-    Calcula el retorno real del portafolio en cada ventana de crisis.
+    Calcula el retorno real del portafolio en cada ventana de crisis convirtiendo log-retornos a simples.
     """
     periodos = {
         'COVID Crash (Feb–Mar 2020)':   ('2020-02-19', '2020-03-23'),
@@ -102,24 +102,33 @@ def calcular_stress_test(
         try:
             # Filtra solo los tickers disponibles en retornos_diarios
             tickers_disp = [t for t in tickers if t in retornos_diarios.columns]
-            pesos_disp   = np.array([
-                pesos_optimos[tickers.index(t)] for t in tickers_disp
-            ])
+            pesos_disp   = np.array([pesos_optimos[tickers.index(t)] for t in tickers_disp])
+            
+            if pesos_disp.sum() == 0:
+                continue
+                
             pesos_disp  /= pesos_disp.sum()  # renormaliza
 
-            ventana = retornos_diarios[tickers_disp].loc[fecha_ini:fecha_fin]
+            # La ventana trae LOG-RETORNOS
+            ventana_log = retornos_diarios[tickers_disp].loc[fecha_ini:fecha_fin]
 
-            if ventana.empty:
+            if ventana_log.empty:
                 continue
 
-            retorno_periodo = (
-                (1 + ventana @ pesos_disp).prod() - 1
-            )
+            # ── CORRECCIÓN INSTITUCIONAL ──
+            # 1. Convertir log-retornos diarios a retornos simples
+            ventana_simple = np.exp(ventana_log) - 1
+            
+            # 2. El retorno del portafolio diario es el producto punto de los retornos simples y los pesos
+            retorno_portafolio_diario = ventana_simple @ pesos_disp
+            
+            # 3. Capitalizamos los retornos diarios del portafolio para toda la crisis
+            retorno_periodo = (1 + retorno_portafolio_diario).prod() - 1
 
             resultados.append({
                 'Escenario':     escenario,
                 'Pérdida (%)':   round(retorno_periodo * 100, 2),
-                'Pérdida (USD)': round(retorno_periodo * capital, 0)
+                'Pérdida (MXN)': round(retorno_periodo * capital, 0) # Cambié USD a MXN ya que estamos Mexicanizados
             })
         except Exception:
             continue
