@@ -1820,11 +1820,14 @@ with tab_retiro:
         inflacion = col_tasas1.number_input("Inflación (%)", value=4.0, step=0.5, key="ldi_inflacion") / 100
         
         # ── INTERCONEXIÓN INTELIGENTE: Si ya se optimizó el portafolio, sugerimos esa tasa real de la pestaña 2
-        tasa_sugerida = float(st.session_state.get('ret_opt', 0.15) * 100)
+        ret_opt_actual = st.session_state.get('ret_opt')
+        tasa_base = ret_opt_actual if ret_opt_actual is not None else 0.15
+        tasa_sugerida = float(tasa_base * 100)
+        
         tasa_portafolio = col_tasas2.number_input("Rend. Anual (%)", value=tasa_sugerida, step=1.0, key="ldi_tasa_portafolio_input") / 100
         
         tasa_retiro = col_tasas3.number_input("Tasa SWR (%)", value=4.0, step=0.5, key="ldi_tasa_swr_input") / 100
-        st.session_state["tasa_retiro"] = tasa_retiro 
+        st.session_state["tasa_retiro"] = tasa_retiro
 
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     
