@@ -332,16 +332,7 @@ def f_val(valor, formato="${:,.2f}"):
     return "$ ••••••" if st.session_state.modo_privacidad else formato.format(valor)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# LANDING — AUTH  (versión rediseñada)
-# Reemplaza el bloque completo: if st.session_state["usuario_premium"] is None:
-# ─────────────────────────────────────────────────────────────────────────────
-# Cambios visuales:
-#   · Lista de capacidades → grid de tarjetas CSS animadas con entrada escalonada
-#   · Stat pills con métricas clave debajo del headline
-#   · Divider animado que se dibuja de izquierda a derecha
-#   · Tarjeta ancha "Monte Carlo" con número 3,500+ con efecto breathing glow
-#   · Hover: translateY + border glow en cada tarjeta
-#   · Todo el código de autenticación (forms, lógica, tabs) inalterado
+# LANDING — AUTH  (versión rediseñada y purificada)
 # ══════════════════════════════════════════════════════════════════════════════
 
 if st.session_state["usuario_premium"] is None:
@@ -364,7 +355,7 @@ if st.session_state["usuario_premium"] is None:
     }
     @keyframes gl_numBreathe {
       0%,  100% { opacity: 0.85; text-shadow: 0 0  0px rgba(68,136,255,0.0); }
-      50%        { opacity: 1.00; text-shadow: 0 0 16px rgba(68,136,255,0.45); }
+      50%       { opacity: 1.00; text-shadow: 0 0 16px rgba(68,136,255,0.45); }
     }
     @keyframes gl_ruleGrow {
       from { width: 0; }
@@ -372,119 +363,62 @@ if st.session_state["usuario_premium"] is None:
     }
 
     /* ── Hero ───────────────────────────────────────────────────────────── */
-    .gl-hero {
-        padding: 3rem 0 1.25rem;
-    }
+    .gl-hero { padding: 3rem 0 1.25rem; }
     .gl-eyebrow {
-        font-family: 'DM Mono', monospace;
-        font-size: 10px;
-        letter-spacing: 0.28em;
-        text-transform: uppercase;
-        color: #4488FF;
-        margin-bottom: 1.1rem;
+        font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.28em;
+        text-transform: uppercase; color: #4488FF; margin-bottom: 1.1rem;
         animation: gl_fadeIn 0.7s ease 0.08s both;
     }
     .gl-headline {
-        font-family: 'EB Garamond', Georgia, serif;
-        font-size: clamp(26px, 3.8vw, 46px);
-        font-weight: 400;
-        letter-spacing: 0.01em;
-        line-height: 1.12;
-        margin-bottom: 0;
+        font-family: 'EB Garamond', Georgia, serif; font-size: clamp(26px, 3.8vw, 46px);
+        font-weight: 400; letter-spacing: 0.01em; line-height: 1.12; margin-bottom: 0;
         animation: gl_fadeUp 0.6s ease 0.16s both;
     }
     .gl-headline-rule {
-        height: 2px;
-        width: 0;                               /* animado desde 0 */
-        background: linear-gradient(90deg, #4488FF, rgba(68,136,255,0.15));
-        margin: 0.85rem 0;
-        animation: gl_ruleGrow 0.9s cubic-bezier(.22,1,.36,1) 0.55s both;
+        height: 2px; width: 0; background: linear-gradient(90deg, #4488FF, rgba(68,136,255,0.15));
+        margin: 0.85rem 0; animation: gl_ruleGrow 0.9s cubic-bezier(.22,1,.36,1) 0.55s both;
     }
     .gl-tagline {
-        font-family: 'EB Garamond', Georgia, serif;
-        font-size: 16.5px;
-        font-style: italic;
-        opacity: 0.62;
-        line-height: 1.65;
-        animation: gl_fadeUp 0.6s ease 0.26s both;
+        font-family: 'EB Garamond', Georgia, serif; font-size: 16.5px; font-style: italic;
+        opacity: 0.62; line-height: 1.65; animation: gl_fadeUp 0.6s ease 0.26s both;
     }
 
     /* ── Stat pills ─────────────────────────────────────────────────────── */
-    .gl-pills {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.45rem;
-        margin-top: 1.4rem;
-        animation: gl_fadeUp 0.6s ease 0.4s both;
-    }
+    .gl-pills { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 1.4rem; animation: gl_fadeUp 0.6s ease 0.4s both; }
     .gl-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.3rem;
-        padding: 0.28rem 0.7rem;
-        border: 0.5px solid rgba(68,136,255,0.22);
-        background: rgba(68,136,255,0.035);
-        font-family: 'DM Mono', monospace;
-        font-size: 10px;
-        letter-spacing: 0.07em;
-        color: rgba(255,255,255,0.56);
-        border-radius: 2px;
-        transition: border-color 0.2s ease, background 0.2s ease;
+        display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.28rem 0.7rem;
+        border: 0.5px solid rgba(68,136,255,0.22); background: rgba(68,136,255,0.035);
+        font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.07em;
+        color: rgba(255,255,255,0.56); border-radius: 2px; transition: all 0.2s ease;
     }
-    .gl-pill:hover {
-        border-color: rgba(68,136,255,0.48);
-        background: rgba(68,136,255,0.07);
-    }
+    .gl-pill:hover { border-color: rgba(68,136,255,0.48); background: rgba(68,136,255,0.07); }
     .gl-pill b { color: #4488FF; font-weight: 400; }
 
     /* ── Divider animado ────────────────────────────────────────────────── */
     .gl-divider {
-        height: 0.5px;
-        width: 0;
-        background: linear-gradient(90deg, rgba(68,136,255,0.55), rgba(68,136,255,0.07), transparent);
-        margin: 1.8rem 0 2.4rem;
-        animation: gl_drawLine 1.4s cubic-bezier(.22,1,.36,1) 0.55s both;
+        height: 0.5px; width: 0; background: linear-gradient(90deg, rgba(68,136,255,0.55), rgba(68,136,255,0.07), transparent);
+        margin: 1.8rem 0 2.4rem; animation: gl_drawLine 1.4s cubic-bezier(.22,1,.36,1) 0.55s both;
     }
 
     /* ── Etiquetas de sección ───────────────────────────────────────────── */
     .gl-section-label {
-        font-family: 'DM Mono', monospace;
-        font-size: 9.5px;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        opacity: 0.42;
-        padding-bottom: 0.6rem;
-        border-bottom: 0.5px solid rgba(68,136,255,0.1);
-        margin-bottom: 0.9rem;
+        font-family: 'DM Mono', monospace; font-size: 9.5px; letter-spacing: 0.18em;
+        text-transform: uppercase; opacity: 0.42; padding-bottom: 0.6rem;
+        border-bottom: 0.5px solid rgba(68,136,255,0.1); margin-bottom: 0.9rem;
         animation: gl_fadeIn 0.55s ease 0.72s both;
     }
 
     /* ── Grid de tarjetas ───────────────────────────────────────────────── */
-    .gl-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.5rem;
-    }
+    .gl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
     .gl-card {
-        padding: 0.85rem 0.95rem 0.9rem;
-        border: 0.5px solid rgba(68,136,255,0.1);
-        background: rgba(68,136,255,0.018);
-        cursor: default;
-        transition:
-            border-color 0.22s ease,
-            background   0.22s ease,
-            transform    0.22s ease,
-            box-shadow   0.22s ease;
-        animation: gl_fadeUp 0.5s ease both;
+        padding: 0.85rem 0.95rem 0.9rem; border: 0.5px solid rgba(68,136,255,0.1);
+        background: rgba(68,136,255,0.018); cursor: default;
+        transition: all 0.22s ease; animation: gl_fadeUp 0.5s ease both;
     }
     .gl-card:hover {
-        border-color: rgba(68,136,255,0.38);
-        background:   rgba(68,136,255,0.055);
-        transform:    translateY(-2px);
-        box-shadow:   0 6px 20px rgba(68,136,255,0.06);
+        border-color: rgba(68,136,255,0.38); background: rgba(68,136,255,0.055);
+        transform: translateY(-2px); box-shadow: 0 6px 20px rgba(68,136,255,0.06);
     }
-
-    /* Entrada escalonada: tarjetas 1–7 */
     .gl-card:nth-child(1) { animation-delay: 0.80s; }
     .gl-card:nth-child(2) { animation-delay: 0.90s; }
     .gl-card:nth-child(3) { animation-delay: 1.00s; }
@@ -493,66 +427,21 @@ if st.session_state["usuario_premium"] is None:
     .gl-card:nth-child(6) { animation-delay: 1.30s; }
     .gl-card:nth-child(7) { animation-delay: 1.40s; }
 
-    .gl-card-tag {
-        font-family: 'DM Mono', monospace;
-        font-size: 8.5px;
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        color: #4488FF;
-        opacity: 0.72;
-        margin-bottom: 0.32rem;
-    }
-    .gl-card-title {
-        font-family: 'EB Garamond', Georgia, serif;
-        font-size: 14.5px;
-        font-weight: 500;
-        line-height: 1.3;
-        color: rgba(255,255,255,0.9);
-        margin-bottom: 0.22rem;
-    }
-    .gl-card-desc {
-        font-family: 'EB Garamond', Georgia, serif;
-        font-size: 12.5px;
-        font-style: italic;
-        opacity: 0.52;
-        line-height: 1.46;
-    }
+    .gl-card-tag { font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.22em; text-transform: uppercase; color: #4488FF; opacity: 0.72; margin-bottom: 0.32rem; }
+    .gl-card-title { font-family: 'EB Garamond', Georgia, serif; font-size: 14.5px; font-weight: 500; line-height: 1.3; color: rgba(255,255,255,0.9); margin-bottom: 0.22rem; }
+    .gl-card-desc { font-family: 'EB Garamond', Georgia, serif; font-size: 12.5px; font-style: italic; opacity: 0.52; line-height: 1.46; }
 
     /* Tarjeta ancha — Monte Carlo */
-    .gl-card-wide {
-        grid-column: span 2;
-        display: flex;
-        align-items: center;
-        gap: 1.2rem;
-    }
-    .gl-card-wide:hover { transform: translateY(-2px); }
-
-    .gl-big-num {
-        font-family: 'DM Mono', monospace;
-        font-size: 38px;
-        font-weight: 300;
-        color: #4488FF;
-        letter-spacing: -0.035em;
-        line-height: 1;
-        flex-shrink: 0;
-        /* breathing glow — inicia después de que la tarjeta entra */
-        animation: gl_numBreathe 4.5s ease-in-out 2.2s infinite;
-    }
+    .gl-card-wide { grid-column: span 2; display: flex; align-items: center; gap: 1.2rem; }
+    .gl-big-num { font-family: 'DM Mono', monospace; font-size: 38px; font-weight: 300; color: #4488FF; letter-spacing: -0.035em; line-height: 1; flex-shrink: 0; animation: gl_numBreathe 4.5s ease-in-out 2.2s infinite; }
 
     /* Columna auth */
-    .gl-auth-header {
-        animation: gl_fadeIn 0.55s ease 0.85s both;
-    }
+    .gl-auth-header { animation: gl_fadeIn 0.55s ease 0.85s both; }
 
-    /* Accesibilidad: respeta prefers-reduced-motion */
+    /* Accesibilidad */
     @media (prefers-reduced-motion: reduce) {
-        .gl-eyebrow, .gl-headline, .gl-headline-rule, .gl-tagline,
-        .gl-pills, .gl-divider, .gl-section-label, .gl-card,
-        .gl-big-num, .gl-auth-header {
-            animation: none !important;
-            opacity: 1 !important;
-            transform: none !important;
-            width: auto !important;
+        .gl-eyebrow, .gl-headline, .gl-headline-rule, .gl-tagline, .gl-pills, .gl-divider, .gl-section-label, .gl-card, .gl-big-num, .gl-auth-header {
+            animation: none !important; opacity: 1 !important; transform: none !important; width: auto !important;
         }
         .gl-headline-rule { width: 2.75rem !important; }
     }
@@ -563,17 +452,9 @@ if st.session_state["usuario_premium"] is None:
     st.markdown("""
     <div class='gl-hero'>
         <div class='gl-eyebrow'>Motor GaLa · Sistema Premium</div>
-
-        <div class='gl-headline'>
-            Sistema Institucional de<br>Gestión de Capital
-        </div>
+        <div class='gl-headline'>Sistema Institucional de<br>Gestión de Capital</div>
         <div class='gl-headline-rule'></div>
-
-        <div class='gl-tagline'>
-            Optimización cuantitativa de portafolios sobre universos de hasta 500&nbsp;activos.
-            Markowitz&nbsp;·&nbsp;SLSQP&nbsp;·&nbsp;Monte Carlo t-Student&nbsp;·&nbsp;HMM&nbsp;·&nbsp;Glide Path actuarial.
-        </div>
-
+        <div class='gl-tagline'>Optimización cuantitativa de portafolios sobre universos de hasta 500&nbsp;activos. Markowitz&nbsp;·&nbsp;SLSQP&nbsp;·&nbsp;Monte Carlo t-Student&nbsp;·&nbsp;HMM&nbsp;·&nbsp;Glide Path actuarial.</div>
         <div class='gl-pills'>
             <div class='gl-pill'><b>500</b>&thinsp;activos · S&amp;P 500 / NASDAQ 100</div>
             <div class='gl-pill'><b>3,500+</b>&thinsp;simulaciones Monte Carlo</div>
@@ -584,101 +465,62 @@ if st.session_state["usuario_premium"] is None:
     </div>
     """, unsafe_allow_html=True)
 
-    # Divider que se dibuja solo
+    # Divider
     st.markdown("<div class='gl-divider'></div>", unsafe_allow_html=True)
 
     # ── Columnas ─────────────────────────────────────────────────────────────
     col_info, col_auth = st.columns([1.3, 1], gap="large")
 
-    # ── Columna izquierda: grid de capacidades ───────────────────────────────
     with col_info:
         st.markdown("""
         <div class='gl-section-label'>Capacidades del sistema</div>
-
         <div class='gl-grid'>
-
             <div class='gl-card'>
                 <div class='gl-card-tag'>Selección · ML</div>
                 <div class='gl-card-title'>Screening Fundamental</div>
-                <div class='gl-card-desc'>
-                    S&amp;P 500 y NASDAQ 100 filtrados por Market Cap, P/E, márgenes y
-                    Deuda/Capital. Clustering K-Means garantiza diversificación real entre sectores.
-                </div>
+                <div class='gl-card-desc'>S&amp;P 500 y NASDAQ 100 filtrados por Market Cap, P/E, márgenes y Deuda/Capital. Clustering K-Means garantiza diversificación real entre sectores.</div>
             </div>
-
             <div class='gl-card'>
                 <div class='gl-card-tag'>Optimización · SLSQP</div>
                 <div class='gl-card-title'>Frontera Eficiente</div>
-                <div class='gl-card-desc'>
-                    Sharpe máximo bajo restricciones duras de concentración, riesgo
-                    y Glide Path actuarial dinámico según horizonte de inversión.
-                </div>
+                <div class='gl-card-desc'>Sharpe máximo bajo restricciones duras de concentración, riesgo y Glide Path actuarial dinámico según horizonte de inversión.</div>
             </div>
-
             <div class='gl-card'>
                 <div class='gl-card-tag'>Riesgo · Métricas</div>
                 <div class='gl-card-title'>Gestión de Riesgo Extremo</div>
-                <div class='gl-card-desc'>
-                    VaR, CVaR, Maximum Drawdown, Sortino. Stress Testing con shocks
-                    históricos: COVID, 2008, Bear Market 2022 e impacto cambiario USD/MXN.
-                </div>
+                <div class='gl-card-desc'>VaR, CVaR, Maximum Drawdown, Sortino. Stress Testing con shocks históricos: COVID, 2008, Bear Market 2022 e impacto cambiario USD/MXN.</div>
             </div>
-
             <div class='gl-card'>
                 <div class='gl-card-tag'>Validación · Walk-Forward</div>
                 <div class='gl-card-title'>Backtesting Sin Bias</div>
-                <div class='gl-card-desc'>
-                    Metodología sin look-ahead bias. Recalibración periódica neta de
-                    comisiones operativas. Jensen's Alpha, Calmar y Sortino históricos.
-                </div>
+                <div class='gl-card-desc'>Metodología sin look-ahead bias. Recalibración periódica neta de comisiones operativas. Jensen's Alpha, Calmar y Sortino históricos.</div>
             </div>
-
             <div class='gl-card'>
                 <div class='gl-card-tag'>Regímenes · HMM</div>
                 <div class='gl-card-title'>Modelos Ocultos de Markov</div>
-                <div class='gl-card-desc'>
-                    Detección automática de régimen Normal vs. Pánico/Tensión,
-                    integrada al proceso de rebalanceo activo de la cartera.
-                </div>
+                <div class='gl-card-desc'>Detección automática de régimen Normal vs. Pánico/Tensión, integrada al proceso de rebalanceo activo de la cartera.</div>
             </div>
-
             <div class='gl-card'>
                 <div class='gl-card-tag'>Actuarial · LDI</div>
                 <div class='gl-card-title'>Modelado Pensional LDI</div>
-                <div class='gl-card-desc'>
-                    Ley 73, Modalidad 40 topada a 25 UMAs, Ecuación de Fisher en
-                    términos reales. Prescripción automática de riesgo por Superávit.
-                </div>
+                <div class='gl-card-desc'>Ley 73, Modalidad 40 topada a 25 UMAs, Ecuación de Fisher en términos reales. Prescripción automática de riesgo por Superávit.</div>
             </div>
-
-            <!-- Tarjeta ancha: Monte Carlo con número dominante -->
             <div class='gl-card gl-card-wide'>
                 <div class='gl-big-num'>3,500+</div>
                 <div>
                     <div class='gl-card-tag'>Monte Carlo · t-Student</div>
                     <div class='gl-card-title'>Simulación de Escenarios Adversos</div>
-                    <div class='gl-card-desc'>
-                        Distribuciones de cola pesada (gl ≈ 4) para modelar Cisnes Negros
-                        que la distribución gaussiana ignora. Percentiles de riqueza terminal calibrados.
-                    </div>
+                    <div class='gl-card-desc'>Distribuciones de cola pesada (gl ≈ 4) para modelar Cisnes Negros que la distribución gaussiana ignora. Percentiles de riqueza terminal calibrados.</div>
                 </div>
             </div>
-
         </div>
         """, unsafe_allow_html=True)
 
-    # ── Columna derecha: autenticación ───────────────────────────────────────
     with col_auth:
-        st.markdown(
-            "<div class='gl-auth-header gl-section-label'>Acceso al sistema</div>",
-            unsafe_allow_html=True
-        )
+        st.markdown("<div class='gl-auth-header gl-section-label'>Acceso al sistema</div>", unsafe_allow_html=True)
 
-        tab_login, tab_reg, tab_reset = st.tabs(
-            ["Iniciar sesión", "Crear cuenta", "Recuperar acceso"]
-        )
+        tab_login, tab_reg, tab_reset = st.tabs(["Iniciar sesión", "Crear cuenta", "Recuperar acceso"])
 
-        # ── Login ────────────────────────────────────────────────────────────
         with tab_login:
             st.caption("Ingrese sus credenciales para acceder al sistema.")
             with st.form("form_login_premium"):
@@ -702,13 +544,10 @@ if st.session_state["usuario_premium"] is None:
                         restantes = 5 - st.session_state["login_intentos"]
                         st.error(f"Credenciales incorrectas. Intentos restantes: {restantes}.")
 
-        # ── Registro ─────────────────────────────────────────────────────────
         with tab_reg:
             st.caption("Cree su cuenta para acceder al sistema Premium.")
             with st.form("form_registro_premium"):
-                nombre_r = st.text_input(
-                    "¿Cómo quiere que le llamemos?", placeholder="Nombre, apodo o alias"
-                )
+                nombre_r = st.text_input("¿Cómo quiere que le llamemos?", placeholder="Nombre, apodo o alias")
                 email_r  = st.text_input("Correo electrónico")
                 pass_r   = st.text_input("Contraseña", type="password")
                 pass_r2  = st.text_input("Confirmar contraseña", type="password")
@@ -728,12 +567,8 @@ if st.session_state["usuario_premium"] is None:
                     else:
                         st.error(msg)
 
-        # ── Recuperación de acceso ────────────────────────────────────────────
         with tab_reset:
-            st.caption(
-                "Ingrese su correo. Se generará un token de recuperación que deberá "
-                "compartir con la dirección del sistema para validar su identidad."
-            )
+            st.caption("Ingrese su correo. Se generará un token de recuperación que deberá compartir con la dirección del sistema para validar su identidad.")
             with st.form("form_solicitar_token"):
                 email_rst = st.text_input("Correo electrónico registrado")
                 sol_btn   = st.form_submit_button("Generar token", width='stretch')
@@ -764,7 +599,6 @@ if st.session_state["usuario_premium"] is None:
                         st.error(msg)
 
     st.stop()
-
 # ══════════════════════════════════════════════════════════════════════════════
 # USUARIO AUTENTICADO
 # ══════════════════════════════════════════════════════════════════════════════
