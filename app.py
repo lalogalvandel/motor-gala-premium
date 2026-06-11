@@ -460,7 +460,7 @@ if st.session_state["usuario_premium"] is None:
             <div class='gl-pill'><b>3,500+</b>&thinsp;simulaciones Monte Carlo</div>
             <div class='gl-pill'><b>HMM</b>&thinsp;detección de régimen</div>
             <div class='gl-pill'><b>LDI</b>&thinsp;Ley 73 · IMSS · Fisher</div>
-            <div class='gl-pill'><b>PDF</b>&thinsp;reporte institucional 6 pp.</div>
+            <div class='gl-pill'><b>PDF</b>&thinsp;reporte institucional</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
