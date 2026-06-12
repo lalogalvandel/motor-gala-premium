@@ -1276,7 +1276,7 @@ with tab_motor:
     else:
         benchmark_elegido = PERFILES_BENCHMARK[benchmark_seleccion]
         if ejecutar:
-            st.session_state["tickers_procesar"]  = tickers_input
+            # Eliminamos la línea conflictiva, el Sidebar ya actualiza los tickers automáticamente
             st.session_state["benchmark_elegido"] = benchmark_elegido
 
         tickers_finales   = st.session_state.get("tickers_procesar", tickers_input)
