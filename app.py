@@ -675,11 +675,10 @@ def _header(eyebrow: str, titulo: str):
 # SIDEBAR GLOBAL (ÚNICO)
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
-    with st.spinner("Consultando Banco de México..."):
-        tasa_actual_banxico = obtener_tasa_referencia_banxico()
-        tasa_rf = tasa_actual_banxico
+    # ── 1. Carga optimizada (Adiós al flasheo constante) ──
+    tasa_actual_banxico = obtener_tasa_referencia_banxico()
+    tasa_rf = tasa_actual_banxico
     st.metric(label="Tasa de Referencia Banxico", value=f"{tasa_actual_banxico * 100:.2f}%")
-
     margen_sugerido = float(round(tasa_actual_banxico * 100, 1))
 
     # Sidebar: Módulo CRM - Gestión de Clientes
@@ -705,11 +704,15 @@ with st.sidebar:
             st.session_state["capital_acumulado"] = float(datos_c.get("capital_acumulado", 2000000.0))
             st.session_state["simular_m40"]       = bool(datos_c.get("simular_m40", False))
             st.session_state["tickers_procesar"]  = str(datos_c.get("tickers_guardados", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"))
-            pm_db = float(datos_c.get("peso_maximo", 40))
-            st.session_state["peso_maximo"] = int(pm_db * 100) if pm_db <= 1.0 else int(pm_db)
+            
+            # ── 2. Blindaje de la Bomba de Tiempo (Peso Máximo) ──
+            pm_db = datos_c.get("peso_maximo", 40)
+            if isinstance(pm_db, float) and pm_db <= 1.0:
+                pm_db = int(pm_db * 100)
+            st.session_state["peso_maximo_val"] = int(pm_db)
 
             st.rerun()
-        st.caption(f"Cargado desde base de datos")
+        st.caption("Cargado desde base de datos")
     else:
         if st.session_state.get("cliente_activo_id") is not None:
             st.session_state["cliente_activo_id"] = None
@@ -717,7 +720,7 @@ with st.sidebar:
             st.rerun()
 
     # Botón para guardar el progreso
-    with st.expander("Guardar cambios al expediente"):
+    with st.expander("Guardar cambios al expediente", expanded=False):
         nuevo_nombre = st.text_input("Nombre del cliente", value=cliente_seleccionado if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" else "")
         if st.button("Guardar Perfil Completo", width='stretch'):
             if not nuevo_nombre.strip():
@@ -732,7 +735,7 @@ with st.sidebar:
                     "capital_acumulado": st.session_state.get("capital_acumulado", 2000000.0),
                     "simular_m40": st.session_state.get("simular_m40", False),
                     "tickers_guardados": st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"),
-                    "peso_maximo": st.session_state.get("peso_maximo", 40)
+                    "peso_maximo": st.session_state.get("peso_maximo_val", 40)
                 }
                 if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" and nuevo_nombre == cliente_seleccionado:
                     datos_guardar["id"] = st.session_state["cliente_activo_id"]
@@ -744,45 +747,47 @@ with st.sidebar:
                 else:
                     st.error(msg)
 
-    # Sidebar: Módulo 1
+    # ── 3. Reducción de carga cognitiva (Módulos en Acordeón) ──
     st.markdown("---")
-    st.subheader("1. Análisis Fundamental")
-    usar_screening = st.toggle("Activar selección algorítmica de activos", value=False)
+    with st.expander("1. Análisis Fundamental (Screening)", expanded=False):
+        usar_screening = st.toggle("Activar selección algorítmica de activos", value=False)
 
-    if usar_screening:
-        with st.form("screening_form"):
-            universo_sel  = st.selectbox("Universo de análisis", list(UNIVERSOS.keys()))
-            min_cap       = st.slider("Capitalización mínima (B USD)", 1.0, 100.0, 10.0, step=1.0)
-            min_margin    = st.slider("Margen de beneficio mínimo (%)", 0.0, 30.0, margen_sugerido, step=1.0,
-                                      help=f"Referencia Banxico: {margen_sugerido}%")
-            max_pe        = st.slider("P/E máximo", 10.0, 100.0, 50.0, step=5.0)
-            min_roe_scr   = st.slider("ROE mínimo (%)", 0.0, 50.0, 10.0, step=1.0)
-            max_deuda_scr = st.slider("Deuda/Capital máximo (%)", 0, 500, 150, step=10)
-            n_clusters    = st.slider("Grupos de diversificación (K-Means)", 2, 8, 4)
-            incluir_refugios = st.checkbox("Incluir activos de refugio (TLT, GLD)", value=True)
-            ejecutar_scr  = st.form_submit_button("Ejecutar análisis fundamental", width='stretch')
-    else:
-        ejecutar_scr = False
+        if usar_screening:
+            with st.form("screening_form"):
+                universo_sel  = st.selectbox("Universo de análisis", list(UNIVERSOS.keys()))
+                min_cap       = st.slider("Capitalización mínima (B USD)", 1.0, 100.0, 10.0, step=1.0)
+                min_margin    = st.slider("Margen de beneficio mínimo (%)", 0.0, 30.0, margen_sugerido, step=1.0,
+                                          help=f"Referencia Banxico: {margen_sugerido}%")
+                max_pe        = st.slider("P/E máximo", 10.0, 100.0, 50.0, step=5.0)
+                min_roe_scr   = st.slider("ROE mínimo (%)", 0.0, 50.0, 10.0, step=1.0)
+                max_deuda_scr = st.slider("Deuda/Capital máximo (%)", 0, 500, 150, step=10)
+                n_clusters    = st.slider("Grupos de diversificación (K-Means)", 2, 8, 4)
+                incluir_refugios = st.checkbox("Incluir activos de refugio (TLT, GLD)", value=True)
+                ejecutar_scr  = st.form_submit_button("Ejecutar análisis fundamental", width='stretch')
+        else:
+            ejecutar_scr = False
 
-    # Sidebar: Módulo 2 – Parámetros de Optimización
+    # Sidebar: Módulo 2 – Parámetros de Optimización (Núcleo Principal Abierto)
     st.markdown("---")
     st.subheader("2. Parámetros de Optimización")
 
-    tickers_default = st.session_state.get("tickers_screening", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX") if usar_screening else "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"
+    # Inyección preventiva para evitar fallos si el key no existe
+    if "tickers_procesar" not in st.session_state:
+        st.session_state["tickers_procesar"] = st.session_state.get("tickers_screening", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX") if usar_screening else "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"
 
     with st.form("optim_form"):
-        tickers_input = st.text_area("Activos a optimizar", value=st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX"), height=70)
+        # Enlazado dinámico con 'key'
+        tickers_input = st.text_area("Activos a optimizar", height=70, key="tickers_procesar")
         fecha_inicio  = st.date_input("Fecha de inicio", value=pd.Timestamp("2020-01-01"))
         fecha_fin     = st.date_input("Fecha de cierre", value=pd.Timestamp("2026-05-08"))
         
         st.markdown("---")
         st.subheader("Restricciones de concentración")
         
-        pm_sesion = st.session_state.get("peso_maximo", int(mem_ui.get("peso_maximo", 40)))
-        pm_valido = int(pm_sesion * 100) if isinstance(pm_sesion, float) and pm_sesion <= 1.0 else int(pm_sesion)
-        pm_valido = max(10, min(100, pm_valido))
+        pm_actual = int(st.session_state.get("peso_maximo_val", mem_ui.get("peso_maximo", 40)))
+        pm_actual = max(10, min(100, pm_actual))
         
-        peso_max_val = st.slider("Exposición máxima por activo (%)", 10, 100, value=pm_valido)
+        peso_max_val = st.slider("Exposición máxima por activo (%)", 10, 100, value=pm_actual)
         peso_max = peso_max_val / 100
         
         if "limite_riesgo_manual" not in st.session_state:
@@ -800,6 +805,13 @@ with st.sidebar:
         horizonte_años        = st.slider("Horizonte de inversión (años)", min_value=1, max_value=40, value=int(mem_ui.get("horizonte", 10)))
         num_sims              = st.slider("Simulaciones Monte Carlo", 500, 5000, int(mem_ui.get("simulaciones", 2000)), step=500)
         
+        # ── EL TOPE ACTUARIAL INSTITUCIONAL (CONECTADO AL KEY SEGURO) ──
+        st.slider(
+            "Tope Actuarial CAGR (%)", 5.0, 30.0, 15.0, step=0.5,
+            key="tope_actuarial_slider",
+            help="Aplica un 'haircut' a rendimientos históricos atípicos para evitar proyecciones irreales a largo plazo. Limita el crecimiento compuesto, pero mantiene la volatilidad intacta."
+        )
+        
         st.markdown("---")
         st.subheader("Benchmark comparativo")
         PERFILES_BENCHMARK = {
@@ -812,9 +824,7 @@ with st.sidebar:
         ejecutar = st.form_submit_button("Ejecutar optimización", width='stretch')
 
         if ejecutar:
-            st.session_state["tickers_procesar"] = tickers_input
-            st.session_state["peso_maximo"] = peso_max_val
-            # ── SE DISPARA EL GUARDADO DE ESTADO AQUÍ ──
+            st.session_state["peso_maximo_val"] = peso_max_val
             guardar_memoria_ui_premium(peso_max_val, horizonte_años, num_sims)
 
     # ── Prescripción Actuarial LDI (ubicada fuera del formulario) ──
@@ -834,77 +844,42 @@ with st.sidebar:
                 f"({st.session_state['perfil_ldi_nombre']})"
             )
             st.caption("*(Proviene de la pestaña Planeación de Retiro. Ajuste los parámetros allí para modificar el límite.)*")
-    else:
-        pass
 
-    # ── MÓDULO BLACK-LITTERMAN ──
+    # ── MÓDULO BLACK-LITTERMAN (También en acordeón para no saturar) ──
     st.markdown("---")
-    st.subheader("3. Expectativas de Mercado (Black‑Litterman)")
-    usar_bl = st.toggle("Incorporar visión de portafolio", value=st.session_state.get("usar_bl", False))
-    st.session_state["usar_bl"] = usar_bl
+    with st.expander("3. Expectativas de Mercado (Black‑Litterman)", expanded=False):
+        usar_bl = st.toggle("Incorporar visión de portafolio", value=st.session_state.get("usar_bl", False))
+        st.session_state["usar_bl"] = usar_bl
 
-    vistas_usuario = []
-    if usar_bl:
-        num_vistas = st.number_input("Número de perspectivas de inversión", 1, 5, 1)
-        
-        cadena_tickers = st.session_state.get("tickers_procesar", tickers_default)
-        tickers_temp = [t.strip().upper() for t in cadena_tickers.split(",") if t.strip()]
-        
-        for i in range(num_vistas):
-            with st.expander(f"Perspectiva {i+1}", expanded=True):
-                tipo = st.selectbox("Tipo de expectativa", ["absoluta", "relativa"], key=f"tipo_{i}")
-                activo_1 = st.selectbox("Instrumento de referencia", tickers_temp, key=f"a1_{i}")
-        
-                if tipo == "absoluta":
-                    rendimiento = st.slider(
-                        "Retorno esperado anual (%)",
-                        -50.0, 50.0, 10.0, step=1.0, key=f"rend_{i}"
-                    ) / 100
-                    st.markdown(
-                        f"<span style='color:#17C37B;font-size:13px;'>"
-                        f"Se proyecta que <b>{activo_1}</b> obtenga un retorno de "
-                        f"<b>{rendimiento*100:.1f}%</b> en el período.</span>",
-                        unsafe_allow_html=True,
-                    )
-                    vista = {
-                        "tipo": "absoluta",
-                        "activo_1": activo_1,
-                        "rendimiento_esperado": rendimiento,
-                    }
-                else:
-                    activos_rest = [t for t in tickers_temp if t != activo_1]
-                    activo_2 = (
-                        st.selectbox("Instrumento de comparación", activos_rest, key=f"a2_{i}")
-                        if activos_rest
-                        else activo_1
-                    )
-                    rendimiento = st.slider(
-                        "Exceso de retorno esperado (%)",
-                        0.0, 50.0, 5.0, step=1.0, key=f"rend_{i}"
-                    ) / 100
-                    st.markdown(
-                        f"<span style='color:#17C37B;font-size:13px;'>"
-                        f"Se estima que <b>{activo_1}</b> supere a <b>{activo_2}</b> "
-                        f"en <b>{rendimiento*100:.1f}%</b>.</span>",
-                        unsafe_allow_html=True,
-                    )
-                    vista = {
-                        "tipo": "relativa",
-                        "activo_1": activo_1,
-                        "activo_2": activo_2,
-                        "rendimiento_esperado": rendimiento,
-                    }
-        
-                confianza = st.select_slider(
-                    "Grado de certeza en la expectativa",
-                    ["Baja", "Media", "Alta"],
-                    value="Media",
-                    key=f"conf_{i}",
-                )
-                vista["confianza"] = confianza
-                vistas_usuario.append(vista)
-        
-    st.session_state["vistas_bl"] = vistas_usuario
+        vistas_usuario = []
+        if usar_bl:
+            num_vistas = st.number_input("Número de perspectivas de inversión", 1, 5, 1)
+            
+            cadena_tickers = st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX")
+            tickers_temp = [t.strip().upper() for t in cadena_tickers.split(",") if t.strip()]
+            
+            for i in range(num_vistas):
+                with st.container():
+                    st.markdown(f"**Perspectiva {i+1}**")
+                    tipo = st.selectbox("Tipo de expectativa", ["absoluta", "relativa"], key=f"tipo_{i}")
+                    activo_1 = st.selectbox("Instrumento de referencia", tickers_temp, key=f"a1_{i}")
+            
+                    if tipo == "absoluta":
+                        rendimiento = st.slider("Retorno esperado anual (%)", -50.0, 50.0, 10.0, step=1.0, key=f"rend_{i}") / 100
+                        st.markdown(f"<span style='color:#17C37B;font-size:13px;'>Se proyecta que <b>{activo_1}</b> obtenga un retorno de <b>{rendimiento*100:.1f}%</b>.</span>", unsafe_allow_html=True)
+                        vista = {"tipo": "absoluta", "activo_1": activo_1, "rendimiento_esperado": rendimiento}
+                    else:
+                        activos_rest = [t for t in tickers_temp if t != activo_1]
+                        activo_2 = st.selectbox("Instrumento de comparación", activos_rest, key=f"a2_{i}") if activos_rest else activo_1
+                        rendimiento = st.slider("Exceso de retorno esperado (%)", 0.0, 50.0, 5.0, step=1.0, key=f"rend_{i}") / 100
+                        st.markdown(f"<span style='color:#17C37B;font-size:13px;'>Se estima que <b>{activo_1}</b> supere a <b>{activo_2}</b> en <b>{rendimiento*100:.1f}%</b>.</span>", unsafe_allow_html=True)
+                        vista = {"tipo": "relativa", "activo_1": activo_1, "activo_2": activo_2, "rendimiento_esperado": rendimiento}
+            
+                    confianza = st.select_slider("Grado de certeza en la expectativa", ["Baja", "Media", "Alta"], value="Media", key=f"conf_{i}")
+                    vista["confianza"] = confianza
+                    vistas_usuario.append(vista)
+            
+        st.session_state["vistas_bl"] = vistas_usuario
 
     # Sidebar: Info del usuario
     st.markdown("---")
@@ -1580,17 +1555,15 @@ with tab_motor:
         _header("Distribución t-Student · Fat tails calibrados", "Proyección de Capital — Monte Carlo")
         retorno_port_mc = retornos_diarios @ pesos_opt
         
-        # Monte Carlo
-        st.markdown("---")
-        _header("Distribución t-Student · Fat tails calibrados", "Proyección de Capital — Monte Carlo")
-        retorno_port_mc = retornos_diarios @ pesos_opt
+        # ── NUEVO CABLE SEGURO: HAIRCUT ACTUARIAL BLINDADO ──
+        # Buscamos el valor del slider. Si no lo encuentra, usamos 15% por defecto para no romper el código.
+        tope_act = st.session_state.get('tope_actuarial_slider', 15.0) / 100
+        rendimiento_mc = min(ret_opt, tope_act)
         
-        # ── HAIRCUT ACTUARIAL (Reversión a la Media) ──
-        rendimiento_mc = min(ret_opt, tope_actuarial)
-        if ret_opt > tope_actuarial:
-            st.warning(f"**Prudencia Actuarial Activa:** El portafolio tiene un retorno histórico altísimo ({ret_opt*100:.2f}%). Para evitar proyecciones irreales por sesgo de extrapolación a {horizonte_años} años, la simulación de Monte Carlo limitará el interés compuesto al **{tope_actuarial*100:.1f}%**, pero mantendrá la alta volatilidad original ({vol_opt*100:.2f}%) para castigar adecuadamente los escenarios adversos.")
+        if ret_opt > tope_act:
+            st.warning(f"**Prudencia Actuarial Activa:** El portafolio tiene un retorno histórico altísimo ({ret_opt*100:.2f}%). Para evitar proyecciones irreales por sesgo de extrapolación a {horizonte_años} años, la simulación de Monte Carlo limitará el interés compuesto al **{tope_act*100:.1f}%**, pero mantendrá la alta volatilidad original ({vol_opt*100:.2f}%) para castigar adecuadamente los escenarios adversos.")
 
-        # ── NUEVO CABLE CONECTADO: INYECCIÓN FISCAL AL MONTE CARLO ──
+        # ── CABLE CONECTADO: INYECCIÓN FISCAL AL MONTE CARLO ──
         usar_fiscal_mc = st.session_state.get('ldi_fiscal', False)
         ingreso_comp_mc = st.session_state.get('ldi_ingreso', 0.0)
         
@@ -1622,7 +1595,7 @@ with tab_motor:
         escenarios, p5, p25, p50, p75, p95, benchmark_fijo, df_t = simular_capital(
             capital_inicial=capital_inicial, 
             aportacion_periodica=aportacion_mc, # <── Ahora usa el capital "Dopado"
-            rendimiento_anual=rendimiento_mc, 
+            rendimiento_anual=rendimiento_mc,   # <── Usa el rendimiento "Podado" (Haircut)
             volatilidad_anual=vol_opt,
             meses=horizonte_años*12, 
             frecuencia_aportacion=frecuencia_aportacion,
