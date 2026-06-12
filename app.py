@@ -1579,12 +1579,57 @@ with tab_motor:
         st.markdown("---")
         _header("Distribución t-Student · Fat tails calibrados", "Proyección de Capital — Monte Carlo")
         retorno_port_mc = retornos_diarios @ pesos_opt
+        
+        # Monte Carlo
+        st.markdown("---")
+        _header("Distribución t-Student · Fat tails calibrados", "Proyección de Capital — Monte Carlo")
+        retorno_port_mc = retornos_diarios @ pesos_opt
+        
+        # ── HAIRCUT ACTUARIAL (Reversión a la Media) ──
+        rendimiento_mc = min(ret_opt, tope_actuarial)
+        if ret_opt > tope_actuarial:
+            st.warning(f"**Prudencia Actuarial Activa:** El portafolio tiene un retorno histórico altísimo ({ret_opt*100:.2f}%). Para evitar proyecciones irreales por sesgo de extrapolación a {horizonte_años} años, la simulación de Monte Carlo limitará el interés compuesto al **{tope_actuarial*100:.1f}%**, pero mantendrá la alta volatilidad original ({vol_opt*100:.2f}%) para castigar adecuadamente los escenarios adversos.")
+
+        # ── NUEVO CABLE CONECTADO: INYECCIÓN FISCAL AL MONTE CARLO ──
+        usar_fiscal_mc = st.session_state.get('ldi_fiscal', False)
+        ingreso_comp_mc = st.session_state.get('ldi_ingreso', 0.0)
+        
+        # Por defecto, la aportación es la normal de la barra lateral
+        aportacion_mc = aportacion_mensual
+        
+        if usar_fiscal_mc and ingreso_comp_mc > 0:
+            ingreso_anual = ingreso_comp_mc * 12
+            aport_anual = aportacion_mensual * 12
+            limite_10 = ingreso_anual * 0.10
+            limite_5u = obtener_uma_actual() * 365 * 5
+            
+            monto_ded = min(aport_anual, limite_10, limite_5u)
+            
+            # Tasa marginal ISR dinámica
+            if ingreso_comp_mc > 100000: t_isr = 0.34
+            elif ingreso_comp_mc > 50000: t_isr = 0.30
+            elif ingreso_comp_mc > 25000: t_isr = 0.23
+            else: t_isr = 0.15
+                
+            devolucion_anual = monto_ded * t_isr
+            
+            # Prorrateamos el cheque del SAT a nivel mensual para inyectarlo al flujo estocástico
+            aportacion_mc = aportacion_mensual + (devolucion_anual / 12)
+            
+            st.success(f"**Efecto Fiscal Activo en Simulación:** El motor de Monte Carlo está inyectando **${devolucion_anual:,.2f} MXN extra al año** provenientes del escudo fiscal (Art. 151), prorrateados en aportaciones de ${devolucion_anual/12:,.2f} al mes libres de riesgo.")
+
+        # ── EJECUCIÓN DEL MOTOR ──
         escenarios, p5, p25, p50, p75, p95, benchmark_fijo, df_t = simular_capital(
-            capital_inicial=capital_inicial, aportacion_periodica=aportacion_mensual,
-            rendimiento_anual=ret_opt, volatilidad_anual=vol_opt,
-            meses=horizonte_años*12, frecuencia_aportacion=frecuencia_aportacion,
-            tasa_benchmark=tasa_actual_banxico, num_simulaciones=num_sims,
-            retornos_diarios=retorno_port_mc)
+            capital_inicial=capital_inicial, 
+            aportacion_periodica=aportacion_mc, # <── Ahora usa el capital "Dopado"
+            rendimiento_anual=rendimiento_mc, 
+            volatilidad_anual=vol_opt,
+            meses=horizonte_años*12, 
+            frecuencia_aportacion=frecuencia_aportacion,
+            tasa_benchmark=tasa_actual_banxico, 
+            num_simulaciones=num_sims,
+            retornos_diarios=retorno_port_mc
+        )
 
         st.caption(
             f"Modelo calibrado con distribución t-Student — grados de libertad: {df_t:.2f} "
