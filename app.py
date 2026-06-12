@@ -1606,7 +1606,7 @@ with tab_motor:
             # Prorrateamos el cheque del SAT a nivel mensual para inyectarlo al flujo estocástico
             aportacion_mc = aportacion_mensual + (devolucion_anual / 12)
             
-            st.success(f"**Efecto Fiscal Activo en Simulación:** El motor estocástico está inyectando **${devolucion_anual:,.2f} MXN extra al año** provenientes del escudo fiscal (Art. 151), prorrateados en aportaciones de ${devolucion_anual/12:,.2f} al mes libres de riesgo.")
+            st.success(f"**Efecto Fiscal Activo en Simulación:** El motor estocástico está inyectando **\${devolucion_anual:,.2f} MXN extra al año** provenientes del escudo fiscal (Art. 151), prorrateados en aportaciones de \${devolucion_anual/12:,.2f} al mes libres de riesgo.")
 
         # ── EJECUCIÓN DEL MOTOR ──
         escenarios, p5, p25, p50, p75, p95, benchmark_fijo, df_t = simular_capital(
