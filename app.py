@@ -798,6 +798,29 @@ with st.sidebar:
         
         comision_broker = st.number_input("Comisión operativa (%)", value=0.15, step=0.05) / 100
         
+        # ── NUEVO MÓDULO: RENTA FIJA Y LIQUIDEZ (TICKERS SINTÉTICOS) ──
+        st.markdown("---")
+        st.subheader("Renta Fija / Cuentas a la Vista")
+        st.caption("Agregue instrumentos de tasa fija (Sofipos, Pagarés, Cetes). El motor ajustará el límite máximo de inversión según el capital inicial.")
+        
+        # DataFrame por defecto para que el usuario lo edite
+        rf_default = pd.DataFrame([
+            {"Instrumento": "Pagaré Mifel", "Tasa Anual (%)": 10.0, "Tope Máximo (MXN)": 500000},
+            {"Instrumento": "Nu (Sofipo)", "Tasa Anual (%)": 14.5, "Tope Máximo (MXN)": 200000},
+            {"Instrumento": "Cetes Directo", "Tasa Anual (%)": 11.0, "Tope Máximo (MXN)": 10000000}
+        ])
+        
+        # El data_editor permite agregar, borrar o editar cuentas
+        df_renta_fija_ui = st.data_editor(
+            rf_default, 
+            num_rows="dynamic", 
+            use_container_width=True,
+            hide_index=True,
+            key="editor_renta_fija"
+        )
+        
+        activar_renta_fija = st.toggle("Incluir Renta Fija en la Optimización SLSQP", value=True)
+        
         st.markdown("---")
         st.subheader("Proyección de capital")
         capital_inicial       = st.number_input("Capital inicial (MXN)", min_value=0, value=100_000, step=10_000)
@@ -1326,6 +1349,47 @@ with tab_motor:
                 else:
                     retornos_usar = retornos_anuales
                     matriz_cov_usar = matriz_cov
+                    
+                    # ── EXPANSIÓN DE MATRIZ: INYECCIÓN DE RENTA FIJA ──
+                nombres_activos_finales = list(tickers)
+                es_riesgo_final = list(es_riesgo)
+                limites_inferiores = [peso_min] * len(tickers)
+                limites_superiores = [peso_max] * len(tickers)
+                
+                if activar_renta_fija and not df_renta_fija_ui.empty:
+                    df_rf = df_renta_fija_ui.dropna() # Limpiamos filas vacías
+                    
+                    for idx, row in df_rf.iterrows():
+                        nombre_rf = row["Instrumento"]
+                        tasa_rf_act = row["Tasa Anual (%)"] / 100.0
+                        tope_mxn = row["Tope Máximo (MXN)"]
+                        
+                        # 1. Ajuste del Límite Máximo del SLSQP (Transformación de Monto a Peso)
+                        # Si el cliente tiene $1,000,000 y el tope es $500,000, el peso máximo es 50%.
+                        peso_tope_calculado = min(1.0, tope_mxn / capital_inicial) if capital_inicial > 0 else 1.0
+                        
+                        # 2. Expansión de las matrices
+                        nombres_activos_finales.append(nombre_rf)
+                        es_riesgo_final.append(0.0) # Identificador para que el backtest sepa que es refugio
+                        
+                        # Agregamos la tasa al vector de retornos esperados
+                        retornos_usar = pd.concat([retornos_usar, pd.Series({nombre_rf: tasa_rf_act})])
+                        
+                        # Añadimos una nueva fila y columna a la Matriz de Covarianza (llena de ceros)
+                        nueva_fila = pd.DataFrame(0.0, index=[nombre_rf], columns=matriz_cov_usar.columns)
+                        matriz_cov_usar = pd.concat([matriz_cov_usar, nueva_fila])
+                        matriz_cov_usar[nombre_rf] = 0.0 # Nueva columna
+                        
+                        # Le damos una volatilidad mínima en la diagonal principal (Varianza)
+                        matriz_cov_usar.loc[nombre_rf, nombre_rf] = 0.000001
+                        
+                        # Guardamos sus restricciones personalizadas para el optimizador
+                        limites_inferiores.append(0.0) # La renta fija no tiene mínimo obligatorio
+                        limites_superiores.append(peso_tope_calculado)
+
+                # Convertimos de nuevo a array de numpy
+                es_riesgo_final = np.array(es_riesgo_final)
+                bounds_personalizados = tuple(zip(limites_inferiores, limites_superiores))
                 
                 # ── LÓGICA DE RESTRICCIÓN DE RIESGO ──
                 if usar_perfil_ldi and st.session_state.get("riesgo_objetivo_ldi") is not None:
