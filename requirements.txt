@@ -1,11 +1,12 @@
 streamlit
 pandas
-numpy
 plotly
 reportlab
 yfinance
 scipy
 scikit-learn
+numpy==1.26.4
+Cython
 hmmlearn
 supabase
 lxml
