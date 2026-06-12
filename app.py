@@ -806,12 +806,18 @@ with st.sidebar:
         horizonte_años        = st.slider("Horizonte de inversión (años)", min_value=1, max_value=40, value=int(mem_ui.get("horizonte", 10)))
         num_sims              = st.slider("Simulaciones Monte Carlo", 500, 5000, int(mem_ui.get("simulaciones", 2000)), step=500)
         
-        # ── EL TOPE ACTUARIAL INSTITUCIONAL (CONECTADO AL KEY SEGURO) ──
-        st.slider(
-            "Tope Actuarial CAGR (%)", 5.0, 30.0, 15.0, step=0.5,
-            key="tope_actuarial_slider",
-            help="Aplica un 'haircut' a rendimientos históricos atípicos para evitar proyecciones irreales a largo plazo. Limita el crecimiento compuesto, pero mantiene la volatilidad intacta."
-        )
+        # ── NUEVO: FRENO ACTUARIAL DINÁMICO (ERP) ──
+        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+        activar_freno = st.toggle("Activar Freno Actuarial (Reversión a la media)", value=True, key="activar_freno_cagr")
+        
+        if activar_freno:
+            # Calculamos el tope dinámico: Tasa Banxico actual + 6.0% (Prima histórica del S&P500)
+            tope_sugerido = float(round((tasa_actual_banxico * 100) + 6.0, 1))
+            st.slider(
+                "Límite Máximo CAGR (%)", 5.0, 30.0, value=tope_sugerido, step=0.5,
+                key="tope_actuarial_slider",
+                help=f"Tope dinámico sugerido = Tasa Banxico ({tasa_actual_banxico*100:.2f}%) + Prima de Riesgo (6.0%). Límite para evitar extrapolaciones irracionales."
+            )
         
         st.markdown("---")
         st.subheader("Benchmark comparativo")
@@ -1557,13 +1563,22 @@ with tab_motor:
         _header("Distribución t-Student · Fat tails calibrados", "Proyección de Capital — Monte Carlo")
         retorno_port_mc = retornos_diarios @ pesos_opt
         
-        # ── NUEVO CABLE SEGURO: HAIRCUT ACTUARIAL BLINDADO ──
-        # Buscamos el valor del slider. Si no lo encuentra, usamos 15% por defecto para no romper el código.
-        tope_act = st.session_state.get('tope_actuarial_slider', 15.0) / 100
-        rendimiento_mc = min(ret_opt, tope_act)
+        # ── LÓGICA DEL HAIRCUT ACTUARIAL BLINDADO ──
+        usar_freno = st.session_state.get('activar_freno_cagr', True)
         
-        if ret_opt > tope_act:
-            st.warning(f"**Prudencia Actuarial Activa:** El portafolio tiene un retorno histórico altísimo ({ret_opt*100:.2f}%). Para evitar proyecciones irreales por sesgo de extrapolación a {horizonte_años} años, la simulación de Monte Carlo limitará el interés compuesto al **{tope_act*100:.1f}%**, pero mantendrá la alta volatilidad original ({vol_opt*100:.2f}%) para castigar adecuadamente los escenarios adversos.")
+        if usar_freno:
+            # Leemos el slider (si no existe aún, usamos 15% como seguro de vida)
+            tope_act = st.session_state.get('tope_actuarial_slider', 15.0) / 100
+            rendimiento_mc = min(ret_opt, tope_act)
+            
+            if ret_opt > tope_act:
+                st.warning(f"**Reversión a la Media:** El portafolio tiene un retorno histórico atípico ({ret_opt*100:.2f}%). Para evitar proyecciones financieras irreales a {horizonte_años} años, la simulación ha topado el interés compuesto al **{tope_act*100:.1f}%**, pero mantiene intacta la alta volatilidad original ({vol_opt*100:.2f}%) para estresar el modelo correctamente.")
+            else:
+                st.info(f"**Prudencia Actuarial:** Freno encendido (Límite: {tope_act*100:.1f}%), pero el rendimiento histórico ({ret_opt*100:.2f}%) está dentro de parámetros estructurales normales. No se aplicó recorte.")
+        else:
+            rendimiento_mc = ret_opt
+            if ret_opt > 0.20 and horizonte_años > 5:
+                st.error(f"**Riesgo de Extrapolación:** El freno actuarial está APAGADO. Está proyectando un retorno del **{ret_opt*100:.2f}%** compuesto anualmente por **{horizonte_años} años**. Esto asume que el portafolio batirá a los mejores gestores de la historia ininterrumpidamente. Úselo solo para visualización a corto plazo.")
 
         # ── CABLE CONECTADO: INYECCIÓN FISCAL AL MONTE CARLO ──
         usar_fiscal_mc = st.session_state.get('ldi_fiscal', False)
@@ -1591,13 +1606,13 @@ with tab_motor:
             # Prorrateamos el cheque del SAT a nivel mensual para inyectarlo al flujo estocástico
             aportacion_mc = aportacion_mensual + (devolucion_anual / 12)
             
-            st.success(f"**Efecto Fiscal Activo en Simulación:** El motor de Monte Carlo está inyectando **${devolucion_anual:,.2f} MXN extra al año** provenientes del escudo fiscal (Art. 151), prorrateados en aportaciones de ${devolucion_anual/12:,.2f} al mes libres de riesgo.")
+            st.success(f"**Efecto Fiscal Activo en Simulación:** El motor estocástico está inyectando **${devolucion_anual:,.2f} MXN extra al año** provenientes del escudo fiscal (Art. 151), prorrateados en aportaciones de ${devolucion_anual/12:,.2f} al mes libres de riesgo.")
 
         # ── EJECUCIÓN DEL MOTOR ──
         escenarios, p5, p25, p50, p75, p95, benchmark_fijo, df_t = simular_capital(
             capital_inicial=capital_inicial, 
-            aportacion_periodica=aportacion_mc, # <── Ahora usa el capital "Dopado"
-            rendimiento_anual=rendimiento_mc,   # <── Usa el rendimiento "Podado" (Haircut)
+            aportacion_periodica=aportacion_mc, 
+            rendimiento_anual=rendimiento_mc,   # <── Aquí entra la magia: Podado o Puro
             volatilidad_anual=vol_opt,
             meses=horizonte_años*12, 
             frecuencia_aportacion=frecuencia_aportacion,
