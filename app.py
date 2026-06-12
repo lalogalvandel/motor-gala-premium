@@ -698,19 +698,35 @@ with st.sidebar:
             st.session_state["cliente_activo_id"] = datos_c["id"]
             limpiar_estados_cliente()
             
-            st.session_state["semanas_cotizadas"] = int(datos_c.get("semanas_cotizadas", 1800))
-            st.session_state["salario_promedio"]  = float(datos_c.get("salario_promedio", 2000.0))
-            st.session_state["meta_mensual"]      = float(datos_c.get("meta_mensual", 30000.0))
-            st.session_state["capital_acumulado"] = float(datos_c.get("capital_acumulado", 2000000.0))
-            st.session_state["simular_m40"]       = bool(datos_c.get("simular_m40", False))
-            st.session_state["tickers_procesar"]  = str(datos_c.get("tickers_guardados", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"))
+            # ── AQUÍ VA EL BLINDAJE CONTRA VALORES NULL DE LA BASE DE DATOS ──
+            val_semanas = datos_c.get("semanas_cotizadas")
+            st.session_state["semanas_cotizadas"] = int(val_semanas) if val_semanas is not None else 1800
             
-            # ── 2. Blindaje de la Bomba de Tiempo (Peso Máximo) ──
-            pm_db = datos_c.get("peso_maximo", 40)
-            if isinstance(pm_db, float) and pm_db <= 1.0:
-                pm_db = int(pm_db * 100)
-            st.session_state["peso_maximo_val"] = int(pm_db)
-
+            val_salario = datos_c.get("salario_promedio")
+            st.session_state["salario_promedio"]  = float(val_salario) if val_salario is not None else 2000.0
+            
+            val_meta = datos_c.get("meta_mensual")
+            st.session_state["meta_mensual"]      = float(val_meta) if val_meta is not None else 30000.0
+            
+            val_capital = datos_c.get("capital_acumulado")
+            st.session_state["capital_acumulado"] = float(val_capital) if val_capital is not None else 2000000.0
+            
+            val_sim = datos_c.get("simular_m40")
+            st.session_state["simular_m40"]       = bool(val_sim) if val_sim is not None else False
+            
+            val_tickers = datos_c.get("tickers_guardados")
+            st.session_state["tickers_procesar"]  = str(val_tickers) if (val_tickers is not None and str(val_tickers).strip() != "") else "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"
+            
+            # Blindaje para la variable del peso máximo
+            pm_db = datos_c.get("peso_maximo")
+            if pm_db is not None:
+                if isinstance(pm_db, float) and pm_db <= 1.0:
+                    pm_db = int(pm_db * 100)
+                st.session_state["peso_maximo_val"] = int(pm_db)
+            else:
+                st.session_state["peso_maximo_val"] = 40
+            # ──────────────────────────────────────────────────────────────────
+    
             st.rerun()
         st.caption("Cargado desde base de datos")
     else:
@@ -718,7 +734,7 @@ with st.sidebar:
             st.session_state["cliente_activo_id"] = None
             limpiar_estados_cliente()
             st.rerun()
-
+    
     # Botón para guardar el progreso
     with st.expander("Guardar cambios al expediente", expanded=False):
         nuevo_nombre = st.text_input("Nombre del cliente", value=cliente_seleccionado if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" else "")
@@ -739,7 +755,7 @@ with st.sidebar:
                 }
                 if cliente_seleccionado != "✚ Nuevo Cliente (Sin seleccionar)" and nuevo_nombre == cliente_seleccionado:
                     datos_guardar["id"] = st.session_state["cliente_activo_id"]
-
+    
                 ok, msg = guardar_cliente(datos_guardar, usuario.get("id_corp"))
                 if ok:
                     st.success(msg)
