@@ -79,8 +79,8 @@ def optimizar_sharpe_slsqp(retornos_anuales, matriz_cov, tasa_rf, peso_min=0.0, 
     resultado = minimize(funcion_objetivo, pesos_iniciales, 
                          method='SLSQP', bounds=limites, constraints=restricciones)
 
-    # Si el optimizador falla por restricciones encontradas, devolvemos pesos equitativos
+    # Si el optimizador falla por restricciones encontradas
     if not resultado.success:
-        return np.array(n_activos * [1. / n_activos])
-
+        return None # <── Ahora devuelve None para que la app principal dispare la alarma
+        
     return resultado.x
