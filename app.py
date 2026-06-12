@@ -1407,16 +1407,25 @@ with tab_motor:
 
                 resultados, pesos_guardados = simular_portafolios(retornos_usar, matriz_cov_usar, tasa_rf, num_portafolios=num_sims)
                 
+                # Convertimos de nuevo a array de numpy
+                es_riesgo_final = np.array(es_riesgo_final)
+                bounds_personalizados = tuple(zip(limites_inferiores, limites_superiores))
+
+                # ── PURIFICACIÓN DE DATOS PARA SCIPY (PANDAS -> NUMPY) ──
+                # Extraemos solo los valores numéricos float64 para que el SLSQP no colapse
+                ret_numpy = retornos_usar.to_numpy(dtype=float) if hasattr(retornos_usar, 'to_numpy') else np.array(retornos_usar, dtype=float)
+                cov_numpy = matriz_cov_usar.to_numpy(dtype=float) if hasattr(matriz_cov_usar, 'to_numpy') else np.array(matriz_cov_usar, dtype=float)
+
+                # ── LLAMADA CONECTADA AL NUEVO MOTOR ASIMÉTRICO ──
                 pesos_opt = optimizar_sharpe_slsqp(
-                    retornos_usar, 
-                    matriz_cov_usar, 
+                    ret_numpy, 
+                    cov_numpy, 
                     tasa_rf,
                     peso_min=peso_min, 
                     peso_max=peso_max, 
                     max_riesgo_total=riesgo_maximo_final,
                     es_riesgo=es_riesgo_final,
                     bounds_personalizados=bounds_personalizados
-                    
                 )
 
                 if pesos_opt is None or len(pesos_opt) != len(tickers):
