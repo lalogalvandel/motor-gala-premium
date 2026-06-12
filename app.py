@@ -1337,8 +1337,8 @@ with tab_motor:
             with st.spinner("Descargando series históricas de precios..."):
                 datos_full, retornos_full, _, _ = obtener_datos(tickers_descarga_key, str(fecha_inicio), str(fecha_fin))
                 tickers          = [t for t in retornos_full.columns if t != benchmark_elegido]
-                datos            = datos_full[tickers]
-                retornos_diarios = retornos_full[tickers]
+                datos            = datos_full[tickers].copy()
+                retornos_diarios = retornos_full[tickers].copy()
                 retornos_para_bt = retornos_full
                 _, retornos_anuales, matriz_cov = calcular_retornos(datos)
         except Exception as e:
@@ -1390,6 +1390,9 @@ with tab_motor:
                         
                         # Agregamos la tasa al vector de retornos esperados
                         retornos_usar = pd.concat([retornos_usar, pd.Series({nombre_rf: tasa_rf_act})])
+                        # Expansión de retornos_diarios para que el Monte Carlo y Stress Test lo reconozcan
+                        tasa_diaria = (1 + tasa_rf_act) ** (1/252) - 1
+                        retornos_diarios[nombre_rf] = tasa_diaria
                         
                         # Añadimos una nueva fila y columna a la Matriz de Covarianza (llena de ceros)
                         nueva_fila = pd.DataFrame(0.0, index=[nombre_rf], columns=matriz_cov_usar.columns)
@@ -1444,9 +1447,9 @@ with tab_motor:
                     bounds_personalizados=bounds_personalizados
                 )
 
-                if pesos_opt is None or len(pesos_opt) != len(tickers):
+                if pesos_opt is None or len(pesos_opt) != len(nombres_activos_finales):
                     st.error("Conflicto de restricciones: El algoritmo no pudo resolver el portafolio (ej. límite de peso máximo vs mínimo). Se aplicarán pesos equitativos por seguridad.")
-                    pesos_opt = np.ones(len(tickers)) / len(tickers)
+                    pesos_opt = np.ones(len(nombres_activos_finales)) / len(nombres_activos_finales)
 
                 ret_opt    = float(np.sum(pesos_opt * retornos_usar))
                 vol_opt    = float(np.sqrt(np.dot(pesos_opt.T, np.dot(matriz_cov_usar, pesos_opt))))
@@ -1500,7 +1503,8 @@ with tab_motor:
             opacity: 0.6; margin: 1.5rem 0 0.75rem;
         '>Distribución óptima del capital</div>
         """, unsafe_allow_html=True)
-        df_pesos = pd.DataFrame({"Activo": tickers, "Peso (%)": (pesos_opt*100).round(2)}) \
+        # Reemplaza la línea que dice "Activo": tickers
+        df_pesos = pd.DataFrame({"Activo": nombres_activos_finales, "Peso (%)": (pesos_opt*100).round(2)}) \
             .sort_values("Peso (%)", ascending=False)
         st.dataframe(df_pesos, width='stretch')
 
@@ -1514,9 +1518,9 @@ with tab_motor:
             help="Por defecto usa el capital inicial configurado.")
 
         df_rebalanceo = pd.DataFrame({
-            "Activo":               tickers,
-            "Peso Óptimo (%)":     (pesos_opt * 100).round(2),
-            "Monto Objetivo (MXN)":(pesos_opt * capital_rebalanceo).round(0).astype(int),
+            "Activo":               nombres_activos_finales,
+            "Peso Óptimo (%)":      (pesos_opt * 100).round(2),
+            "Monto Objetivo (MXN)": (pesos_opt * capital_rebalanceo).round(0).astype(int),
         }).sort_values("Peso Óptimo (%)", ascending=False).reset_index(drop=True)
         
         # Enmascarar montos si privacidad está activa
@@ -1839,7 +1843,7 @@ with tab_motor:
 
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin:1.5rem 0 .75rem;'>Stress Testing — Escenarios Históricos</div>""", unsafe_allow_html=True)
         
-        df_stress = calcular_stress_test(pesos_opt, tickers, capital_riesgo, retornos_diarios)
+        df_stress = calcular_stress_test(pesos_opt, nombres_activos_finales, capital_riesgo, retornos_diarios)
         
         if df_stress is not None and not df_stress.empty and "Pérdida (%)" in df_stress.columns:
             fig_stress = go.Figure(go.Bar(
@@ -1948,7 +1952,7 @@ with tab_motor:
                             meta_mensual=meta,
                             tasa_retiro_swr=swr_rate,
                             regimen_pensional=st.session_state.get('regimen', 'PPR Puro'),
-                            tickers=tickers, pesos_opt=pesos_opt, ret_opt=ret_opt, vol_opt=vol_opt,
+                            tickers=nombres_activos_finales, pesos_opt=pesos_opt, ret_opt=ret_opt, vol_opt=vol_opt,
                             sharpe_opt=sharpe_opt, sortino=sortino, desv_down=desv_down, df_t=df_t,
                             var_cvar=var_cvar, max_dd=max_dd, duracion_dd=duracion_dd,
                             inicio_dd=inicio_dd, fin_dd=fin_dd, df_stress=df_stress,
