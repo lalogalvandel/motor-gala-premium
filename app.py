@@ -1414,7 +1414,9 @@ with tab_motor:
                     peso_min=peso_min, 
                     peso_max=peso_max, 
                     max_riesgo_total=riesgo_maximo_final,
-                    es_riesgo=es_riesgo
+                    es_riesgo=es_riesgo_final,
+                    bounds_personalizados=bounds_personalizados
+                    
                 )
 
                 if pesos_opt is None or len(pesos_opt) != len(tickers):
