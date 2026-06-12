@@ -35,15 +35,22 @@ def portafolio_optimo(resultados, pesos_guardados, retornos_anuales, matriz_cov,
     sharpe    = resultados[2, idx]
     return pesos, retorno, vol, sharpe
 
-def optimizar_sharpe_slsqp(retornos_anuales, matriz_cov, tasa_rf, peso_min=0.0, peso_max=1.0, max_riesgo_total=1.0, es_riesgo=None):
+def optimizar_sharpe_slsqp(retornos_anuales, matriz_cov, tasa_rf, peso_min=0.0, peso_max=1.0, 
+                           max_riesgo_total=1.0, es_riesgo=None, bounds_personalizados=None):
     """
-    Motor Institucional con restricciones de concentración y Glide Path Actuarial.
+    Motor Institucional con restricciones de concentración, límites individualizados
+    (para activos sintéticos de renta fija) y Glide Path Actuarial.
     """
     n_activos = len(retornos_anuales)
 
     def funcion_objetivo(pesos):
         retorno = np.sum(pesos * retornos_anuales)
         vol = np.sqrt(np.dot(pesos.T, np.dot(matriz_cov, pesos)))
+        
+        # Cobertura contra volatilidad matemática cero (evita división por cero)
+        if vol < 1e-6:
+            return -retorno
+            
         sharpe = (retorno - tasa_rf) / vol
         return -sharpe 
 
@@ -60,10 +67,20 @@ def optimizar_sharpe_slsqp(retornos_anuales, matriz_cov, tasa_rf, peso_min=0.0, 
         {'type': 'ineq', 'fun': restriccion_riesgo}              
     ]
     
-    limites = tuple((peso_min, peso_max) for _ in range(n_activos))
+    # ── CONEXIÓN DE CABLES: SELECCIÓN DE LÍMITES DINÁMICOS ──
+    # Si pasamos los límites del dataframe, usamos esos. Si no, usamos los globales.
+    if bounds_personalizados is not None and len(bounds_personalizados) == n_activos:
+        limites = bounds_personalizados
+    else:
+        limites = tuple((peso_min, peso_max) for _ in range(n_activos))
+        
     pesos_iniciales = np.array(n_activos * [1. / n_activos])
 
     resultado = minimize(funcion_objetivo, pesos_iniciales, 
                          method='SLSQP', bounds=limites, constraints=restricciones)
+
+    # Si el optimizador falla por restricciones encontradas, devolvemos pesos equitativos
+    if not resultado.success:
+        return np.array(n_activos * [1. / n_activos])
 
     return resultado.x
