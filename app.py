@@ -1905,6 +1905,14 @@ with tab_retiro:
         capital_actual = col_cap1.number_input("Capital Inicial (MXN)", min_value=0, step=50000, value=200000, key="ldi_capital_actual")
         aportacion_mensual = col_cap2.number_input("Aportación Mensual (MXN)", min_value=0, step=1000, value=5000, key="ldi_aportacion_mensual")
         
+        # ── NUEVO: MÓDULO DE ALPHA FISCAL (ART. 151) ──
+        usar_fiscal = st.toggle("Activar Optimización Fiscal (Deducibilidad Art. 151)", key="ldi_fiscal")
+        if usar_fiscal:
+            ingreso_comprobable = st.number_input("Ingreso Mensual Bruto Comprobable (MXN)", min_value=10000, value=60000, step=5000, key="ldi_ingreso", help="Se utiliza para calcular su tasa marginal de ISR y el tope exacto de deducción (10% o 5 UMAs).")
+            st.caption("El modelo simulará que el saldo devuelto por el SAT se reinvierte en el portafolio cada mes de abril.")
+        else:
+            ingreso_comprobable = 0.0
+
         if "Ley 73" in regimen:
             anios_horizonte = st.slider("Años de acumulación restantes", min_value=1, max_value=40, value=10, key="ldi_anios_horizonte")
             
@@ -1938,8 +1946,25 @@ with tab_retiro:
                 st.session_state['semanas_cotizadas'] = None
                 st.session_state['salario_promedio'] = None
             
-            capital_acumulado_real = MotorActuarial.proyeccion_ppr_real(capital_actual, aportacion_mensual, anios_horizonte, tasa_portafolio, inflacion)
-            ingreso_total, brecha, flujo_privado = MotorActuarial.calcular_brecha_pensional_real(meta_mensual, pension_imss, capital_acumulado_real, tasa_retiro)
+            # ── LLAMADA AL MOTOR ACTUALIZADA CON ALPHA FISCAL ──
+            capital_acumulado_real = MotorActuarial.proyeccion_ppr_real(
+                capital_inicial=capital_actual, 
+                aportacion_mensual=aportacion_mensual, 
+                anios=anios_horizonte, 
+                tasa_anual=tasa_portafolio, 
+                inflacion=inflacion,
+                ingreso_mensual=ingreso_comprobable,      # <── Nuevo parámetro fiscal
+                aplicar_beneficio_fiscal=usar_fiscal,     # <── Interruptor fiscal
+                uma_actual=uma_actual                     # <── Tope legal actualizado
+            )
+            
+            # La segunda línea queda prácticamente igual, pero ahora recibe el nuevo capital "dopado"
+            ingreso_total, brecha, flujo_privado = MotorActuarial.calcular_brecha_pensional_real(
+                meta_mensual, 
+                pension_imss, 
+                capital_acumulado_real, 
+                tasa_retiro
+            )
             
             st.session_state['pension_imss'] = pension_imss
             st.session_state['brecha'] = brecha
