@@ -29,25 +29,53 @@ class MotorActuarial:
         return min(pension_anual / 12, tope_mensual)
 
     @staticmethod
-    def proyeccion_ppr_real(capital_inicial, aportacion_mensual, anios_horizonte, tasa_nominal_anual, inflacion_anual):
+    def proyeccion_ppr_real(capital_inicial: float, aportacion_mensual: float, anios: int, 
+                            tasa_anual: float, inflacion: float, 
+                            ingreso_mensual: float = 0.0, aplicar_beneficio_fiscal: bool = False,
+                            uma_actual: float = 108.57) -> float:
         """
-        Proyecta el capital acumulado en un PPR (Contribución Definida) 
-        expresado en PODER ADQUISITIVO ACTUAL (Pesos de Hoy) usando la Ecuación de Fisher.
+        Proyecta el capital acumulado en términos reales (descontando inflación).
+        Incluye el módulo de Alpha Fiscal (Art. 151 LISR): Calcula la devolución anual del SAT
+        y la reinvierte en el portafolio cada mes de abril.
         """
-        # Ecuación de Fisher para Tasa Real
-        tasa_real_anual = ((1 + tasa_nominal_anual) / (1 + inflacion_anual)) - 1
-        tasa_real_mensual = tasa_real_anual / 12
-        meses = anios_horizonte * 12
+        # Tasa real mensual usando la ecuación de Fisher
+        tasa_real_anual = ((1 + tasa_anual) / (1 + inflacion)) - 1
+        tasa_real_mensual = (1 + tasa_real_anual) ** (1/12) - 1
         
-        # Valor Futuro de una anualidad con tasa real
-        if tasa_real_mensual == 0:
-            capital_futuro_real = capital_inicial + (aportacion_mensual * meses)
-        else:
-            vf_inicial = capital_inicial * (1 + tasa_real_mensual)**meses
-            vf_aportaciones = aportacion_mensual * (((1 + tasa_real_mensual)**meses - 1) / tasa_real_mensual)
-            capital_futuro_real = vf_inicial + vf_aportaciones
+        capital = capital_inicial
+        meses = anios * 12
+        
+        # ── CÁLCULO DEL BENEFICIO FISCAL (Art. 151) ──
+        devolucion_anual = 0.0
+        if aplicar_beneficio_fiscal and ingreso_mensual > 0:
+            ingreso_anual = ingreso_mensual * 12
+            aportacion_anual = aportacion_mensual * 12
             
-        return capital_futuro_real
+            # Limite 1: 10% del ingreso anual
+            limite_10_pct = ingreso_anual * 0.10
+            # Limite 2: 5 UMAs anualizadas (UMA diaria * 365 * 5)
+            limite_5_umas = uma_actual * 365 * 5
+            
+            # El monto máximo que el SAT permite deducir
+            monto_deducible = min(aportacion_anual, limite_10_pct, limite_5_umas)
+            
+            # Estimación del bracket de ISR (simplificación dinámica)
+            if ingreso_mensual > 100000: tasa_isr = 0.34
+            elif ingreso_mensual > 50000: tasa_isr = 0.30
+            elif ingreso_mensual > 25000: tasa_isr = 0.23
+            else: tasa_isr = 0.15
+                
+            devolucion_anual = monto_deducible * tasa_isr
+
+        # ── MOTOR ESTOCÁSTICO DE INTERÉS COMPUESTO ──
+        for mes in range(1, meses + 1):
+            capital = capital * (1 + tasa_real_mensual) + aportacion_mensual
+            
+            # Efecto Abril: Reinversión de la devolución de impuestos del SAT cada 12 meses
+            if aplicar_beneficio_fiscal and mes % 12 == 4:
+                capital += devolucion_anual
+                
+        return capital
 
     @staticmethod
     def calcular_brecha_pensional_real(meta_mensual_hoy, pension_mensual_real, capital_acumulado_real, tasa_retiro_segura):
