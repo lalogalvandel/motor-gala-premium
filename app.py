@@ -776,8 +776,9 @@ with st.sidebar:
         st.session_state["tickers_procesar"] = st.session_state.get("tickers_screening", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX") if usar_screening else "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"
 
     with st.form("optim_form"):
-        # Enlazado dinámico con 'key'
-        tickers_input = st.text_area("Activos a optimizar", height=70, key="tickers_procesar")
+        # ── RETIRAMOS EL KEY Y FORZAMOS EL VALUE ──
+        tickers_actuales = st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX")
+        tickers_input = st.text_area("Activos a optimizar", value=tickers_actuales, height=70)
         fecha_inicio  = st.date_input("Fecha de inicio", value=pd.Timestamp("2020-01-01"))
         fecha_fin     = st.date_input("Fecha de cierre", value=pd.Timestamp("2026-05-08"))
         
@@ -824,6 +825,7 @@ with st.sidebar:
         ejecutar = st.form_submit_button("Ejecutar optimización", width='stretch')
 
         if ejecutar:
+            st.session_state["tickers_procesar"] = tickers_input # <── LA REGRESAMOS
             st.session_state["peso_maximo_val"] = peso_max_val
             guardar_memoria_ui_premium(peso_max_val, horizonte_años, num_sims)
 
