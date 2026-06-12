@@ -1461,12 +1461,20 @@ with tab_motor:
                 st.session_state.vol_opt     = vol_opt
                 st.session_state.sharpe_opt  = sharpe_opt
                 st.session_state.resultados  = resultados
+                
+                # ── GUARDAMOS LAS VARIABLES EXPANDIDAS EN MEMORIA ──
+                st.session_state.nombres_activos_finales = nombres_activos_finales
+                st.session_state.retornos_diarios_exp = retornos_diarios
 
         res        = st.session_state.resultados
         pesos_opt  = st.session_state.pesos_opt
         ret_opt    = st.session_state.ret_opt
         vol_opt    = st.session_state.vol_opt
         sharpe_opt = st.session_state.sharpe_opt
+        
+        # ── RECUPERAMOS LAS VARIABLES EXPANDIDAS DE LA MEMORIA ──
+        nombres_activos_finales = st.session_state.get("nombres_activos_finales", tickers)
+        retornos_diarios = st.session_state.get("retornos_diarios_exp", retornos_diarios)
 
         # Precios históricos
         _header("Datos históricos", "Precios de Cierre")
