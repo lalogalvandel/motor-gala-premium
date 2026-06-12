@@ -1447,9 +1447,13 @@ with tab_motor:
                     bounds_personalizados=bounds_personalizados
                 )
 
-                if pesos_opt is None or len(pesos_opt) != len(nombres_activos_finales):
-                    st.error("Conflicto de restricciones: El algoritmo no pudo resolver el portafolio (ej. límite de peso máximo vs mínimo). Se aplicarán pesos equitativos por seguridad.")
-                    pesos_opt = np.ones(len(nombres_activos_finales)) / len(nombres_activos_finales)
+                if pesos_opt is None:
+                    st.error("**COLAPSO MATEMÁTICO (Restricciones Imposibles):** El optimizador no pudo encontrar una solución porque las reglas chocan entre sí. \n\n**Causa probable:** Su 'Límite de Riesgo' le exige al motor meter mucho capital en liquidez, pero la suma de los 'Topes Máximos' de sus cuentas de Renta Fija es insuficiente para absorber ese dinero. \n\n**Solución:** Agregue un instrumento sin límite (ej. Cetes a 10 Millones) o aumente el límite máximo de exposición por activo.")
+                    st.stop() # <── Freno de mano total, no mostramos gráficos falsos
+                    
+                if len(pesos_opt) != len(nombres_activos_finales):
+                    st.error("Error estructural de dimensiones en la matriz de activos.")
+                    st.stop()
 
                 ret_opt    = float(np.sum(pesos_opt * retornos_usar))
                 vol_opt    = float(np.sqrt(np.dot(pesos_opt.T, np.dot(matriz_cov_usar, pesos_opt))))
