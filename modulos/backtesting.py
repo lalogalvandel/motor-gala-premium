@@ -71,6 +71,12 @@ def calcular_backtest_walk_forward(
             # Costo de comprar el portafolio por primera vez
             costo_transaccion = 1.0 * comision_broker
             
+        # ── ESCUDO CONTRA FALLOS DEL OPTIMIZADOR EN VENTANAS HISTÓRICAS ──
+        if pesos_actuales is None:
+            # Si la matemática colapsa en este trimestre, usamos pesos equitativos (1/N) como salvavidas
+            n_activos_bt = len(es_riesgo)
+            pesos_actuales = np.ones(n_activos_bt) / n_activos_bt
+            
         pesos_anteriores = pesos_actuales.copy() # Guardamos para el próximo trimestre
         # ────────────────────────────────────────────────────
         
