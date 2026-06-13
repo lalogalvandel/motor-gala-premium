@@ -60,6 +60,12 @@ def calcular_backtest_walk_forward(
             max_riesgo_total=riesgo_periodo, 
             es_riesgo=es_riesgo
         )
+
+        # ── ESCUDO INMEDIATO CONTRA FALLOS DEL OPTIMIZADOR ──
+        if pesos_actuales is None:
+            # Si la matemática colapsa en este trimestre histórico, usamos pesos equitativos (1/N) como salvavidas
+            n_activos_bt = len(es_riesgo)
+            pesos_actuales = np.ones(n_activos_bt) / n_activos_bt
         
         # ── 🚨 CÁLCULO DE FRICCIÓN Y COSTOS DE TRANSACCIÓN ──
         if pesos_anteriores is not None:
@@ -71,14 +77,7 @@ def calcular_backtest_walk_forward(
             # Costo de comprar el portafolio por primera vez
             costo_transaccion = 1.0 * comision_broker
             
-        # ── ESCUDO CONTRA FALLOS DEL OPTIMIZADOR EN VENTANAS HISTÓRICAS ──
-        if pesos_actuales is None:
-            # Si la matemática colapsa en este trimestre, usamos pesos equitativos (1/N) como salvavidas
-            n_activos_bt = len(es_riesgo)
-            pesos_actuales = np.ones(n_activos_bt) / n_activos_bt
-            
         pesos_anteriores = pesos_actuales.copy() # Guardamos para el próximo trimestre
-        # ────────────────────────────────────────────────────
         
         datos_test = retornos_diarios.iloc[inicio_test : fin_test]
         retorno_periodo = (datos_test @ pesos_actuales)
