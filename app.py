@@ -1399,8 +1399,8 @@ with tab_motor:
                         matriz_cov_usar = pd.concat([matriz_cov_usar, nueva_fila])
                         matriz_cov_usar[nombre_rf] = 0.0 # Nueva columna
                         
-                        # Le damos una volatilidad mínima en la diagonal principal (Varianza)
-                        matriz_cov_usar.loc[nombre_rf, nombre_rf] = 0.000001
+                        # Le damos una volatilidad mínima en la diagonal (1% anual para evitar singularidad matricial)
+                        matriz_cov_usar.loc[nombre_rf, nombre_rf] = 0.0001
                         
                         # Guardamos sus restricciones personalizadas para el optimizador
                         limites_inferiores.append(0.0) # La renta fija no tiene mínimo obligatorio
