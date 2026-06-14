@@ -1410,28 +1410,27 @@ with tab_motor:
                 es_riesgo_final = np.array(es_riesgo_final)
                 bounds_personalizados = tuple(zip(limites_inferiores, limites_superiores))
                 
-                # ── LÓGICA DE RESTRICCIÓN DE RIESGO ──
+                # ── LÓGICA DE RESTRICCIÓN DE RIESGO (CORREGIDA) ──
                 if usar_perfil_ldi and st.session_state.get("riesgo_objetivo_ldi") is not None:
                     riesgo_maximo_final = float(st.session_state["riesgo_objetivo_ldi"])
+                    # Obligamos al motor a cumplir el mandato del LDI (con un 5% de margen de maniobra)
+                    riesgo_minimo_final = max(0.0, riesgo_maximo_final - 0.05)
                 elif not usar_perfil_ldi:
                     riesgo_maximo_final = st.session_state.get("limite_riesgo_manual", 80) / 100
+                    riesgo_minimo_final = 0.10 # Obligamos al menos 10% en bolsa si está en manual
                 else:
                     riesgo_maximo_final = min(1.0, max(0.20, horizonte_años / 15.0))
+                    riesgo_minimo_final = max(0.0, riesgo_maximo_final - 0.10)
                 
                 riesgo_maximo_final = max(0.0, min(1.0, riesgo_maximo_final))
 
-                riesgo_minimo_requerido = np.sum(es_riesgo) * peso_min
+                riesgo_minimo_requerido = np.sum(es_riesgo_final) * peso_min
                 if riesgo_maximo_final < riesgo_minimo_requerido:
                     riesgo_maximo_final = riesgo_minimo_requerido + 0.001
 
                 resultados, pesos_guardados = simular_portafolios(retornos_usar, matriz_cov_usar, tasa_rf, num_portafolios=num_sims)
                 
-                # Convertimos de nuevo a array de numpy
-                es_riesgo_final = np.array(es_riesgo_final)
-                bounds_personalizados = tuple(zip(limites_inferiores, limites_superiores))
-
-                # ── PURIFICACIÓN DE DATOS PARA SCIPY (PANDAS -> NUMPY) ──
-                # Extraemos solo los valores numéricos float64 para que el SLSQP no colapse
+                # PURIFICACIÓN DE DATOS PARA SCIPY
                 ret_numpy = retornos_usar.to_numpy(dtype=float) if hasattr(retornos_usar, 'to_numpy') else np.array(retornos_usar, dtype=float)
                 cov_numpy = matriz_cov_usar.to_numpy(dtype=float) if hasattr(matriz_cov_usar, 'to_numpy') else np.array(matriz_cov_usar, dtype=float)
 
@@ -1442,6 +1441,7 @@ with tab_motor:
                     tasa_rf,
                     peso_min=peso_min, 
                     peso_max=peso_max, 
+                    min_riesgo_total=riesgo_minimo_final,  # <── NUEVO CABLE CONECTADO
                     max_riesgo_total=riesgo_maximo_final,
                     es_riesgo=es_riesgo_final,
                     bounds_personalizados=bounds_personalizados
@@ -1674,18 +1674,30 @@ with tab_motor:
         usar_freno = st.session_state.get('activar_freno_cagr', True)
         
         if usar_freno:
-            # Leemos el slider (si no existe aún, usamos 15% como seguro de vida)
             tope_act = st.session_state.get('tope_actuarial_slider', 15.0) / 100
-            rendimiento_mc = min(ret_opt, tope_act)
+            rendimiento_mc_nominal = min(ret_opt, tope_act)
             
             if ret_opt > tope_act:
-                st.warning(f"**Reversión a la Media:** El portafolio tiene un retorno histórico atípico ({ret_opt*100:.2f}%). Para evitar proyecciones financieras irreales a {horizonte_años} años, la simulación ha topado el interés compuesto al **{tope_act*100:.1f}%**, pero mantiene intacta la alta volatilidad original ({vol_opt*100:.2f}%) para estresar el modelo correctamente.")
+                st.warning(f"**Reversión a la Media:** El portafolio tiene un retorno histórico atípico ({ret_opt*100:.2f}%). Se ha topado el interés compuesto al **{tope_act*100:.1f}%** nominal, pero mantiene intacta la alta volatilidad original ({vol_opt*100:.2f}%) para estresar el modelo correctamente.")
             else:
                 st.info(f"**Prudencia Actuarial:** Freno encendido (Límite: {tope_act*100:.1f}%), pero el rendimiento histórico ({ret_opt*100:.2f}%) está dentro de parámetros estructurales normales. No se aplicó recorte.")
         else:
-            rendimiento_mc = ret_opt
+            rendimiento_mc_nominal = ret_opt
             if ret_opt > 0.20 and horizonte_años > 5:
                 st.error(f"**Riesgo de Extrapolación:** El freno actuarial está APAGADO. Está proyectando un retorno del **{ret_opt*100:.2f}%** compuesto anualmente por **{horizonte_años} años**. Esto asume que el portafolio batirá a los mejores gestores de la historia ininterrumpidamente. Úselo solo para visualización a corto plazo.")
+
+        # ── NUEVO: ECUACIÓN DE FISHER (AJUSTE INFLACIONARIO REAL) ──
+        if "riesgo_objetivo_ldi" in st.session_state and usar_perfil_ldi:
+            inflacion_mc = st.session_state.get('ldi_inflacion', 4.0) / 100
+            if inflacion_mc > 1.0: inflacion_mc /= 100
+            
+            # Ecuación de Fisher exacta: (1 + r_nom) / (1 + inf) - 1
+            rendimiento_mc = ((1 + rendimiento_mc_nominal) / (1 + inflacion_mc)) - 1
+            
+            st.success(f"**Ecuación de Fisher Aplicada:** El Monte Carlo descontará una erosión inflacionaria del **{inflacion_mc*100:.1f}% anual**. El rendimiento base de la simulación se ajustó de {rendimiento_mc_nominal*100:.2f}% (Nominal) a **{rendimiento_mc*100:.2f}% (Real)** para la proyección.")
+        else:
+            rendimiento_mc = rendimiento_mc_nominal
+            st.caption("Proyección corriendo en términos Nominales (sin descuento inflacionario).")
 
         # ── CABLE CONECTADO: INYECCIÓN FISCAL AL MONTE CARLO ──
         usar_fiscal_mc = st.session_state.get('ldi_fiscal', False)
