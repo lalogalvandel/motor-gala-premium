@@ -36,39 +36,38 @@ def portafolio_optimo(resultados, pesos_guardados, retornos_anuales, matriz_cov,
     return pesos, retorno, vol, sharpe
 
 def optimizar_sharpe_slsqp(retornos_anuales, matriz_cov, tasa_rf, peso_min=0.0, peso_max=1.0, 
-                           max_riesgo_total=1.0, es_riesgo=None, bounds_personalizados=None):
+                           min_riesgo_total=0.0, max_riesgo_total=1.0, es_riesgo=None, bounds_personalizados=None):
     """
     Motor Institucional con restricciones de concentración, límites individualizados
-    (para activos sintéticos de renta fija) y Glide Path Actuarial.
+    y Presupuesto de Riesgo Exacto (Glide Path Actuarial).
     """
     n_activos = len(retornos_anuales)
 
     def funcion_objetivo(pesos):
         retorno = np.sum(pesos * retornos_anuales)
         vol = np.sqrt(np.dot(pesos.T, np.dot(matriz_cov, pesos)))
-        
-        # Cobertura contra volatilidad matemática cero (evita división por cero)
         if vol < 1e-6:
             return -retorno
-            
         sharpe = (retorno - tasa_rf) / vol
         return -sharpe 
 
-    # Si no se define el riesgo, asumimos que todo es riesgo
     if es_riesgo is None:
         es_riesgo = np.ones(n_activos)
 
-    def restriccion_riesgo(pesos):
-        # La suma de dinero en activos de riesgo no debe superar el límite del Glide Path
+    def restriccion_riesgo_max(pesos):
+        # Techo de inversión en renta variable
         return max_riesgo_total - np.sum(pesos * es_riesgo)
+        
+    def restriccion_riesgo_min(pesos):
+        # Piso de inversión en renta variable (Evita el secuestro por Renta Fija)
+        return np.sum(pesos * es_riesgo) - min_riesgo_total
 
     restricciones = [
         {'type': 'eq', 'fun': lambda x: np.sum(x) - 1},          
-        {'type': 'ineq', 'fun': restriccion_riesgo}              
+        {'type': 'ineq', 'fun': restriccion_riesgo_max},
+        {'type': 'ineq', 'fun': restriccion_riesgo_min}  # <── NUEVA RESTRICCIÓN
     ]
     
-    # ── CONEXIÓN DE CABLES: SELECCIÓN DE LÍMITES DINÁMICOS ──
-    # Si pasamos los límites del dataframe, usamos esos. Si no, usamos los globales.
     if bounds_personalizados is not None and len(bounds_personalizados) == n_activos:
         limites = bounds_personalizados
     else:
@@ -79,8 +78,7 @@ def optimizar_sharpe_slsqp(retornos_anuales, matriz_cov, tasa_rf, peso_min=0.0, 
     resultado = minimize(funcion_objetivo, pesos_iniciales, 
                          method='SLSQP', bounds=limites, constraints=restricciones)
 
-    # Si el optimizador falla por restricciones encontradas
     if not resultado.success:
-        return None # <── Ahora devuelve None para que la app principal dispare la alarma
-        
+        return None 
+
     return resultado.x
