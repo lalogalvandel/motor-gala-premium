@@ -36,11 +36,12 @@ FORMATO DE SALIDA ESPERADO (ESTRICTO):
 
 def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
     """
-    Toma un arreglo de noticias (diccionarios), las sintetiza y llama al LLM
-    con un protocolo de Fallback (Plan A: 1.5-flash, Plan B: 1.0-pro).
+    Toma un arreglo de noticias, las sintetiza y llama al LLM usando 
+    Auto-Descubrimiento de modelos para evitar errores 404 por versiones de SDK.
     """
     import google.generativeai as genai
     import json
+    import re
     
     genai.configure(api_key=api_key)
     
@@ -53,38 +54,46 @@ def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
     texto_noticias += f"UNIVERSO DE ACTIVOS DISPONIBLES: {', '.join(tickers_universo)}\n"
     texto_noticias += "Genera las vistas de Black-Litterman en formato JSON basándote ÚNICAMENTE en la información anterior."
 
-    config_generacion = genai.types.GenerationConfig(
-        response_mime_type="application/json",
-        temperature=0.2
-    )
-
-    # ── PROTOCOLO DE FALLBACK (Degradación Elegante) ──
-    modelos_a_probar = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.0-pro']
-    response = None
-    
-    for nombre_modelo in modelos_a_probar:
-        try:
-            model = genai.GenerativeModel(nombre_modelo)
-            response = model.generate_content(
-                f"{PROMPT_SISTEMA_QUANT}\n\n{texto_noticias}",
-                generation_config=config_generacion
-            )
-            break # Si funciona, salimos del ciclo de intentos
-        except Exception as e:
-            error_msg = str(e)
-            if "404" in error_msg or "not found" in error_msg:
-                continue # Probamos el siguiente modelo de la lista
-            else:
-                return False, f"Error en API de IA ({nombre_modelo}): {error_msg}"
-
-    if response is None:
-        return False, "Error crítico: Ningún modelo de IA está disponible o soportado en esta versión de la API."
-
+    # ── 1. AUTO-DESCUBRIMIENTO DE MODELOS DISPONIBLES ──
+    modelo_elegido = 'gemini-pro' # Fallback universal de la primera versión
     try:
-        # Parsear el JSON puro a diccionarios de Python
-        vistas_generadas = json.loads(response.text)
+        # Le preguntamos a Google qué modelos están activos para esta llave
+        modelos_disponibles = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
-        # Limpieza de seguridad: filtrar activos que no estén en nuestro universo
+        # Nuestra lista de deseos, del mejor al más básico
+        preferencias = ['models/gemini-1.5-flash', 'models/gemini-1.5-flash-latest', 'models/gemini-1.0-pro', 'models/gemini-pro']
+        
+        for pref in preferencias:
+            if pref in modelos_disponibles:
+                modelo_elegido = pref.replace('models/', '')
+                break
+        else:
+            if modelos_disponibles:
+                modelo_elegido = modelos_disponibles[0].replace('models/', '')
+    except Exception:
+        pass # Si falla la consulta, seguimos con gemini-pro por defecto
+
+    # ── 2. EJECUCIÓN DEL MODELO ──
+    try:
+        model = genai.GenerativeModel(modelo_elegido)
+        
+        # Pasamos solo la temperatura para no romper SDKs antiguos con parámetros nuevos
+        response = model.generate_content(
+            f"{PROMPT_SISTEMA_QUANT}\n\n{texto_noticias}",
+            generation_config=genai.types.GenerationConfig(temperature=0.2)
+        )
+        
+        # ── 3. LIMPIEZA DEL JSON (Extracción Regex) ──
+        texto_respuesta = response.text
+        # Si la IA envuelve la respuesta en bloques de código markdown, se los quitamos
+        texto_respuesta = re.sub(r'^```json\n?', '', texto_respuesta, flags=re.MULTILINE)
+        texto_respuesta = re.sub(r'^```\n?', '', texto_respuesta, flags=re.MULTILINE)
+        texto_respuesta = texto_respuesta.strip()
+        
+        # 4. Parsear a diccionario de Python
+        vistas_generadas = json.loads(texto_respuesta)
+        
+        # Filtro de seguridad
         vistas_filtradas = []
         for v in vistas_generadas:
             if v.get("activo_1") in tickers_universo:
@@ -93,6 +102,6 @@ def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
         return True, vistas_filtradas
         
     except json.JSONDecodeError:
-        return False, "La IA no devolvió un JSON válido. Reintente."
+        return False, f"La IA no devolvió un JSON válido usando el modelo {modelo_elegido}. Respuesta cruda: {texto_respuesta[:100]}..."
     except Exception as e:
-        return False, f"Error al procesar la respuesta de la IA: {e}"
+        return False, f"Error al ejecutar el modelo {modelo_elegido}: {e}"
