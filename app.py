@@ -923,8 +923,9 @@ with st.sidebar:
                         
                         if ok:
                             st.session_state["vistas_bl"] = resultado_ia
+                            vistas_usuario = resultado_ia  # <── Actualizamos la variable local en caliente
                             st.success(f"¡IA completó el análisis! Generó {len(resultado_ia)} perspectivas matemáticas.")
-                            st.rerun() # Recargamos para que se dibujen abajo
+                            # st.rerun() <── ELIMINADO para no cerrar el menú ni borrar el mensaje
                         else:
                             st.error(resultado_ia)
                     except Exception as e:
