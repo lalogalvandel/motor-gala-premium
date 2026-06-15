@@ -912,7 +912,7 @@ with st.sidebar:
                         
                         # 2. Recolectamos noticias rápido y las etiquetamos
                         noticias_macro = []
-                        for t in tickers_temp[:6]: # Top 6 para tener más carnita
+                        for t in tickers_temp: # <── ¡Sin límites! Leemos los 16 activos.
                             try:
                                 noticias_brutas = yf.Ticker(t).news[:3]
                                 for n in noticias_brutas:
