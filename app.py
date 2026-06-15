@@ -1867,7 +1867,13 @@ with tab_motor:
 
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin:1.5rem 0 .75rem;'>Stress Testing — Escenarios Históricos</div>""", unsafe_allow_html=True)
         
-        df_stress = calcular_stress_test(pesos_opt, nombres_activos_finales, capital_riesgo, retornos_diarios)
+        df_stress = calcular_stress_test(
+            pesos_opt, 
+            nombres_activos_finales, 
+            capital_riesgo, 
+            retornos_diarios, 
+            es_riesgo=es_riesgo_final  # <── Cable conectado
+        )
         
         if df_stress is not None and not df_stress.empty and "Pérdida (%)" in df_stress.columns:
             fig_stress = go.Figure(go.Bar(
