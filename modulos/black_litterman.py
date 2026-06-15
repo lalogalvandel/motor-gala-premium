@@ -3,12 +3,13 @@ import pandas as pd
 from scipy.linalg import inv
 from scipy.linalg import pinv  # Importamos la pseudoinversa
 
-def calcular_black_litterman(retornos_anuales: pd.Series, 
-                             matriz_cov: pd.DataFrame, 
-                             pesos_mercado: pd.Series, 
-                             vistas_usuario: list, 
-                             tasa_rf: float, 
-                             tau: float = 0.05):
+def calcular_black_litterman(
+        retornos_anuales: pd.Series,
+        matriz_cov: pd.DataFrame,
+        pesos_mercado: pd.Series,
+        vistas_usuario: list,
+        tasa_rf: float,
+        tau: float = 0.05):
     """
     Motor Black-Litterman para integrar retornos de equilibrio con proyecciones del gestor.
     
