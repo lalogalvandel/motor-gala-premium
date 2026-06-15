@@ -47,13 +47,15 @@ def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
     texto_noticias += "Genera las vistas de Black-Litterman en formato JSON basándote ÚNICAMENTE en la información anterior."
 
     # ── 1. AUTO-DESCUBRIMIENTO DE MODELOS DISPONIBLES ──
-    modelo_elegido = 'gemini-pro' # Fallback universal de la primera versión
+    # Priorizamos 1.0-pro para utilizar su cuota independiente
+    modelo_elegido = 'gemini-pro' 
     try:
         # Le preguntamos a Google qué modelos están activos para esta llave
         modelos_disponibles = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
-        # Nuestra lista de deseos, del mejor al más básico
-        preferencias = ['models/gemini-1.5-flash', 'models/gemini-1.5-flash-latest', 'models/gemini-1.0-pro', 'models/gemini-pro']
+        # AJUSTE TÁCTICO: Movemos 1.0-pro al inicio de la lista de deseos
+        # Esto obligará al script a agotar la cuota de 1.0-pro antes de tocar la de 1.5-flash
+        preferencias = ['models/gemini-1.0-pro', 'models/gemini-1.5-flash', 'models/gemini-1.5-flash-latest', 'models/gemini-pro']
         
         for pref in preferencias:
             if pref in modelos_disponibles:
@@ -63,7 +65,7 @@ def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
             if modelos_disponibles:
                 modelo_elegido = modelos_disponibles[0].replace('models/', '')
     except Exception:
-        pass # Si falla la consulta, seguimos con gemini-pro por defecto
+        pass # Si falla la consulta, seguimos con el valor por defecto
 
     # ── 2. EJECUCIÓN DEL MODELO ──
     try:
