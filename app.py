@@ -1495,6 +1495,7 @@ with tab_motor:
                 # ── GUARDAMOS LAS VARIABLES EXPANDIDAS EN MEMORIA ──
                 st.session_state.nombres_activos_finales = nombres_activos_finales
                 st.session_state.retornos_diarios_exp = retornos_diarios
+                st.session_state.es_riesgo_final = es_riesgo_final  # <── NUEVA LÍNEA AGREGADA
 
         res        = st.session_state.resultados
         pesos_opt  = st.session_state.pesos_opt
@@ -1505,7 +1506,7 @@ with tab_motor:
         # ── RECUPERAMOS LAS VARIABLES EXPANDIDAS DE LA MEMORIA ──
         nombres_activos_finales = st.session_state.get("nombres_activos_finales", tickers)
         retornos_diarios = st.session_state.get("retornos_diarios_exp", retornos_diarios)
-
+        es_riesgo_final = st.session_state.get("es_riesgo_final", np.ones(len(nombres_activos_finales))) # <── NUEVA LÍNEA AGREGADA
         # Precios históricos
         _header("Datos históricos", "Precios de Cierre")
         if st.toggle("Mostrar gráfica de precios"):
