@@ -79,61 +79,56 @@ def calcular_sortino(
     return sortino, desviacion_down
 
 
-def calcular_stress_test(
-    pesos_optimos: np.ndarray,
-    tickers: list,
-    capital: float,
-    retornos_diarios: pd.DataFrame
-) -> pd.DataFrame:
+def calcular_stress_test(pesos, tickers, capital_riesgo, retornos_diarios, es_riesgo=None):
     """
-    Stress test con períodos históricos reales.
-    Calcula el retorno real del portafolio en cada ventana de crisis convirtiendo log-retornos a simples.
+    Evalúa el impacto de crisis históricas en el portafolio,
+    inmunizando los activos de renta fija (es_riesgo = 0.0).
     """
-    periodos = {
-        'COVID Crash (Feb–Mar 2020)':   ('2020-02-19', '2020-03-23'),
-        'Bear Market 2022':             ('2022-01-03', '2022-10-12'),
-        'Crisis Financiera 2008':       ('2008-09-01', '2009-03-09'),
-        'Inflación & Subida Tasas 2022':('2022-03-01', '2022-06-30'),
-        'Corrección COVID Rebote':      ('2020-09-02', '2020-09-23'),
+    import pandas as pd
+    import numpy as np
+
+    # Si no se define es_riesgo, asumimos que todos los activos son de riesgo (1.0)
+    if es_riesgo is None:
+        es_riesgo = np.ones(len(tickers))
+
+    escenarios = {
+        "COVID Crash (Feb-Mar 2020)": ("2020-02-19", "2020-03-23"),
+        "Bear Market 2022": ("2022-01-03", "2022-10-12"),
+        "Inflación & Subida Tasas 2022": ("2022-08-16", "2022-09-30"),
+        "Corrección COVID Rebote": ("2020-09-02", "2020-09-23")
     }
 
     resultados = []
-    for escenario, (fecha_ini, fecha_fin) in periodos.items():
+    
+    for nombre, (inicio, fin) in escenarios.items():
         try:
-            # Filtra solo los tickers disponibles en retornos_diarios
-            tickers_disp = [t for t in tickers if t in retornos_diarios.columns]
-            pesos_disp   = np.array([pesos_optimos[tickers.index(t)] for t in tickers_disp])
-            
-            if pesos_disp.sum() == 0:
+            # Filtramos los retornos en la ventana de la crisis
+            ventana = retornos_diarios.loc[inicio:fin]
+            if ventana.empty:
                 continue
-                
-            pesos_disp  /= pesos_disp.sum()  # renormaliza
-
-            # La ventana trae LOG-RETORNOS
-            ventana_log = retornos_diarios[tickers_disp].loc[fecha_ini:fecha_fin]
-
-            if ventana_log.empty:
-                continue
-
-            # ── CORRECCIÓN INSTITUCIONAL ──
-            # 1. Convertir log-retornos diarios a retornos simples
-            ventana_simple = np.exp(ventana_log) - 1
             
-            # 2. El retorno del portafolio diario es el producto punto de los retornos simples y los pesos
-            retorno_portafolio_diario = ventana_simple @ pesos_disp
+            # Calculamos la caída acumulada de cada activo en ese periodo
+            caida_activos = (1 + ventana).prod() - 1
             
-            # 3. Capitalizamos los retornos diarios del portafolio para toda la crisis
-            retorno_periodo = (1 + retorno_portafolio_diario).prod() - 1
-
+            # ── LA INMUNIZACIÓN ──
+            # Multiplicamos la caída por el vector de riesgo. 
+            # Si un activo es renta fija (0.0), su caída se vuelve 0%.
+            caida_inmunizada = caida_activos * es_riesgo
+            
+            # Calculamos la pérdida ponderada del portafolio completo
+            caida_portafolio = np.sum(pesos * caida_inmunizada)
+            
+            impacto_dinero = capital_riesgo * caida_portafolio
+            
             resultados.append({
-                'Escenario':     escenario,
-                'Pérdida (%)':   round(retorno_periodo * 100, 2),
-                'Pérdida (MXN)': round(retorno_periodo * capital, 0) # Cambié USD a MXN ya que estamos Mexicanizados
+                "Escenario": nombre,
+                "Pérdida (%)": caida_portafolio * 100,
+                "Pérdida Estimada (USD)": impacto_dinero
             })
         except Exception:
             continue
-
-    return pd.DataFrame(resultados)
+            
+    return pd.DataFrame(resultados) if resultados else pd.DataFrame()
 
 
 def calcular_correlacion_rolling(retornos_diarios: pd.DataFrame, ventana: int = 60):
