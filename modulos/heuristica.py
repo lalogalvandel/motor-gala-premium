@@ -7,7 +7,7 @@ Tu única función es leer un conjunto de noticias financieras recientes y extra
 
 REGLAS ESTRICTAS:
 1. No escribas texto introductorio, ni explicaciones, ni resúmenes. Tu salida debe ser EXCLUSIVAMENTE un arreglo JSON válido.
-2. SIEMPRE debes generar entre 2 y 4 perspectivas. Si las noticias son neutrales o aburridas, deduce el impacto macroeconómico y genera vistas con "confianza": "Baja". ¡Prohibido devolver un arreglo vacío!
+2. Genera TODAS las perspectivas posibles basándote en las noticias (pueden ser desde 4 hasta 12 perspectivas). Prioriza los activos que tengan noticias con mayor impacto fundamental.
 3. TIENES QUE USAR EXACTAMENTE LOS TICKERS QUE SE TE PROPORCIONAN EN EL 'UNIVERSO DE ACTIVOS DISPONIBLES'. No uses el nombre comercial de la empresa. (Ej. usa 'AAPL.MX' y no 'Apple').
 4. Los rendimientos esperados ("rendimiento_esperado") deben ser decimales entre -0.50 y 0.50 (ej. un impacto positivo moderado es 0.05, un impacto negativo es -0.08).
 5. La "confianza" solo puede ser "Baja", "Media" o "Alta".
@@ -38,7 +38,7 @@ def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
     genai.configure(api_key=api_key)
     
     texto_noticias = "NOTICIAS RECIENTES DEL MERCADO:\n"
-    for n in noticias_lista[:10]:
+    for n in noticias_lista[:50]: # <── La IA leerá hasta 50 titulares de golpe
         titulo = n.get("title", n.get("headline", "Sin título"))
         texto_noticias += f"- Ticker Relacionado: {n.get('origen_ticker', 'Macro')}\n"
         texto_noticias += f"  Titular: {titulo}\n\n"
