@@ -4,12 +4,13 @@ from scipy.linalg import inv
 from scipy.linalg import pinv  # Importamos la pseudoinversa
 
 def calcular_black_litterman(
-        retornos_anuales: pd.Series,
-        matriz_cov: pd.DataFrame,
-        pesos_mercado: pd.Series,
-        vistas_usuario: list,
-        tasa_rf: float,
-        tau: float = 0.05):
+    retornos_anuales: pd.Series,
+    matriz_cov: pd.DataFrame,
+    pesos_mercado: pd.Series,
+    vistas_usuario: list,
+    tasa_rf: float,
+    tau: float = 0.05
+):
     """
     Motor Black-Litterman para integrar retornos de equilibrio con proyecciones del gestor.
     
@@ -100,7 +101,7 @@ def calcular_black_litterman(
     tau_Sigma = tau * Sigma
     
     # Limpieza de datos (agrégalo antes de calcular tau_Sigma)
-tau_Sigma = np.nan_to_num(tau_Sigma, nan=0.0, posinf=0.0, neginf=0.0)
+    tau_Sigma = np.nan_to_num(tau_Sigma, nan=0.0, posinf=0.0, neginf=0.0)
     
     # 1. Regularización: Añadimos una cantidad minúscula a la diagonal 
     # para asegurar que sea positiva definida (Tikhonov regularization)
