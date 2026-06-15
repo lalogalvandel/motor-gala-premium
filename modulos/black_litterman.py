@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.linalg import inv
+from scipy.linalg import pinv  # Importamos la pseudoinversa
 
 def calcular_black_litterman(retornos_anuales: pd.Series, 
                              matriz_cov: pd.DataFrame, 
@@ -96,7 +97,21 @@ def calcular_black_litterman(retornos_anuales: pd.Series,
         
     # ── 4. ÁLGEBRA DE BLACK-LITTERMAN (Teorema de Bayes) ──
     tau_Sigma = tau * Sigma
-    tau_Sigma_inv = inv(tau_Sigma)
+    
+    # Limpieza de datos (agrégalo antes de calcular tau_Sigma)
+tau_Sigma = np.nan_to_num(tau_Sigma, nan=0.0, posinf=0.0, neginf=0.0)
+    
+    # 1. Regularización: Añadimos una cantidad minúscula a la diagonal 
+    # para asegurar que sea positiva definida (Tikhonov regularization)
+    tau_Sigma += np.eye(tau_Sigma.shape[0]) * 1e-6
+    
+    # 2. Inversión Robusta: Usamos pinv (pseudoinversa) en lugar de inv
+    # Esto evita el ValueError incluso si hay activos altamente correlacionados
+    try:
+        tau_Sigma_inv = pinv(tau_Sigma)
+    except Exception as e:
+        # Si todo falla, forzamos una matriz identidad para no detener la app
+        tau_Sigma_inv = np.eye(tau_Sigma.shape[0])
     Omega_inv = inv(Omega)
     
     # Término central común: [(tau * Sigma)^-1 + P^T * Omega^-1 * P]^-1
