@@ -910,12 +910,18 @@ with st.sidebar:
                         cadena_tickers = st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX")
                         tickers_temp = [t.strip().upper() for t in cadena_tickers.split(",") if t.strip()]
                         
-                        # 2. Recolectamos noticias rápido (usando yfinance directo o tu función existente)
+                        # 2. Recolectamos noticias rápido y las etiquetamos
                         noticias_macro = []
-                        for t in tickers_temp[:4]: # Top 4 para no saturar
+                        for t in tickers_temp[:6]: # Top 6 para tener más carnita
                             try:
-                                noticias_macro.extend(yf.Ticker(t).news[:3])
+                                noticias_brutas = yf.Ticker(t).news[:3]
+                                for n in noticias_brutas:
+                                    n['origen_ticker'] = t # <── AQUÍ LE PEGAMOS LA ETIQUETA
+                                    noticias_macro.append(n)
                             except: pass
+                            
+                        if not noticias_macro:
+                            st.warning("Yahoo Finance no devolvió noticias recientes. El análisis será puramente macroeconómico.")
                             
                         # 3. Disparamos la API de Gemini
                         llave_api = st.secrets["GEMINI_API_KEY"]
