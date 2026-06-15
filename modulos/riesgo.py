@@ -123,7 +123,7 @@ def calcular_stress_test(pesos, tickers, capital_riesgo, retornos_diarios, es_ri
             resultados.append({
                 "Escenario": nombre,
                 "Pérdida (%)": caida_portafolio * 100,
-                "Pérdida Estimada (USD)": impacto_dinero
+                "Pérdida (MXN)": impacto_dinero  # <── Etiqueta corregida para el PDF
             })
         except Exception:
             continue
