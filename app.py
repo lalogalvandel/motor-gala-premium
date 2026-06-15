@@ -939,14 +939,18 @@ with st.sidebar:
 
             st.markdown("<div style='margin: 10px 0;'></div>", unsafe_allow_html=True)
             
-            # Mostrar las vistas actuales (generadas por IA o manuales)
+            # Mostrar las vistas actuales de forma segura
             if vistas_usuario:
                 st.caption("Perspectivas actuales en el motor:")
                 for idx, v in enumerate(vistas_usuario):
-                    if v['tipo'] == 'absoluta':
-                        st.markdown(f"**{idx+1}. {v['activo_1']}** ➔ {v['rendimiento_esperado']*100:.1f}% (Confianza: {v['confianza']})")
-                    else:
-                        st.markdown(f"**{idx+1}. {v['activo_1']} > {v['activo_2']}** por {v['rendimiento_esperado']*100:.1f}% (Confianza: {v['confianza']})")
+                    # Usamos .get() para evitar errores si falta algún campo
+                    rend = v.get('rendimiento_esperado', 0) * 100
+                    conf = v.get('confianza', 'N/A')
+                    
+                    if v.get('tipo') == 'absoluta':
+                        st.markdown(f"**{idx+1}. {v.get('activo_1')}** ➔ {rend:.1f}% (Confianza: {conf})")
+                    elif v.get('tipo') == 'relativa':
+                        st.markdown(f"**{idx+1}. {v.get('activo_1')} > {v.get('activo_2')}** ➔ {rend:.1f}% (Confianza: {conf})")
                 
                 if st.button("Borrar Perspectivas", width='stretch'):
                     st.session_state["vistas_bl"] = []
