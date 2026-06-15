@@ -37,19 +37,15 @@ FORMATO DE SALIDA ESPERADO (ESTRICTO):
 def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
     """
     Toma un arreglo de noticias (diccionarios), las sintetiza y llama al LLM
-    para generar las vistas matemáticas de Black-Litterman.
+    con un protocolo de Fallback (Plan A: 1.5-flash, Plan B: 1.0-pro).
     """
     import google.generativeai as genai
+    import json
     
-    # 1. Configurar la API de IA
     genai.configure(api_key=api_key)
     
-    # Usamos un modelo rápido y barato para tareas de extracción estructurada
-    model = genai.GenerativeModel('gemini-1.5-flash') 
-    
-    # 2. Empaquetar las noticias para la IA
     texto_noticias = "NOTICIAS RECIENTES DEL MERCADO:\n"
-    for n in noticias_lista[:10]:  # Limitamos a las 10 noticias más relevantes
+    for n in noticias_lista[:10]:
         titulo = n.get("title", n.get("headline", "Sin título"))
         texto_noticias += f"- Ticker Relacionado: {n.get('origen_ticker', 'Macro')}\n"
         texto_noticias += f"  Titular: {titulo}\n\n"
@@ -57,17 +53,35 @@ def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
     texto_noticias += f"UNIVERSO DE ACTIVOS DISPONIBLES: {', '.join(tickers_universo)}\n"
     texto_noticias += "Genera las vistas de Black-Litterman en formato JSON basándote ÚNICAMENTE en la información anterior."
 
-    # 3. Llamada estocástica al LLM (Forzando salida JSON)
-    try:
-        response = model.generate_content(
-            f"{PROMPT_SISTEMA_QUANT}\n\n{texto_noticias}",
-            generation_config=genai.types.GenerationConfig(
-                response_mime_type="application/json",
-                temperature=0.2 # Temperatura baja para que sea analítico y no creativo
+    config_generacion = genai.types.GenerationConfig(
+        response_mime_type="application/json",
+        temperature=0.2
+    )
+
+    # ── PROTOCOLO DE FALLBACK (Degradación Elegante) ──
+    modelos_a_probar = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.0-pro']
+    response = None
+    
+    for nombre_modelo in modelos_a_probar:
+        try:
+            model = genai.GenerativeModel(nombre_modelo)
+            response = model.generate_content(
+                f"{PROMPT_SISTEMA_QUANT}\n\n{texto_noticias}",
+                generation_config=config_generacion
             )
-        )
-        
-        # 4. Parsear el JSON puro a diccionarios de Python
+            break # Si funciona, salimos del ciclo de intentos
+        except Exception as e:
+            error_msg = str(e)
+            if "404" in error_msg or "not found" in error_msg:
+                continue # Probamos el siguiente modelo de la lista
+            else:
+                return False, f"Error en API de IA ({nombre_modelo}): {error_msg}"
+
+    if response is None:
+        return False, "Error crítico: Ningún modelo de IA está disponible o soportado en esta versión de la API."
+
+    try:
+        # Parsear el JSON puro a diccionarios de Python
         vistas_generadas = json.loads(response.text)
         
         # Limpieza de seguridad: filtrar activos que no estén en nuestro universo
@@ -78,5 +92,7 @@ def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
                 
         return True, vistas_filtradas
         
+    except json.JSONDecodeError:
+        return False, "La IA no devolvió un JSON válido. Reintente."
     except Exception as e:
-        return False, f"Error en el Motor Heurístico: {e}"
+        return False, f"Error al procesar la respuesta de la IA: {e}"
