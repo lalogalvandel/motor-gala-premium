@@ -18,7 +18,7 @@ from modulos.screening   import UNIVERSOS, descargar_fundamentales_paralelo, fil
 from modulos.backtesting import calcular_backtest_walk_forward, calcular_metricas_backtest, calcular_retornos_anuales
 from modulos.riesgo      import calcular_var_cvar, calcular_drawdown, calcular_sortino, calcular_stress_test, calcular_correlacion_rolling
 from modulos.regimenes   import entrenar_modelo_markov
-    from modulos.black_litterman import calcular_black_litterman
+from modulos.black_litterman import calcular_black_litterman
 from modulos.pensiones import MotorActuarial
 from modulos.heuristica import generar_vistas_black_litterman
 
