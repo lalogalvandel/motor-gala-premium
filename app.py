@@ -20,6 +20,7 @@ from modulos.riesgo      import calcular_var_cvar, calcular_drawdown, calcular_s
 from modulos.regimenes   import entrenar_modelo_markov
 from modulos.black_litterman import calcular_black_litterman
 from modulos.pensiones import MotorActuarial
+from modulos.heuristica import generar_vistas_black_litterman
 
 # ── Configuración de página ────────────────────────────────────────────────────
 st.set_page_config(
@@ -892,41 +893,59 @@ with st.sidebar:
             )
             st.caption("*(Proviene de la pestaña Planeación de Retiro. Ajuste los parámetros allí para modificar el límite.)*")
 
-    # ── MÓDULO BLACK-LITTERMAN (También en acordeón para no saturar) ──
+    # ── MÓDULO BLACK-LITTERMAN Y CEREBRO HEURÍSTICO ──
     st.markdown("---")
-    with st.expander("3. Expectativas de Mercado (Black‑Litterman)", expanded=False):
+    with st.expander("3. Expectativas de Mercado (Black‑Litterman & IA)", expanded=False):
         usar_bl = st.toggle("Incorporar visión de portafolio", value=st.session_state.get("usar_bl", False))
         st.session_state["usar_bl"] = usar_bl
 
-        vistas_usuario = []
+        vistas_usuario = st.session_state.get("vistas_bl", [])
+
         if usar_bl:
-            num_vistas = st.number_input("Número de perspectivas de inversión", 1, 5, 1)
+            # BOTÓN DEL MOTOR HEURÍSTICO
+            if st.button("Autogenerar Vistas con IA Heurística", type="primary", width='stretch'):
+                with st.spinner("Analizando noticias macroeconómicas y leyendo el mercado..."):
+                    try:
+                        # 1. Obtenemos los tickers activos para buscar sus noticias
+                        cadena_tickers = st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX")
+                        tickers_temp = [t.strip().upper() for t in cadena_tickers.split(",") if t.strip()]
+                        
+                        # 2. Recolectamos noticias rápido (usando yfinance directo o tu función existente)
+                        noticias_macro = []
+                        for t in tickers_temp[:4]: # Top 4 para no saturar
+                            try:
+                                noticias_macro.extend(yf.Ticker(t).news[:3])
+                            except: pass
+                            
+                        # 3. Disparamos la API de Gemini
+                        llave_api = st.secrets["GEMINI_API_KEY"]
+                        ok, resultado_ia = generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api)
+                        
+                        if ok:
+                            st.session_state["vistas_bl"] = resultado_ia
+                            st.success(f"¡IA completó el análisis! Generó {len(resultado_ia)} perspectivas matemáticas.")
+                            st.rerun() # Recargamos para que se dibujen abajo
+                        else:
+                            st.error(resultado_ia)
+                    except Exception as e:
+                        st.error(f"Error de conexión con la IA: Asegúrese de haber configurado GEMINI_API_KEY en los Secrets. Detalle: {e}")
+
+            st.markdown("<div style='margin: 10px 0;'></div>", unsafe_allow_html=True)
             
-            cadena_tickers = st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX")
-            tickers_temp = [t.strip().upper() for t in cadena_tickers.split(",") if t.strip()]
-            
-            for i in range(num_vistas):
-                with st.container():
-                    st.markdown(f"**Perspectiva {i+1}**")
-                    tipo = st.selectbox("Tipo de expectativa", ["absoluta", "relativa"], key=f"tipo_{i}")
-                    activo_1 = st.selectbox("Instrumento de referencia", tickers_temp, key=f"a1_{i}")
-            
-                    if tipo == "absoluta":
-                        rendimiento = st.slider("Retorno esperado anual (%)", -50.0, 50.0, 10.0, step=1.0, key=f"rend_{i}") / 100
-                        st.markdown(f"<span style='color:#17C37B;font-size:13px;'>Se proyecta que <b>{activo_1}</b> obtenga un retorno de <b>{rendimiento*100:.1f}%</b>.</span>", unsafe_allow_html=True)
-                        vista = {"tipo": "absoluta", "activo_1": activo_1, "rendimiento_esperado": rendimiento}
+            # Mostrar las vistas actuales (generadas por IA o manuales)
+            if vistas_usuario:
+                st.caption("Perspectivas actuales en el motor:")
+                for idx, v in enumerate(vistas_usuario):
+                    if v['tipo'] == 'absoluta':
+                        st.markdown(f"**{idx+1}. {v['activo_1']}** ➔ {v['rendimiento_esperado']*100:.1f}% (Confianza: {v['confianza']})")
                     else:
-                        activos_rest = [t for t in tickers_temp if t != activo_1]
-                        activo_2 = st.selectbox("Instrumento de comparación", activos_rest, key=f"a2_{i}") if activos_rest else activo_1
-                        rendimiento = st.slider("Exceso de retorno esperado (%)", 0.0, 50.0, 5.0, step=1.0, key=f"rend_{i}") / 100
-                        st.markdown(f"<span style='color:#17C37B;font-size:13px;'>Se estima que <b>{activo_1}</b> supere a <b>{activo_2}</b> en <b>{rendimiento*100:.1f}%</b>.</span>", unsafe_allow_html=True)
-                        vista = {"tipo": "relativa", "activo_1": activo_1, "activo_2": activo_2, "rendimiento_esperado": rendimiento}
-            
-                    confianza = st.select_slider("Grado de certeza en la expectativa", ["Baja", "Media", "Alta"], value="Media", key=f"conf_{i}")
-                    vista["confianza"] = confianza
-                    vistas_usuario.append(vista)
-            
-        st.session_state["vistas_bl"] = vistas_usuario
+                        st.markdown(f"**{idx+1}. {v['activo_1']} > {v['activo_2']}** por {v['rendimiento_esperado']*100:.1f}% (Confianza: {v['confianza']})")
+                
+                if st.button("Borrar Perspectivas", width='stretch'):
+                    st.session_state["vistas_bl"] = []
+                    st.rerun()
+            else:
+                st.info("No hay perspectivas cargadas. Usa la IA o desactiva el módulo.")
 
     # Sidebar: Info del usuario
     st.markdown("---")
