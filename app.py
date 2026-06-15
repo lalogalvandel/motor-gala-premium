@@ -332,6 +332,12 @@ def limpiar_estados_cliente():
 def f_val(valor, formato="${:,.2f}"):
     return "$ ••••••" if st.session_state.modo_privacidad else formato.format(valor)
 
+@st.cache_data(ttl=3600) # El resultado se guarda por 1 hora
+def obtener_analisis_ia_cached(noticias_macro, tickers_temp, llave_api):
+    # Aquí mueves la lógica que ya tienes para llamar a la IA
+    ok, resultado_ia = generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api)
+    return ok, resultado_ia
+
 # ══════════════════════════════════════════════════════════════════════════════
 # LANDING — AUTH  (versión rediseñada y purificada)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -925,7 +931,7 @@ with st.sidebar:
                             
                         # 3. Disparamos la API de Gemini
                         llave_api = st.secrets["GEMINI_API_KEY"]
-                        ok, resultado_ia = generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api)
+                        ok, resultado_ia = obtener_analisis_ia_cached(noticias_macro, tickers_temp, st.secrets["GEMINI_API_KEY"])
                         
                         if ok:
                             st.session_state["vistas_bl"] = resultado_ia
