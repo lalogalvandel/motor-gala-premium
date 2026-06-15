@@ -14,4 +14,4 @@ requests
 kaleido==0.2.1
 fpdf
 bcrypt
-google-generativeai
+google-generativeai>=0.7.0
