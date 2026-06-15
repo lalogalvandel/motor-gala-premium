@@ -93,10 +93,26 @@ def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
         # 4. Parsear a diccionario de Python
         vistas_generadas = json.loads(texto_respuesta)
         
-        # Filtro de seguridad
+        # ── 4. FILTRO DE SEGURIDAD (Emparejamiento Inteligente de Tickers) ──
         vistas_filtradas = []
         for v in vistas_generadas:
-            if v.get("activo_1") in tickers_universo:
+            activo_ia = str(v.get("activo_1", "")).upper().strip()
+            
+            # Buscamos si el ticker de la IA está dentro del nuestro (ej. AAPL en AAPL.MX) o viceversa
+            coincidencia = next((t for t in tickers_universo if activo_ia in t.upper() or t.upper() in activo_ia), None)
+            
+            if coincidencia:
+                v["activo_1"] = coincidencia # Forzamos el ticker exacto que Markowitz espera
+                
+                # Si es una vista relativa, también corregimos el segundo activo
+                if v.get("tipo") == "relativa" and "activo_2" in v:
+                    act2_ia = str(v.get("activo_2", "")).upper().strip()
+                    coincidencia2 = next((t for t in tickers_universo if act2_ia in t.upper() or t.upper() in act2_ia), None)
+                    if coincidencia2:
+                        v["activo_2"] = coincidencia2
+                    else:
+                        continue # Si no encontramos el par, descartamos esta vista
+                        
                 vistas_filtradas.append(v)
                 
         return True, vistas_filtradas
