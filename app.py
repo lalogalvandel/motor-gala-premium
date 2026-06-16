@@ -1381,18 +1381,33 @@ with tab_motor:
         '>Configure los parámetros en el panel izquierdo y ejecute la optimización para iniciar el análisis.</div>
         """, unsafe_allow_html=True)
     else:
+        # ── 1. BLINDAJE DE LIFECYCLE: SINCRONIZACIÓN INMEDIATA ──
+        # Evaluamos el cambio de activos ANTES de procesar cualquier dato o llamar a la IA
+        if st.session_state.get("ultimos_tickers_usados") != tickers_input:
+            # Si el texto de la UI cambió, destruimos inmediatamente el caché de la IA anterior
+            claves_a_borrar = ["vistas_bl", "vistas_usuario", "optimizado"]
+            for clave in claves_a_borrar:
+                if clave in st.session_state:
+                    del st.session_state[clave]
+            
+            # Forzamos la actualización instantánea de las variables de control
+            st.session_state["tickers_procesar"] = tickers_input
+            st.session_state["ultimos_tickers_usados"] = tickers_input
+
+        # ── 2. CONFIGURACIÓN DEL BENCHMARK ──
         benchmark_elegido = PERFILES_BENCHMARK[benchmark_seleccion]
         if ejecutar:
-            st.session_state.optimizado = False
-            # Eliminamos la línea conflictiva, el Sidebar ya actualiza los tickers automáticamente
             st.session_state["benchmark_elegido"] = benchmark_elegido
 
+        # Ahora sí, tickers_finales adoptará los 8 activos nuevos de forma segura
         tickers_finales   = st.session_state.get("tickers_procesar", tickers_input)
         benchmark_elegido = st.session_state.get("benchmark_elegido", benchmark_elegido)
 
         tickers_lista        = [t.strip() for t in tickers_finales.split(",")]
         tickers_descarga     = tickers_lista + ([benchmark_elegido] if benchmark_elegido not in tickers_lista else [])
         tickers_descarga_key = ", ".join(tickers_descarga)
+
+        # ... (A partir de aquí continúa tu bloque try/except de descarga normal) ...
 
         try:
             with st.spinner("Descargando series históricas de precios..."):
