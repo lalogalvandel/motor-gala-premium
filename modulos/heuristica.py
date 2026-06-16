@@ -1,22 +1,16 @@
 import streamlit as st
 import numpy as np
 from transformers import pipeline
+import yfinance as yf  # <── IMPORTANTE: Agregamos el conector directo a la bolsa
 
 # ── 1. CARGA DEL MODELO EN MEMORIA CACHÉ ──
-# Usamos @st.cache_resource para descargar el modelo de 400MB solo una vez.
-# Si recargas la página, Streamlit usará el que ya está en la memoria RAM.
 @st.cache_resource
 def cargar_motor_finbert():
-    # ProsusAI/finbert es el estándar de la industria Quant para noticias financieras
+    # ProsusAI/finbert es el estándar Quant para noticias financieras
     return pipeline("sentiment-analysis", model="ProsusAI/finbert", top_k=3)
 
 # ── 2. EL PUENTE ACTUARIAL (GENERADOR DE VISTAS) ──
 def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None):
-    """
-    Lee las noticias de Yahoo Finance, las procesa por FinBERT y calcula 
-    el vector de expectativas para el modelo de Black-Litterman.
-    (El parámetro llave_api se mantiene para no romper la compatibilidad con app.py)
-    """
     vistas_generadas = []
     
     try:
@@ -24,78 +18,60 @@ def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None)
     except Exception as e:
         return False, [{"error": f"Fallo al cargar FinBERT: {e}"}]
 
-    # Parámetros del puente matemático
-    # En una versión futura, volatilidad_base puede calcularse dinámicamente desde la matriz de covarianza
-    VOLATILIDAD_BASE = 0.20  # Asumimos 20% de volatilidad anual estándar
-    FACTOR_SENSIBILIDAD = 0.50 # Qué tan agresivo es el impacto de la noticia en el precio
+    VOLATILIDAD_BASE = 0.20
+    FACTOR_SENSIBILIDAD = 0.50
     
     for ticker in tickers_temp:
-        # ── EXTRACCIÓN HEURÍSTICA DE NOTICIAS ──
-        noticias_ticker = []
-        # Limpiamos los sufijos mexicanos y de cripto para la búsqueda en texto
-        ticker_base = ticker.replace(".MX", "").replace("-USD", "") 
-        
-        for n in noticias_macro:
-            # 1. Si app.py le puso la etiqueta explícita
-            if n.get('ticker') == ticker:
-                noticias_ticker.append(n)
-            # 2. Si viene en el formato crudo de Yahoo Finance
-            elif ticker in n.get('relatedTickers', []):
-                noticias_ticker.append(n)
-            # 3. Fuerza bruta: Si el ticker base aparece en el titular (ej. buscar "CEMEXCPO" o "NVDA")
-            elif ticker_base in n.get('title', '') or ticker_base in n.get('summary', ''):
-                noticias_ticker.append(n)
-        
-        if not noticias_ticker:
+        try:
+            # ── INGESTA DIRECTA Y PRECISA ──
+            # Ignoramos la caja revuelta de 'noticias_macro' y descargamos directo de la fuente
+            info_ticker = yf.Ticker(ticker)
+            noticias_crudas = info_ticker.news
+            
+            if not noticias_crudas:
+                continue
+                
+            # Extraemos solo los títulos (FinBERT es experto en titulares puros)
+            textos = [n.get('title', '') for n in noticias_crudas[:5]]
+            textos = [t for t in textos if len(t.strip()) > 10]
+            
+            if not textos:
+                continue
+                
+            # ── INFERENCIA MATEMÁTICA LOCAL ──
+            resultados = motor_ia(textos)
+            
+            score_acumulado = 0.0
+            for res in resultados:
+                prob_pos = next((x['score'] for x in res if x['label'] == 'positive'), 0.0)
+                prob_neg = next((x['score'] for x in res if x['label'] == 'negative'), 0.0)
+                score_acumulado += (prob_pos - prob_neg)
+                
+            sentimiento_promedio = score_acumulado / len(textos)
+            rendimiento_proyectado = sentimiento_promedio * FACTOR_SENSIBILIDAD * VOLATILIDAD_BASE
+            
+            if abs(rendimiento_proyectado) < 0.001:
+                rendimiento_proyectado = 0.001 if sentimiento_promedio >= 0 else -0.001
+                
+            if abs(sentimiento_promedio) >= 0.60:
+                confianza = "Alta"
+            elif abs(sentimiento_promedio) >= 0.25:
+                confianza = "Media"
+            else:
+                confianza = "Baja"
+                
+            vistas_generadas.append({
+                "activo_1": ticker,
+                "tipo": "absoluta",
+                "rendimiento_esperado": round(rendimiento_proyectado, 4),
+                "confianza": confianza
+            })
+            
+        except Exception as e:
+            # Si un ticker no tiene datos o falla, la ejecución sigue sin detener la firma entera
             continue
             
-        # Extraemos textos limpios (título + resumen) limitando a las 5 más recientes para ser rápidos
-        textos = [f"{n.get('title', '')} {n.get('summary', '')}" for n in noticias_ticker[:5]]
-        textos = [t for t in textos if len(t.strip()) > 10]
-        
-        if not textos:
-            continue
-            
-        # ── INFERENCIA DE LA RED NEURONAL ──
-        # FinBERT devuelve algo como: [[{'label': 'positive', 'score': 0.8}, {'label': 'neutral', 'score': 0.15}...]]
-        resultados = motor_ia(textos)
-        
-        score_acumulado = 0.0
-        
-        for res in resultados:
-            # Extraemos las probabilidades de cada etiqueta
-            prob_pos = next((x['score'] for x in res if x['label'] == 'positive'), 0.0)
-            prob_neg = next((x['score'] for x in res if x['label'] == 'negative'), 0.0)
-            
-            # El sentimiento neto es Positivo menos Negativo
-            score_acumulado += (prob_pos - prob_neg)
-            
-        sentimiento_promedio = score_acumulado / len(textos)
-        
-        # ── CÁLCULO DEL RENDIMIENTO ESPERADO (Q) ──
-        rendimiento_proyectado = sentimiento_promedio * FACTOR_SENSIBILIDAD * VOLATILIDAD_BASE
-        
-        # Blindaje para evitar la Matriz Omega Singular (cero absoluto)
-        if abs(rendimiento_proyectado) < 0.001:
-            rendimiento_proyectado = 0.001 if sentimiento_promedio >= 0 else -0.001
-            
-        # Asignación probabilística de la Confianza
-        if abs(sentimiento_promedio) >= 0.60:
-            confianza = "Alta"
-        elif abs(sentimiento_promedio) >= 0.25:
-            confianza = "Media"
-        else:
-            confianza = "Baja"
-            
-        vistas_generadas.append({
-            "activo_1": ticker,
-            "tipo": "absoluta",
-            "rendimiento_esperado": round(rendimiento_proyectado, 4),
-            "confianza": confianza
-        })
-        
     if not vistas_generadas:
-        # Si no hubo noticias en absoluto, forzamos una vista mínima para el primer activo y que la app no colapse
         vistas_generadas.append({
             "activo_1": tickers_temp[0],
             "tipo": "absoluta",
