@@ -811,7 +811,6 @@ with st.sidebar:
         tickers_input = st.text_input(
             "Activos (separados por coma):", 
             value="NEM, MO, MSFT, META, GEV, V, TLT, GLD",
-            on_change=limpiar_memoria_tickers  # <── ESTO ES LA MAGIA
         )
         fecha_inicio  = st.date_input("Fecha de inicio", value=pd.Timestamp("2020-01-01"))
         fecha_fin     = st.date_input("Fecha de cierre", value=pd.Timestamp("2026-05-08"))
@@ -888,10 +887,24 @@ with st.sidebar:
         ejecutar = st.form_submit_button("Ejecutar optimización", width='stretch')
 
         if ejecutar:
+            # ── 1. LIMPIEZA DE MEMORIA (ANTI-FANTASMAS) ──
+            # Si los activos en la caja de texto son diferentes a los de la última corrida...
+            if st.session_state.get("ultimos_tickers_usados") != tickers_input:
+                # Borramos solo las vistas de Black-Litterman y el flag de optimización
+                claves_a_borrar = ["vistas_bl", "vistas_usuario", "optimizado"]
+                for clave in claves_a_borrar:
+                    if clave in st.session_state:
+                        del st.session_state[clave]
+                
+                # Actualizamos el registro de control
+                st.session_state["ultimos_tickers_usados"] = tickers_input
+
+            # ── 2. GUARDADO DE ESTADO (TU CÓDIGO) ──
             st.session_state["tickers_procesar"] = tickers_input # <── LA REGRESAMOS
             st.session_state["peso_maximo_val"] = peso_max_val
             guardar_memoria_ui_premium(peso_max_val, horizonte_años, num_sims)
-
+            
+            # (A partir de aquí el código continúa con las descargas de datos...)
     # ── Prescripción Actuarial LDI (ubicada fuera del formulario) ──
     usar_perfil_ldi = False
     if "riesgo_objetivo_ldi" in st.session_state:
