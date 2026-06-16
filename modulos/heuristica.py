@@ -30,8 +30,21 @@ def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None)
     FACTOR_SENSIBILIDAD = 0.50 # Qué tan agresivo es el impacto de la noticia en el precio
     
     for ticker in tickers_temp:
-        # Filtramos las noticias específicas de este activo
-        noticias_ticker = [n for n in noticias_macro if n.get('ticker') == ticker]
+        # ── EXTRACCIÓN HEURÍSTICA DE NOTICIAS ──
+        noticias_ticker = []
+        # Limpiamos los sufijos mexicanos y de cripto para la búsqueda en texto
+        ticker_base = ticker.replace(".MX", "").replace("-USD", "") 
+        
+        for n in noticias_macro:
+            # 1. Si app.py le puso la etiqueta explícita
+            if n.get('ticker') == ticker:
+                noticias_ticker.append(n)
+            # 2. Si viene en el formato crudo de Yahoo Finance
+            elif ticker in n.get('relatedTickers', []):
+                noticias_ticker.append(n)
+            # 3. Fuerza bruta: Si el ticker base aparece en el titular (ej. buscar "CEMEXCPO" o "NVDA")
+            elif ticker_base in n.get('title', '') or ticker_base in n.get('summary', ''):
+                noticias_ticker.append(n)
         
         if not noticias_ticker:
             continue
