@@ -46,9 +46,8 @@ def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
     texto_noticias += f"UNIVERSO DE ACTIVOS DISPONIBLES: {', '.join(tickers_universo)}\n"
     texto_noticias += "Genera las vistas de Black-Litterman en formato JSON basándote ÚNICAMENTE en la información anterior."
 
-    # ── 1. SELECCIÓN FORZADA DE MODELO (BYPASS DE CUOTA FLASH) ──
-    # Usamos el modelo Pro para aprovechar su cuota independiente y mayor precisión lógica
-    modelo_elegido = 'gemini-2.5-pro'
+    # Respaldo de Generación 3
+    modelo_elegido = 'gemini-3-flash'
 
     # ── 2. EJECUCIÓN DEL MODELO ──
     try:
