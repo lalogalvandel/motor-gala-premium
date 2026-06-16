@@ -1419,21 +1419,24 @@ with tab_motor:
                 es_riesgo     = np.array([0.0 if t.upper() in REFUGIOS else 1.0 for t in tickers])
                 num_refugios  = np.sum(es_riesgo == 0.0)
                 
-                # ── IMPLEMENTACIÓN BLACK-LITTERMAN ──
+                # ── 1. IMPLEMENTACIÓN BLACK-LITTERMAN ──
                 if st.session_state.get("usar_bl", False) and len(st.session_state.get("vistas_bl", [])) > 0:
                     pesos_mkt = obtener_pesos_mercado(tickers)
+                    # Forzamos tau=0.01 para que el modelo confíe en la IA más que en el mercado
                     retornos_usar, matriz_cov_usar = calcular_black_litterman(
                         retornos_anuales, 
                         matriz_cov, 
                         pesos_mkt, 
                         st.session_state["vistas_bl"], 
-                        tasa_rf
+                        tasa_rf,
+                        tau=0.01 
                     )
                 else:
                     retornos_usar = retornos_anuales
                     matriz_cov_usar = matriz_cov
                     
-                    # ── EXPANSIÓN DE MATRIZ: INYECCIÓN DE RENTA FIJA ──
+                # ── 2. EXPANSIÓN DE MATRIZ: INYECCIÓN DE RENTA FIJA ──
+                # ESTO DEBE ESTAR FUERA DEL IF/ELSE PARA QUE OCURRA SIEMPRE
                 nombres_activos_finales = list(tickers)
                 es_riesgo_final = list(es_riesgo)
                 limites_inferiores = [peso_min] * len(tickers)
