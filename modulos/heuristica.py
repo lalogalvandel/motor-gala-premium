@@ -48,7 +48,7 @@ def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
 
     # ── 1. SELECCIÓN FORZADA DE MODELO (BYPASS DE CUOTA FLASH) ──
     # Forzamos el uso de 1.5-pro para usar una cubeta de peticiones totalmente nueva
-    modelo_elegido = 'gemini-1.5-pro'
+    modelo_elegido = 'gemini-1.0-pro'
 
     # ── 2. EJECUCIÓN DEL MODELO ──
     try:
