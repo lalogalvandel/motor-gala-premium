@@ -800,18 +800,28 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("2. Parámetros de Optimización")
 
-    # Inyección preventiva para evitar fallos si el key no existe
-    if "tickers_procesar" not in st.session_state:
-        st.session_state["tickers_procesar"] = st.session_state.get("tickers_screening", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX") if usar_screening else "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX"
+    # ── 1. LA CAJA DE ACTIVOS SALE DEL FORMULARIO ──
+    # Actúa como llave maestra inmediata usando un "callback"
+    def sincronizar_activos():
+        nuevo_valor = st.session_state["caja_activos_input"]
+        if st.session_state.get("ultimos_tickers_usados") != nuevo_valor:
+            claves_a_borrar = ["vistas_bl", "vistas_usuario", "optimizado"]
+            for c in claves_a_borrar:
+                if c in st.session_state: del st.session_state[c]
+            st.session_state["tickers_procesar"] = nuevo_valor
+            st.session_state["ultimos_tickers_usados"] = nuevo_valor
+
+    # Toma el valor de la memoria (para que respete si cargas un cliente del CRM)
+    valor_memoria = st.session_state.get("tickers_procesar", "NEM, MO, MSFT, META, GEV, V, TLT, GLD")
+
+    tickers_input = st.text_input(
+        "Activos (separados por coma):",
+        value=valor_memoria,
+        key="caja_activos_input",
+        on_change=sincronizar_activos # <── Se ejecuta al dar Enter o clic fuera
+    )
 
     with st.form("optim_form"):
-        # ── RETIRAMOS EL KEY Y FORZAMOS EL VALUE ──
-        tickers_actuales = st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX")
-        # En tu caja de texto, agrega el parámetro on_change:
-        tickers_input = st.text_input(
-            "Activos (separados por coma):", 
-            value="NEM, MO, MSFT, META, GEV, V, TLT, GLD",
-        )
         fecha_inicio  = st.date_input("Fecha de inicio", value=pd.Timestamp("2020-01-01"))
         fecha_fin     = st.date_input("Fecha de cierre", value=pd.Timestamp("2026-05-08"))
         
@@ -887,20 +897,7 @@ with st.sidebar:
         ejecutar = st.form_submit_button("Ejecutar optimización", width='stretch')
 
         if ejecutar:
-            # ── 1. LIMPIEZA DE MEMORIA (ANTI-FANTASMAS) ──
-            # Si los activos en la caja de texto son diferentes a los de la última corrida...
-            if st.session_state.get("ultimos_tickers_usados") != tickers_input:
-                # Borramos solo las vistas de Black-Litterman y el flag de optimización
-                claves_a_borrar = ["vistas_bl", "vistas_usuario", "optimizado"]
-                for clave in claves_a_borrar:
-                    if clave in st.session_state:
-                        del st.session_state[clave]
-                
-                # Actualizamos el registro de control
-                st.session_state["ultimos_tickers_usados"] = tickers_input
-
-            # ── 2. GUARDADO DE ESTADO (TU CÓDIGO) ──
-            st.session_state["tickers_procesar"] = tickers_input # <── LA REGRESAMOS
+            # La limpieza de memoria ya la hizo 'sincronizar_activos' de forma automática
             st.session_state["peso_maximo_val"] = peso_max_val
             guardar_memoria_ui_premium(peso_max_val, horizonte_años, num_sims)
             
@@ -1381,27 +1378,14 @@ with tab_motor:
         '>Configure los parámetros en el panel izquierdo y ejecute la optimización para iniciar el análisis.</div>
         """, unsafe_allow_html=True)
     else:
-        # ── 1. BLINDAJE DE LIFECYCLE: SINCRONIZACIÓN INMEDIATA ──
-        # Evaluamos el cambio de activos ANTES de procesar cualquier dato o llamar a la IA
-        if st.session_state.get("ultimos_tickers_usados") != tickers_input:
-            # Si el texto de la UI cambió, destruimos inmediatamente el caché de la IA anterior
-            claves_a_borrar = ["vistas_bl", "vistas_usuario", "optimizado"]
-            for clave in claves_a_borrar:
-                if clave in st.session_state:
-                    del st.session_state[clave]
-            
-            # Forzamos la actualización instantánea de las variables de control
-            st.session_state["tickers_procesar"] = tickers_input
-            st.session_state["ultimos_tickers_usados"] = tickers_input
-
-        # ── 2. CONFIGURACIÓN DEL BENCHMARK ──
+        # ── CONFIGURACIÓN DEL BENCHMARK ──
         benchmark_elegido = PERFILES_BENCHMARK[benchmark_seleccion]
         if ejecutar:
             st.session_state["benchmark_elegido"] = benchmark_elegido
 
-        # Ahora sí, tickers_finales adoptará los 8 activos nuevos de forma segura
         tickers_finales   = st.session_state.get("tickers_procesar", tickers_input)
         benchmark_elegido = st.session_state.get("benchmark_elegido", benchmark_elegido)
+        # ... continúan las descargas de tickers_lista ...
 
         tickers_lista        = [t.strip() for t in tickers_finales.split(",")]
         tickers_descarga     = tickers_lista + ([benchmark_elegido] if benchmark_elegido not in tickers_lista else [])
