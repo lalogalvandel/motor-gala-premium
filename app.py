@@ -286,6 +286,12 @@ def guardar_memoria_ui_premium(peso_max, horizonte, sims):
     except Exception:
         pass
 
+def limpiar_memoria_tickers():
+    claves_a_borrar = ["tickers_procesar", "vistas_bl", "vistas_usuario", "optimizado"]
+    for clave in claves_a_borrar:
+        if clave in st.session_state:
+            del st.session_state[clave]
+
 # ── Estado de sesión ───────────────────────────────────────────────────────────
 defaults = {
     "usuario_premium": None,
@@ -801,7 +807,12 @@ with st.sidebar:
     with st.form("optim_form"):
         # ── RETIRAMOS EL KEY Y FORZAMOS EL VALUE ──
         tickers_actuales = st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX, WALMEX.MX, CEMEXCPO.MX")
-        tickers_input = st.text_area("Activos a optimizar", value=tickers_actuales, height=70)
+        # En tu caja de texto, agrega el parámetro on_change:
+        tickers_input = st.text_input(
+            "Activos (separados por coma):", 
+            value="NEM, MO, MSFT, META, GEV, V, TLT, GLD",
+            on_change=limpiar_memoria_tickers  # <── ESTO ES LA MAGIA
+        )
         fecha_inicio  = st.date_input("Fecha de inicio", value=pd.Timestamp("2020-01-01"))
         fecha_fin     = st.date_input("Fecha de cierre", value=pd.Timestamp("2026-05-08"))
         
