@@ -114,7 +114,19 @@ def calcular_black_litterman(
     except Exception as e:
         # Si todo falla, forzamos una matriz identidad para no detener la app
         tau_Sigma_inv = np.eye(tau_Sigma.shape[0])
-    Omega_inv = inv(Omega)
+    # ── BLINDAJE PARA LA MATRIZ OMEGA ──
+    # 1. Limpiamos cualquier NaN o Inf que haya escupido el cálculo previo
+    Omega = np.nan_to_num(Omega, nan=0.0, posinf=0.0, neginf=0.0)
+    
+    # 2. Regularización de Tikhonov: inyectamos un micro-ruido en la diagonal para evitar ceros absolutos
+    Omega += np.eye(Omega.shape[0]) * 1e-6
+    
+    # 3. Inversión robusta
+    try:
+        from scipy.linalg import pinv
+        Omega_inv = pinv(Omega)
+    except Exception:
+        Omega_inv = np.eye(Omega.shape[0])
     
     # Término central común: [(tau * Sigma)^-1 + P^T * Omega^-1 * P]^-1
     term_central = inv(tau_Sigma_inv + np.dot(P.T, np.dot(Omega_inv, P)))
