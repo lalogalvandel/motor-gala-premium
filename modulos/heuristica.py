@@ -47,8 +47,8 @@ def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
     texto_noticias += "Genera las vistas de Black-Litterman en formato JSON basándote ÚNICAMENTE en la información anterior."
 
     # ── 1. SELECCIÓN FORZADA DE MODELO (BYPASS DE CUOTA FLASH) ──
-    # Forzamos el uso de 1.5-pro para usar una cubeta de peticiones totalmente nueva
-    modelo_elegido = 'gemini-pro'
+    # Usamos el modelo Pro para aprovechar su cuota independiente y mayor precisión lógica
+    modelo_elegido = 'gemini-2.5-pro'
 
     # ── 2. EJECUCIÓN DEL MODELO ──
     try:
