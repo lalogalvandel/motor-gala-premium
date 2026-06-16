@@ -1928,6 +1928,8 @@ with tab_motor:
 
         st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin:1.5rem 0 .75rem;'>Stress Testing — Escenarios Históricos</div>""", unsafe_allow_html=True)
         
+        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin:1.5rem 0 .75rem;'>Stress Testing — Escenarios Históricos</div>""", unsafe_allow_html=True)
+        
         df_stress = calcular_stress_test(
             pesos_opt, 
             nombres_activos_finales, 
@@ -1936,9 +1938,13 @@ with tab_motor:
             es_riesgo=es_riesgo_final  # <── Cable conectado
         )
         
+        # ── LA REPARACIÓN: Inicializamos la variable en vacío por si la prueba falla ──
+        fig_stress = None
+        
         if df_stress is not None and not df_stress.empty and "Pérdida (%)" in df_stress.columns:
             fig_stress = go.Figure(go.Bar(
                 x=df_stress["Pérdida (%)"], y=df_stress["Escenario"], orientation="h",
+                # ... resto de tu código de la gráfica ...
                 marker_color=["red" if p < -15 else "orange" if p < -8 else "gold" for p in df_stress["Pérdida (%)"]],
                 text=[f"{p:.1f}%" for p in df_stress["Pérdida (%)"]],
                 textposition="outside"))
