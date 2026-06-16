@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 from transformers import pipeline
 import yfinance as yf
+import math  # <── NUEVO: El guardián matemático
 
 # ── 1. CARGA DEL MODELO EN MEMORIA CACHÉ ──
 @st.cache_resource
@@ -13,7 +14,7 @@ def cargar_motor_finbert():
 def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None):
     vistas_generadas = []
     
-    # Intentamos cargar FinBERT, si falla no importa, el motor usará matemáticas puras
+    # Intentamos cargar FinBERT
     try:
         motor_ia = cargar_motor_finbert()
         ia_disponible = True
@@ -47,22 +48,25 @@ def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None)
             else:
                 hist = info_ticker.history(period="1mo")
                 
-                # 1. PURIFICACIÓN DE DATOS (Anti-NaN)
-                if "Close" in hist.columns:
-                    hist = hist.dropna(subset=["Close"])
+                # 1. PURIFICACIÓN ESTRUCTURAL
+                if hist.empty or "Close" not in hist.columns:
+                    continue  # Si la bolsa no manda datos, abortamos este activo
                     
-                # Si después de limpiar no quedan al menos 2 días de datos, abortamos este activo
-                if hist.empty or len(hist) < 2:
-                    continue 
-                
-                precio_inicial = float(hist['Close'].iloc[0])
-                precio_final = float(hist['Close'].iloc[-1])
-                
-                # 2. BLINDAJE MATEMÁTICO (División por cero o valores corruptos)
-                if precio_inicial <= 0 or np.isnan(precio_inicial) or np.isnan(precio_final):
+                hist_clean = hist["Close"].dropna()  # Destruimos los NaNs de origen
+                if len(hist_clean) < 2:
                     continue
-                    
+                
+                precio_inicial = float(hist_clean.iloc[0])
+                precio_final = float(hist_clean.iloc[-1])
+                
+                # 2. BLINDAJE CONTRA DIVISIONES POR CERO O INFINITOS
+                if precio_inicial <= 0 or math.isnan(precio_inicial) or math.isnan(precio_final):
+                    continue
+                
                 retorno_mensual = (precio_final / precio_inicial) - 1
+                
+                if math.isnan(retorno_mensual) or math.isinf(retorno_mensual):
+                    continue
                 
                 # Normalizamos el retorno a un "score" de -1 a 1
                 sentimiento_promedio = max(min(retorno_mensual * 10, 1.0), -1.0)
@@ -70,11 +74,9 @@ def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None)
             # ── CÁLCULO DEL RENDIMIENTO ESPERADO (Q) ──
             rendimiento_proyectado = sentimiento_promedio * FACTOR_SENSIBILIDAD * VOLATILIDAD_BASE
             
-            # 3. FILTRO FINAL: Si por alguna extraña razón el cálculo resultó en NaN, no lo guardamos
-            if np.isnan(rendimiento_proyectado):
+            # 3. EL MURO DE TEFLÓN FINAL (Si el cálculo resultó en NaN, se rechaza la perspectiva)
+            if math.isnan(rendimiento_proyectado) or math.isinf(rendimiento_proyectado):
                 continue
-            # ── CÁLCULO DEL RENDIMIENTO ESPERADO (Q) ──
-            rendimiento_proyectado = sentimiento_promedio * FACTOR_SENSIBILIDAD * VOLATILIDAD_BASE
             
             # Blindaje contra matrices singulares
             if abs(rendimiento_proyectado) < 0.001:
