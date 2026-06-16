@@ -1,99 +1,93 @@
-# modulos/heuristica.py
-import json
+import streamlit as st
+import numpy as np
+from transformers import pipeline
 
-PROMPT_SISTEMA_QUANT = """
-Eres el Director de Estrategia Cuantitativa de un Hedge Fund. 
-Tu única función es leer un conjunto de noticias financieras recientes y extraer "Vistas de Mercado" (Market Views) cuantitativas para alimentar un modelo de Black-Litterman.
+# ── 1. CARGA DEL MODELO EN MEMORIA CACHÉ ──
+# Usamos @st.cache_resource para descargar el modelo de 400MB solo una vez.
+# Si recargas la página, Streamlit usará el que ya está en la memoria RAM.
+@st.cache_resource
+def cargar_motor_finbert():
+    # ProsusAI/finbert es el estándar de la industria Quant para noticias financieras
+    return pipeline("sentiment-analysis", model="ProsusAI/finbert", top_k=3)
 
-REGLAS ESTRICTAS:
-1. No escribas texto introductorio, ni explicaciones, ni resúmenes. Tu salida debe ser EXCLUSIVAMENTE un arreglo JSON válido.
-2. Genera TODAS las perspectivas posibles basándote en las noticias (pueden ser desde 4 hasta 12 perspectivas). Prioriza los activos que tengan noticias con mayor impacto fundamental.
-3. TIENES QUE USAR EXACTAMENTE LOS TICKERS QUE SE TE PROPORCIONAN EN EL 'UNIVERSO DE ACTIVOS DISPONIBLES'. No uses el nombre comercial de la empresa. (Ej. usa 'AAPL.MX' y no 'Apple').
-4. Los rendimientos esperados ("rendimiento_esperado") deben ser decimales entre -0.50 y 0.50 (ej. un impacto positivo moderado es 0.05, un impacto negativo es -0.08).
-5. La "confianza" solo puede ser "Baja", "Media" o "Alta".
-6. El "tipo" solo puede ser "absoluta" (el activo subirá/bajará) o "relativa" (el activo superará a otro).
-
-FORMATO DE SALIDA ESPERADO (ESTRICTO):
-[
-  {
-    "tipo": "absoluta",
-    "activo_1": "TICKER_EXACTO",
-    "rendimiento_esperado": 0.06,
-    "confianza": "Alta",
-    "razonamiento_breve": "10 palabras máximo justificando el número basado en la noticia"
-  }
-]
-"""
-# modulos/heuristica.py (continuación)
-
-def generar_vistas_black_litterman(noticias_lista, tickers_universo, api_key):
+# ── 2. EL PUENTE ACTUARIAL (GENERADOR DE VISTAS) ──
+def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None):
     """
-    Toma un arreglo de noticias, las sintetiza y llama al LLM usando 
-    Auto-Descubrimiento de modelos para evitar errores 404 por versiones de SDK.
+    Lee las noticias de Yahoo Finance, las procesa por FinBERT y calcula 
+    el vector de expectativas para el modelo de Black-Litterman.
+    (El parámetro llave_api se mantiene para no romper la compatibilidad con app.py)
     """
-    import google.generativeai as genai
-    import json
-    import re
+    vistas_generadas = []
     
-    genai.configure(api_key=api_key)
-    
-    texto_noticias = "NOTICIAS RECIENTES DEL MERCADO:\n"
-    for n in noticias_lista[:50]: # <── La IA leerá hasta 50 titulares de golpe
-        titulo = n.get("title", n.get("headline", "Sin título"))
-        texto_noticias += f"- Ticker Relacionado: {n.get('origen_ticker', 'Macro')}\n"
-        texto_noticias += f"  Titular: {titulo}\n\n"
-        
-    texto_noticias += f"UNIVERSO DE ACTIVOS DISPONIBLES: {', '.join(tickers_universo)}\n"
-    texto_noticias += "Genera las vistas de Black-Litterman en formato JSON basándote ÚNICAMENTE en la información anterior."
-
-    # Respaldo de Generación 3
-    modelo_elegido = 'gemini-3-flash'
-
-    # ── 2. EJECUCIÓN DEL MODELO ──
     try:
-        model = genai.GenerativeModel(modelo_elegido)
-        
-        # Pasamos solo la temperatura para no romper SDKs antiguos con parámetros nuevos
-        response = model.generate_content(
-            f"{PROMPT_SISTEMA_QUANT}\n\n{texto_noticias}",
-            generation_config=genai.types.GenerationConfig(temperature=0.2)
-        )
-        
-        # ── 3. LIMPIEZA DEL JSON (Extracción Regex) ──
-        texto_respuesta = response.text
-        # Si la IA envuelve la respuesta en bloques de código markdown, se los quitamos
-        texto_respuesta = re.sub(r'^```json\n?', '', texto_respuesta, flags=re.MULTILINE)
-        texto_respuesta = re.sub(r'^```\n?', '', texto_respuesta, flags=re.MULTILINE)
-        texto_respuesta = texto_respuesta.strip()
-        
-        # 4. Parsear a diccionario de Python
-        vistas_generadas = json.loads(texto_respuesta)
-        
-        # ── 4. FILTRO DE SEGURIDAD (Emparejamiento Inteligente de Tickers) ──
-        vistas_filtradas = []
-        for v in vistas_generadas:
-            activo_ia = str(v.get("activo_1", "")).upper().strip()
-            
-            # Buscamos si el ticker de la IA está dentro del nuestro (ej. AAPL en AAPL.MX) o viceversa
-            coincidencia = next((t for t in tickers_universo if activo_ia in t.upper() or t.upper() in activo_ia), None)
-            
-            if coincidencia:
-                v["activo_1"] = coincidencia # Forzamos el ticker exacto que Markowitz espera
-                
-                # Si es una vista relativa, también corregimos el segundo activo
-                if v.get("tipo") == "relativa" and "activo_2" in v:
-                    act2_ia = str(v.get("activo_2", "")).upper().strip()
-                    coincidencia2 = next((t for t in tickers_universo if act2_ia in t.upper() or t.upper() in act2_ia), None)
-                    if coincidencia2:
-                        v["activo_2"] = coincidencia2
-                    else:
-                        continue # Si no encontramos el par, descartamos esta vista
-                        
-                vistas_filtradas.append(v)
-                
-        return True, vistas_filtradas
-        
-    except json.JSONDecodeError:
-        return False, f"La IA no devolvió un JSON válido usando el modelo {modelo_elegido}. Respuesta cruda: {texto_respuesta[:100]}..."
+        motor_ia = cargar_motor_finbert()
     except Exception as e:
-        return False, f"Error al ejecutar el modelo {modelo_elegido}: {e}"
+        return False, [{"error": f"Fallo al cargar FinBERT: {e}"}]
+
+    # Parámetros del puente matemático
+    # En una versión futura, volatilidad_base puede calcularse dinámicamente desde la matriz de covarianza
+    VOLATILIDAD_BASE = 0.20  # Asumimos 20% de volatilidad anual estándar
+    FACTOR_SENSIBILIDAD = 0.50 # Qué tan agresivo es el impacto de la noticia en el precio
+    
+    for ticker in tickers_temp:
+        # Filtramos las noticias específicas de este activo
+        noticias_ticker = [n for n in noticias_macro if n.get('ticker') == ticker]
+        
+        if not noticias_ticker:
+            continue
+            
+        # Extraemos textos limpios (título + resumen) limitando a las 5 más recientes para ser rápidos
+        textos = [f"{n.get('title', '')} {n.get('summary', '')}" for n in noticias_ticker[:5]]
+        textos = [t for t in textos if len(t.strip()) > 10]
+        
+        if not textos:
+            continue
+            
+        # ── INFERENCIA DE LA RED NEURONAL ──
+        # FinBERT devuelve algo como: [[{'label': 'positive', 'score': 0.8}, {'label': 'neutral', 'score': 0.15}...]]
+        resultados = motor_ia(textos)
+        
+        score_acumulado = 0.0
+        
+        for res in resultados:
+            # Extraemos las probabilidades de cada etiqueta
+            prob_pos = next((x['score'] for x in res if x['label'] == 'positive'), 0.0)
+            prob_neg = next((x['score'] for x in res if x['label'] == 'negative'), 0.0)
+            
+            # El sentimiento neto es Positivo menos Negativo
+            score_acumulado += (prob_pos - prob_neg)
+            
+        sentimiento_promedio = score_acumulado / len(textos)
+        
+        # ── CÁLCULO DEL RENDIMIENTO ESPERADO (Q) ──
+        rendimiento_proyectado = sentimiento_promedio * FACTOR_SENSIBILIDAD * VOLATILIDAD_BASE
+        
+        # Blindaje para evitar la Matriz Omega Singular (cero absoluto)
+        if abs(rendimiento_proyectado) < 0.001:
+            rendimiento_proyectado = 0.001 if sentimiento_promedio >= 0 else -0.001
+            
+        # Asignación probabilística de la Confianza
+        if abs(sentimiento_promedio) >= 0.60:
+            confianza = "Alta"
+        elif abs(sentimiento_promedio) >= 0.25:
+            confianza = "Media"
+        else:
+            confianza = "Baja"
+            
+        vistas_generadas.append({
+            "activo_1": ticker,
+            "tipo": "absoluta",
+            "rendimiento_esperado": round(rendimiento_proyectado, 4),
+            "confianza": confianza
+        })
+        
+    if not vistas_generadas:
+        # Si no hubo noticias en absoluto, forzamos una vista mínima para el primer activo y que la app no colapse
+        vistas_generadas.append({
+            "activo_1": tickers_temp[0],
+            "tipo": "absoluta",
+            "rendimiento_esperado": 0.001,
+            "confianza": "Baja"
+        })
+
+    return True, vistas_generadas
