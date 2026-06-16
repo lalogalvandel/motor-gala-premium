@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 from transformers import pipeline
-import yfinance as yf  # <── IMPORTANTE: Agregamos el conector directo a la bolsa
+import yfinance as yf
 
 # ── 1. CARGA DEL MODELO EN MEMORIA CACHÉ ──
 @st.cache_resource
@@ -9,50 +9,62 @@ def cargar_motor_finbert():
     # ProsusAI/finbert es el estándar Quant para noticias financieras
     return pipeline("sentiment-analysis", model="ProsusAI/finbert", top_k=3)
 
-# ── 2. EL PUENTE ACTUARIAL (GENERADOR DE VISTAS) ──
+# ── 2. EL PUENTE ACTUARIAL DUAL (NLP + MOMENTUM) ──
 def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None):
     vistas_generadas = []
     
+    # Intentamos cargar FinBERT, si falla no importa, el motor usará matemáticas puras
     try:
         motor_ia = cargar_motor_finbert()
-    except Exception as e:
-        return False, [{"error": f"Fallo al cargar FinBERT: {e}"}]
+        ia_disponible = True
+    except Exception:
+        ia_disponible = False
 
     VOLATILIDAD_BASE = 0.20
     FACTOR_SENSIBILIDAD = 0.50
     
     for ticker in tickers_temp:
         try:
-            # ── INGESTA DIRECTA Y PRECISA ──
-            # Ignoramos la caja revuelta de 'noticias_macro' y descargamos directo de la fuente
             info_ticker = yf.Ticker(ticker)
             noticias_crudas = info_ticker.news
             
-            if not noticias_crudas:
-                continue
-                
-            # Extraemos solo los títulos (FinBERT es experto en titulares puros)
-            textos = [n.get('title', '') for n in noticias_crudas[:5]]
+            textos = [n.get('title', '') for n in noticias_crudas[:5]] if noticias_crudas else []
             textos = [t for t in textos if len(t.strip()) > 10]
             
-            if not textos:
-                continue
-                
-            # ── INFERENCIA MATEMÁTICA LOCAL ──
-            resultados = motor_ia(textos)
+            sentimiento_promedio = 0.0
             
-            score_acumulado = 0.0
-            for res in resultados:
-                prob_pos = next((x['score'] for x in res if x['label'] == 'positive'), 0.0)
-                prob_neg = next((x['score'] for x in res if x['label'] == 'negative'), 0.0)
-                score_acumulado += (prob_pos - prob_neg)
+            # ── VÍA 1: INFERENCIA DE TEXTO (FINBERT) ──
+            if textos and ia_disponible:
+                resultados = motor_ia(textos)
+                score_acumulado = 0.0
+                for res in resultados:
+                    prob_pos = next((x['score'] for x in res if x['label'] == 'positive'), 0.0)
+                    prob_neg = next((x['score'] for x in res if x['label'] == 'negative'), 0.0)
+                    score_acumulado += (prob_pos - prob_neg)
+                sentimiento_promedio = score_acumulado / len(textos)
                 
-            sentimiento_promedio = score_acumulado / len(textos)
+            # ── VÍA 2: INFERENCIA CUANTITATIVA (MOMENTUM) ──
+            # Si Yahoo bloqueó el texto, analizamos la aceleración histórica del precio
+            else:
+                hist = info_ticker.history(period="1mo")
+                if hist.empty:
+                    continue # Si la bolsa no nos da ni siquiera el precio, omitimos el activo
+                
+                precio_inicial = float(hist['Close'].iloc[0])
+                precio_final = float(hist['Close'].iloc[-1])
+                retorno_mensual = (precio_final / precio_inicial) - 1
+                
+                # Normalizamos el retorno a un "score" de -1 a 1 (Asumiendo que un +/- 10% en un mes es extremo)
+                sentimiento_promedio = max(min(retorno_mensual * 10, 1.0), -1.0)
+
+            # ── CÁLCULO DEL RENDIMIENTO ESPERADO (Q) ──
             rendimiento_proyectado = sentimiento_promedio * FACTOR_SENSIBILIDAD * VOLATILIDAD_BASE
             
+            # Blindaje contra matrices singulares
             if abs(rendimiento_proyectado) < 0.001:
                 rendimiento_proyectado = 0.001 if sentimiento_promedio >= 0 else -0.001
                 
+            # Calibración de la matriz Omega (Niveles de Confianza)
             if abs(sentimiento_promedio) >= 0.60:
                 confianza = "Alta"
             elif abs(sentimiento_promedio) >= 0.25:
@@ -68,9 +80,9 @@ def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None)
             })
             
         except Exception as e:
-            # Si un ticker no tiene datos o falla, la ejecución sigue sin detener la firma entera
             continue
             
+    # Paracaídas de emergencia si la bolsa de valores estuviera totalmente caída
     if not vistas_generadas:
         vistas_generadas.append({
             "activo_1": tickers_temp[0],
