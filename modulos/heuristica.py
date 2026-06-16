@@ -44,19 +44,35 @@ def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None)
                 sentimiento_promedio = score_acumulado / len(textos)
                 
             # ── VÍA 2: INFERENCIA CUANTITATIVA (MOMENTUM) ──
-            # Si Yahoo bloqueó el texto, analizamos la aceleración histórica del precio
             else:
                 hist = info_ticker.history(period="1mo")
-                if hist.empty:
-                    continue # Si la bolsa no nos da ni siquiera el precio, omitimos el activo
+                
+                # 1. PURIFICACIÓN DE DATOS (Anti-NaN)
+                if "Close" in hist.columns:
+                    hist = hist.dropna(subset=["Close"])
+                    
+                # Si después de limpiar no quedan al menos 2 días de datos, abortamos este activo
+                if hist.empty or len(hist) < 2:
+                    continue 
                 
                 precio_inicial = float(hist['Close'].iloc[0])
                 precio_final = float(hist['Close'].iloc[-1])
+                
+                # 2. BLINDAJE MATEMÁTICO (División por cero o valores corruptos)
+                if precio_inicial <= 0 or np.isnan(precio_inicial) or np.isnan(precio_final):
+                    continue
+                    
                 retorno_mensual = (precio_final / precio_inicial) - 1
                 
-                # Normalizamos el retorno a un "score" de -1 a 1 (Asumiendo que un +/- 10% en un mes es extremo)
+                # Normalizamos el retorno a un "score" de -1 a 1
                 sentimiento_promedio = max(min(retorno_mensual * 10, 1.0), -1.0)
 
+            # ── CÁLCULO DEL RENDIMIENTO ESPERADO (Q) ──
+            rendimiento_proyectado = sentimiento_promedio * FACTOR_SENSIBILIDAD * VOLATILIDAD_BASE
+            
+            # 3. FILTRO FINAL: Si por alguna extraña razón el cálculo resultó en NaN, no lo guardamos
+            if np.isnan(rendimiento_proyectado):
+                continue
             # ── CÁLCULO DEL RENDIMIENTO ESPERADO (Q) ──
             rendimiento_proyectado = sentimiento_promedio * FACTOR_SENSIBILIDAD * VOLATILIDAD_BASE
             
