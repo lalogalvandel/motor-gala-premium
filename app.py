@@ -803,11 +803,18 @@ with st.sidebar:
     # ── 1. LA CAJA DE ACTIVOS SALE DEL FORMULARIO ──
     # Actúa como llave maestra inmediata usando un "callback"
     def sincronizar_activos():
-        nuevo_valor = st.session_state["caja_activos_input"]
+        # Usamos .get() como blindaje anti-KeyError
+        nuevo_valor = st.session_state.get("caja_activos_input")
+        
+        # Si la caja está vacía o Streamlit la borró temporalmente, abortamos la limpieza
+        if not nuevo_valor:
+            return
+            
         if st.session_state.get("ultimos_tickers_usados") != nuevo_valor:
             claves_a_borrar = ["vistas_bl", "vistas_usuario", "optimizado"]
             for c in claves_a_borrar:
-                if c in st.session_state: del st.session_state[c]
+                if c in st.session_state: 
+                    del st.session_state[c]
             st.session_state["tickers_procesar"] = nuevo_valor
             st.session_state["ultimos_tickers_usados"] = nuevo_valor
 
