@@ -1,6 +1,25 @@
 import scipy.stats as stats
 import numpy as np
 
+def simular_tasas_cir(r0, tasa_neutral, velocidad_reversion, volatilidad_tasa, meses, num_simulaciones):
+    """
+    Modelo de Cox-Ingersoll-Ross (CIR) para proyección estocástica de tasas de interés.
+    Garantiza reversión a la media y estricta positividad de las tasas.
+    """
+    dt = 1 / 12  # Paso mensual
+    tasas = np.zeros((meses, num_simulaciones))
+    tasas[0] = r0  # Tasa Banxico actual
+    
+    for t in range(1, meses):
+        # Ecuación diferencial estocástica CIR: dr = a(b-r)dt + sigma * sqrt(r) * dW
+        dr = (velocidad_reversion * (tasa_neutral - tasas[t-1]) * dt + 
+              volatilidad_tasa * np.sqrt(tasas[t-1]) * np.random.normal(0, np.sqrt(dt), num_simulaciones))
+        
+        # Actualizamos la tasa y aplicamos un piso (floor) de 0.1% para evitar colapsos matemáticos
+        tasas[t] = np.maximum(tasas[t-1] + dr, 0.001)
+        
+    return tasas
+
 def calibrar_grados_libertad(retornos_diarios):
     """
     Calibra los grados de libertad de una distribución t-Student.
