@@ -879,6 +879,26 @@ with st.sidebar:
         horizonte_años        = st.slider("Horizonte de inversión (años)", min_value=1, max_value=40, value=int(mem_ui.get("horizonte", 10)))
         num_sims              = st.slider("Simulaciones Monte Carlo", 500, 5000, int(mem_ui.get("simulaciones", 2000)), step=500)
         
+        # ── NUEVO: MÓDULO DE TASAS ESTOCÁSTICAS (CIR) ──
+        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+        usar_tasas_dinamicas = st.toggle("Activar Tasas Dinámicas (Modelo CIR)", value=True,
+                                         help="Convierte la renta fija de un valor estático a un proceso estocástico vinculado a Banxico.")
+        
+        if usar_tasas_dinamicas:
+            st.caption("Calibración Macroeconómica de Largo Plazo (Banxico)")
+            col_t1, col_t2 = st.columns(2)
+            tasa_neutral = col_t1.number_input("Tasa Neutral Esperada (%)", value=7.5, step=0.5, 
+                                               help="A qué nivel convergerán las tasas en un escenario de inflación controlada.") / 100
+            velocidad_rev = col_t2.slider("Años para converger", 1, 10, 3, 
+                                          help="Rapidez con la que Banxico recortará o subirá tasas hacia el nivel neutral.")
+            # Transformamos los años en el parámetro 'a' de velocidad del modelo CIR
+            param_velocidad_cir = 1.0 / velocidad_rev 
+            st.session_state['cir_tasa_neutral'] = tasa_neutral
+            st.session_state['cir_velocidad'] = param_velocidad_cir
+            st.session_state['cir_activado'] = True
+        else:
+            st.session_state['cir_activado'] = False
+        
         # ── NUEVO: FRENO ACTUARIAL DINÁMICO (ERP) ──
         st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
         activar_freno = st.toggle("Activar Freno Actuarial (Reversión a la media)", value=True, key="activar_freno_cagr")
