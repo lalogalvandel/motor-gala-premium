@@ -956,8 +956,16 @@ with st.sidebar:
         vistas_usuario = st.session_state.get("vistas_bl", [])
 
         if usar_bl:
-            # BOTÓN DEL MOTOR HEURÍSTICO
+            st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+            confianza_ia = st.slider(
+                "Nivel de convicción táctica (Peso de la IA vs Mercado)", 
+                min_value=0.01, max_value=1.00, value=0.15, step=0.05,
+                help="Valores bajos (0.05) confían más en las proyecciones de la IA a corto plazo. Valores altos (1.0) confían más en el equilibrio histórico del mercado a largo plazo."
+            )
+            st.session_state["tau_bl"] = confianza_ia
+            
             if st.button("Autogenerar Vistas con IA Heurística", type="primary", width='stretch'):
+                # ... (resto del código del botón) ...
                 with st.spinner("Analizando noticias macroeconómicas y leyendo el mercado..."):
                     try:
                         # 1. Obtenemos los tickers activos para buscar sus noticias
@@ -1442,14 +1450,17 @@ with tab_motor:
                 # ── 1. IMPLEMENTACIÓN BLACK-LITTERMAN ──
                 if st.session_state.get("usar_bl", False) and len(st.session_state.get("vistas_bl", [])) > 0:
                     pesos_mkt = obtener_pesos_mercado(tickers)
-                    # Forzamos tau=0.01 para que el modelo confíe en la IA más que en el mercado
+                    
+                    # Recuperamos el tau dinámico del slider (si no existe, usamos 0.15 como estándar balanceado)
+                    tau_dinamico = st.session_state.get("tau_bl", 0.15)
+                    
                     retornos_usar, matriz_cov_usar = calcular_black_litterman(
                         retornos_anuales, 
                         matriz_cov, 
                         pesos_mkt, 
                         st.session_state["vistas_bl"], 
                         tasa_rf,
-                        tau=0.01 
+                        tau=tau_dinamico  # <── CONEXIÓN DINÁMICA
                     )
                 else:
                     retornos_usar = retornos_anuales
