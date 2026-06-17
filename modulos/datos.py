@@ -6,7 +6,7 @@ import streamlit as st  # <-- AÑADIDO: Vital para usar st.secrets
 from datetime import datetime
 
 def cargar_datos(tickers: list, start: str = '2020-01-01', end: str = '2026-05-08') -> pd.DataFrame:
-    """Descarga precios de cierre, normaliza activos USD a MXN y elimina filas con NaN."""
+    """Descarga precios de cierre, normaliza activos USD a MXN y alinea calendarios sin truncar."""
     
     # 1. Inyectar el ticker del dólar si hay activos internacionales
     ticker_dolar = 'USDMXN=X'
@@ -17,7 +17,25 @@ def cargar_datos(tickers: list, start: str = '2020-01-01', end: str = '2026-05-0
     # 2. Descarga masiva
     datos = yf.download(tickers_descarga, start=start, end=end, auto_adjust=True)['Close']
     
-    # 3. Normalización Divisa (Mexicanización / Riesgo Cambiario)
+    # ── 3. EL PURIFICADOR DE DATOS INSTITUCIONAL ──
+    
+    # a) Destruir activos muertos: Borra columnas que sean 100% NaNs (ej. SNDK)
+    datos = datos.dropna(axis=1, how='all')
+    
+    # b) Limpiar festivos globales: Borra filas donde TODO el mercado estuvo cerrado (ej. 1 de enero)
+    datos = datos.dropna(axis=0, how='all')
+    
+    # c) Alinear calendarios (Cripto vs BMV vs NYSE): Arrastra el último precio válido hacia adelante
+    datos = datos.ffill()
+    
+    # d) Rellenar micro-huecos iniciales: Si un mercado abrió un día antes que otro al inicio del periodo
+    datos = datos.bfill(limit=5)
+    
+    # e) Filtro de Supervivencia (El Anti-GEV): Elimina activos que no cubren todo el periodo.
+    # Si un activo sigue teniendo NaNs aquí, es un IPO muy reciente. Lo expulsamos.
+    datos = datos.dropna(axis=1)
+    
+    # 4. Normalización Divisa (Mexicanización / Riesgo Cambiario)
     if ticker_dolar in datos.columns:
         tipo_cambio = datos[ticker_dolar]
         for col in datos.columns:
@@ -29,7 +47,8 @@ def cargar_datos(tickers: list, start: str = '2020-01-01', end: str = '2026-05-0
         if ticker_dolar not in tickers:
             datos = datos.drop(columns=[ticker_dolar])
             
-    return datos.dropna()
+    # Devolvemos los datos ya puros, alineados y mexicanizados
+    return datos
 
 def calcular_retornos(datos: pd.DataFrame):
     """
@@ -80,6 +99,7 @@ def obtener_tasa_referencia_banxico() -> float:
     except Exception as e:
         print(f"🚨 Falla crítica en el radar: {e}")
         return 0.0650
+
 def obtener_uma_actual():
     """
     Devuelve la UMA diaria vigente basada en el año actual del sistema.
