@@ -1818,17 +1818,31 @@ with tab_motor:
             
             st.success(f"**Efecto Fiscal Activo en Simulación:** El motor estocástico está inyectando **\${devolucion_anual:,.2f} MXN extra al año** provenientes del escudo fiscal (Art. 151), prorrateados en aportaciones de \${devolucion_anual/12:,.2f} al mes libres de riesgo.")
 
-        # ── EJECUCIÓN DEL MOTOR ──
+        # ── CÁLCULO DE EXPOSICIÓN A RENTA FIJA ──
+        # El motor suma los pesos de todos los activos marcados como refugio (es_riesgo == 0.0)
+        es_riesgo_arr_final = np.array(es_riesgo_final)
+        peso_renta_fija = float(np.sum(pesos_opt[es_riesgo_arr_final == 0.0]))
+        
+        # ── PARÁMETROS DEL MODELO CIR ──
+        parametros_cir = {
+            "activo": st.session_state.get('cir_activado', False),
+            "tasa_neutral": st.session_state.get('cir_tasa_neutral', 0.075),
+            "velocidad": st.session_state.get('cir_velocidad', 0.33)
+        }
+
+        # ── EJECUCIÓN DEL MOTOR ESTOCÁSTICO AVANZADO ──
         escenarios, p5, p25, p50, p75, p95, benchmark_fijo, df_t = simular_capital(
             capital_inicial=capital_inicial, 
             aportacion_periodica=aportacion_mc, 
-            rendimiento_anual=rendimiento_mc,   # <── Aquí entra la magia: Podado o Puro
+            rendimiento_anual=rendimiento_mc,   
             volatilidad_anual=vol_opt,
             meses=horizonte_años*12, 
             frecuencia_aportacion=frecuencia_aportacion,
             tasa_benchmark=tasa_actual_banxico, 
             num_simulaciones=num_sims,
-            retornos_diarios=retorno_port_mc
+            retornos_diarios=retorno_port_mc,
+            cir_params=parametros_cir,    # <── CABLE CIR CONECTADO
+            peso_rf=peso_renta_fija       # <── CABLE DE SENSIBILIDAD CONECTADO
         )
 
         st.caption(
