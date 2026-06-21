@@ -1631,12 +1631,41 @@ with tab_motor:
             min_value=0, value=int(capital_inicial), step=10_000, key="capital_rebalanceo",
             help="Por defecto usa el capital inicial configurado.")
 
+        # ── EL FILTRO DE FRICCIÓN DE MERCADO (BROKER MINIMUM) ──
+        minimo_broker = 50.0  # Límite operativo (Ej. GBM+ compras fraccionadas)
+
+        # 1. Armamos la tabla bruta con la matemática de SLSQP
         df_rebalanceo = pd.DataFrame({
-            "Activo":               nombres_activos_finales,
-            "Peso Óptimo (%)":      (pesos_opt * 100).round(2),
+            "Activo": nombres_activos_finales,
+            "Peso Bruto": pesos_opt,
             "Monto Objetivo (MXN)": (pesos_opt * capital_rebalanceo).round(0).astype(int),
-        }).sort_values("Peso Óptimo (%)", ascending=False).reset_index(drop=True)
+        })
+
+        # 2. Detectamos las "migajas" (montos mayores a 0 pero menores al mínimo del broker)
+        activos_basura = (df_rebalanceo["Monto Objetivo (MXN)"] > 0) & (df_rebalanceo["Monto Objetivo (MXN)"] < minimo_broker)
         
+        # 3. Sumamos el capital de esas migajas (La "basura" se vuelve liquidez)
+        capital_residual = df_rebalanceo.loc[activos_basura, "Monto Objetivo (MXN)"].sum()
+        
+        # 4. Ponemos en cero esos activos que no podemos comprar en la vida real
+        df_rebalanceo.loc[activos_basura, "Monto Objetivo (MXN)"] = 0
+        df_rebalanceo.loc[activos_basura, "Peso Bruto"] = 0.0
+
+        # 5. Ordenamos por convicción (los de mayor peso arriba)
+        df_rebalanceo = df_rebalanceo.sort_values("Peso Bruto", ascending=False).reset_index(drop=True)
+        
+        # 6. Reasignamos las migajas al activo de mayor convicción (el #1) para que no se pierda el dinero
+        if capital_residual > 0 and len(df_rebalanceo) > 0:
+            df_rebalanceo.loc[0, "Monto Objetivo (MXN)"] += capital_residual
+            
+        # 7. Recalculamos el Peso Óptimo Real ya libre de fricciones de mercado
+        df_rebalanceo["Peso Óptimo (%)"] = (df_rebalanceo["Monto Objetivo (MXN)"] / capital_rebalanceo * 100).round(2)
+        
+        # Limpiamos la tabla para que solo muestre lo que sí vamos a comprar
+        df_rebalanceo = df_rebalanceo[df_rebalanceo["Monto Objetivo (MXN)"] > 0].reset_index(drop=True)
+        
+        # ── FIN DEL FILTRO ──
+
         # Enmascarar montos si privacidad está activa
         if st.session_state.modo_privacidad:
             df_rebalanceo["Instrucción en Mercado"] = df_rebalanceo["Monto Objetivo (MXN)"].apply(lambda m: "Invertir $ ••••••")
@@ -1652,11 +1681,12 @@ with tab_motor:
 
         total_asignado = df_rebalanceo["Monto Objetivo (MXN)"].sum()
         diferencia     = capital_rebalanceo - total_asignado
+        
         c1, c2, c3 = st.columns(3)
         c1.metric("Capital disponible",    f_val(capital_rebalanceo))
         c2.metric("Total a asignar",       f_val(total_asignado))
         c3.metric("Diferencia (redondeo)", f_val(diferencia),
-                  help="Diferencia por redondeo. Asignar al activo de mayor peso.")
+                  help="Diferencia marginal por redondeo. El remanente de lotes mínimos fue barrido al activo principal.")
 
         # Backtesting
         st.markdown("---")
