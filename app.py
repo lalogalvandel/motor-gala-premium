@@ -1722,27 +1722,31 @@ with tab_motor:
                         # 2. ITERAMOS SOBRE TU TABLA OPTIMIZADA
                         ordenes_enviadas = 0
                         activos_ignorados = []
-                        # ... (sigue el código con el for index, row in df_rebalanceo.iterrows()
+                        
+                        # Extraemos dinámicamente la lista de instrumentos de renta fija
+                        # directo del DataFrame que editaste en la interfaz
+                        nombres_renta_fija = df_renta_fija_ui["Instrumento"].tolist()
                         
                         for index, row in df_rebalanceo.iterrows():
                             ticker = row["Activo"]
                             peso_optimo = row["Peso Óptimo (%)"] / 100.0
                             
-                            # ── FILTRO INTELIGENTE ANTI-RENTA FIJA ──
-                            # Si el nombre tiene espacios, está en minúsculas, o es muy largo, asume que no es un Ticker de EE.UU.
-                            if " " in ticker or len(ticker) > 8 or ticker in ["Openbank", "Nu", "Finsus", "Efectivo", "Cetes"]:
+                            # ── FILTRO DINÁMICO E INSTITUCIONAL ──
+                            # 1. ¿Está en tu tabla de Renta Fija?
+                            # 2. ¿Es la variable genérica 'Efectivo'?
+                            # 3. ¿Es un ticker local de la Bolsa Mexicana (.MX)?
+                            if ticker in nombres_renta_fija or ticker == "Efectivo" or str(ticker).endswith(".MX"):
                                 activos_ignorados.append(ticker)
                                 continue
                                 
                             if peso_optimo > 0:
-                                # ── EL FIX DEFINITIVO: FORMATEO ESTRICTO A 2 DECIMALES ──
                                 # 1. Calculamos el valor bruto
                                 dolares_brutos = poder_compra_usd * peso_optimo
                                 
-                                # 2. Lo congelamos como texto con EXACTAMENTE 2 decimales (ej. "1540.50")
+                                # 2. Lo congelamos como texto con EXACTAMENTE 2 decimales
                                 dolares_texto = "{:.2f}".format(dolares_brutos)
                                 
-                                # 3. Lo convertimos de vuelta a float para que Alpaca lo acepte
+                                # 3. Lo convertimos de vuelta a float
                                 dolares_a_invertir = float(dolares_texto)
                                 
                                 # ── BURBUJA DE SEGURIDAD INDIVIDUAL ──
@@ -1757,7 +1761,6 @@ with tab_motor:
                                     ordenes_enviadas += 1
                                     
                                 except Exception as error_orden:
-                                    # Si Alpaca rechaza un ticker específico, mostramos alerta PERO EL BOT SIGUE COMPRANDO LOS DEMÁS
                                     st.warning(f"Alpaca rechazó la orden para el activo '{ticker}'. Motivo: {error_orden}")
                                     
                         st.success(f"¡Rebalanceo completado! Se ejecutaron {ordenes_enviadas} órdenes en el mercado.")
