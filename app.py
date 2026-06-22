@@ -21,6 +21,9 @@ from modulos.regimenes   import entrenar_modelo_markov
 from modulos.black_litterman import calcular_black_litterman
 from modulos.pensiones import MotorActuarial
 from modulos.heuristica import generar_vistas_black_litterman
+from alpaca.trading.client import TradingClient
+from alpaca.trading.requests import MarketOrderRequest
+from alpaca.trading.enums import OrderSide, TimeInForce
 
 # ── Configuración de página ────────────────────────────────────────────────────
 st.set_page_config(
@@ -1687,6 +1690,63 @@ with tab_motor:
         c2.metric("Total a asignar",       f_val(total_asignado))
         c3.metric("Diferencia (redondeo)", f_val(diferencia),
                   help="Diferencia marginal por redondeo. El remanente de lotes mínimos fue barrido al activo principal.")
+
+        # ── CONEXIÓN EN VIVO AL BROKER (MESA DE OPERACIONES) ──
+        st.markdown("---")
+        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#4488FF;margin-bottom:.75rem;'>Mesa de Operaciones Algorítmica (Paper Trading)</div>""", unsafe_allow_html=True)
+        
+        # Leemos las llaves de los secretos
+        try:
+            alpaca_api = st.secrets["ALPACA_API_KEY"]
+            alpaca_secret = st.secrets["ALPACA_SECRET_KEY"]
+            trading_client = TradingClient(alpaca_api, alpaca_secret, paper=True)
+            cuenta_broker = trading_client.get_account()
+            poder_compra_usd = float(cuenta_broker.buying_power)
+            
+            st.info(f"**Conexión Alpaca Establecida:** Poder de compra detectado: **${poder_compra_usd:,.2f} USD**")
+            
+            if st.button("Transmitir Órdenes a Wall Street (Alpaca)", type="primary", width='stretch'):
+                with st.spinner("Liquidando posiciones antiguas y ejecutando nueva frontera eficiente..."):
+                    try:
+                        # 1. BOTÓN DE PÁNICO: Cerramos todas las posiciones previas para un rebalanceo limpio
+                        st.toast("Paso 1: Cerrando posiciones actuales...")
+                        trading_client.close_all_positions(cancel_orders=True)
+                        
+                        # 2. ITERAMOS SOBRE TU TABLA OPTIMIZADA
+                        ordenes_enviadas = 0
+                        for index, row in df_rebalanceo.iterrows():
+                            ticker = row["Activo"]
+                            peso_optimo = row["Peso Óptimo (%)"] / 100.0
+                            
+                            # Filtramos los activos que usamos como "Renta Fija" en México 
+                            # (Alpaca en EE.UU. no puede comprar Cetes o Nu)
+                            if ticker in ["Cetes Directo", "Nu (Sofipo)", "Pagaré Mifel", "Efectivo"]:
+                                continue
+                                
+                            if peso_optimo > 0:
+                                # Calculamos los dólares exactos a invertir en este activo
+                                dolares_a_invertir = poder_compra_usd * peso_optimo
+                                
+                                # Alpaca permite comprar "Fracciones de acciones" enviando notional (dólares) 
+                                # en lugar de qty (cantidad de acciones). ¡Magia Quant!
+                                orden_req = MarketOrderRequest(
+                                    symbol=ticker,
+                                    notional=dolares_a_invertir,
+                                    side=OrderSide.BUY,
+                                    time_in_force=TimeInForce.DAY
+                                )
+                                
+                                trading_client.submit_order(order_data=orden_req)
+                                ordenes_enviadas += 1
+                                
+                        st.success(f"¡Rebalanceo completado! Se ejecutaron {ordenes_enviadas} órdenes en el mercado.")
+                        st.balloons()
+                        
+                    except Exception as e:
+                        st.error(f"Error en la mesa de operaciones: {e}")
+                        
+        except Exception as e:
+            st.warning("Credenciales de Alpaca no configuradas en secrets.toml o error de red.")
 
         # Backtesting
         st.markdown("---")
