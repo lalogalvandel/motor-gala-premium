@@ -1714,32 +1714,40 @@ with tab_motor:
                         
                         # 2. ITERAMOS SOBRE TU TABLA OPTIMIZADA
                         ordenes_enviadas = 0
+                        activos_ignorados = []
+                        
                         for index, row in df_rebalanceo.iterrows():
                             ticker = row["Activo"]
                             peso_optimo = row["Peso Óptimo (%)"] / 100.0
                             
-                            # Filtramos los activos que usamos como "Renta Fija" en México 
-                            # (Alpaca en EE.UU. no puede comprar Cetes o Nu)
-                            if ticker in ["Cetes Directo", "Nu (Sofipo)", "Pagaré Mifel", "Efectivo"]:
+                            # ── FILTRO INTELIGENTE ANTI-RENTA FIJA ──
+                            # Si el nombre tiene espacios, está en minúsculas, o es muy largo, asume que no es un Ticker de EE.UU.
+                            if " " in ticker or len(ticker) > 8 or ticker in ["Openbank", "Nu", "Finsus", "Efectivo", "Cetes"]:
+                                activos_ignorados.append(ticker)
                                 continue
                                 
                             if peso_optimo > 0:
-                                # Calculamos los dólares exactos a invertir en este activo
+                                # Calculamos los dólares exactos a invertir
                                 dolares_a_invertir = poder_compra_usd * peso_optimo
                                 
-                                # Alpaca permite comprar "Fracciones de acciones" enviando notional (dólares) 
-                                # en lugar de qty (cantidad de acciones). ¡Magia Quant!
-                                orden_req = MarketOrderRequest(
-                                    symbol=ticker,
-                                    notional=dolares_a_invertir,
-                                    side=OrderSide.BUY,
-                                    time_in_force=TimeInForce.DAY
-                                )
-                                
-                                trading_client.submit_order(order_data=orden_req)
-                                ordenes_enviadas += 1
-                                
+                                # ── BURBUJA DE SEGURIDAD INDIVIDUAL ──
+                                try:
+                                    orden_req = MarketOrderRequest(
+                                        symbol=ticker,
+                                        notional=dolares_a_invertir,
+                                        side=OrderSide.BUY,
+                                        time_in_force=TimeInForce.DAY
+                                    )
+                                    trading_client.submit_order(order_data=orden_req)
+                                    ordenes_enviadas += 1
+                                    
+                                except Exception as error_orden:
+                                    # Si Alpaca rechaza un ticker específico, mostramos alerta PERO EL BOT SIGUE COMPRANDO LOS DEMÁS
+                                    st.warning(f"Alpaca rechazó la orden para el activo '{ticker}'. Motivo: {error_orden}")
+                                    
                         st.success(f"¡Rebalanceo completado! Se ejecutaron {ordenes_enviadas} órdenes en el mercado.")
+                        if activos_ignorados:
+                            st.info(f"Los siguientes instrumentos locales fueron ignorados por el broker y deben gestionarse manualmente: {', '.join(activos_ignorados)}")
                         st.balloons()
                         
                     except Exception as e:
