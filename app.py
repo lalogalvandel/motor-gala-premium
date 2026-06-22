@@ -8,6 +8,7 @@ import hashlib
 import bcrypt
 import secrets as secrets_lib
 import yfinance as yf
+import time
 
 from supabase import create_client, Client
 from modulos.datos       import cargar_datos, obtener_uma_actual, calcular_retornos, obtener_tasa_referencia_banxico
@@ -1712,9 +1713,16 @@ with tab_motor:
                         st.toast("Paso 1: Cerrando posiciones actuales...")
                         trading_client.close_all_positions(cancel_orders=True)
                         
+                        # ── FIX DE LATENCIA: PAUSA TÁCTICA ──
+                        # Le damos a Alpaca 5 segundos de gracia para que cruce todas las ventas en 
+                        # el mercado y limpie nuestra cuenta antes de enviar las nuevas compras.
+                        with st.spinner("Esperando a que el broker liquide el portafolio (5 segundos)..."):
+                            time.sleep(5)
+                        
                         # 2. ITERAMOS SOBRE TU TABLA OPTIMIZADA
                         ordenes_enviadas = 0
                         activos_ignorados = []
+                        # ... (sigue el código con el for index, row in df_rebalanceo.iterrows()
                         
                         for index, row in df_rebalanceo.iterrows():
                             ticker = row["Activo"]
