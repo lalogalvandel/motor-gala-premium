@@ -1707,69 +1707,64 @@ with tab_motor:
             st.info(f"**Conexión Alpaca Establecida:** Poder de compra detectado: **${poder_compra_usd:,.2f} USD**")
             
             if st.button("Transmitir Órdenes a Wall Street (Alpaca)", type="primary", width='stretch'):
-                with st.spinner("Liquidando posiciones antiguas y ejecutando nueva frontera eficiente..."):
-                    try:
-                        # 1. BOTÓN DE PÁNICO: Cerramos todas las posiciones previas para un rebalanceo limpio
-                        st.toast("Paso 1: Cerrando posiciones actuales...")
-                        trading_client.close_all_positions(cancel_orders=True)
-                        
-                        # ── FIX DE LATENCIA: PAUSA TÁCTICA ──
-                        # Le damos a Alpaca 5 segundos de gracia para que cruce todas las ventas en 
-                        # el mercado y limpie nuestra cuenta antes de enviar las nuevas compras.
-                        with st.spinner("Esperando a que el broker liquide el portafolio (5 segundos)..."):
-                            time.sleep(5)
-                        
-                        # 2. ITERAMOS SOBRE TU TABLA OPTIMIZADA
-                        ordenes_enviadas = 0
-                        activos_ignorados = []
-                        
-                        # Extraemos dinámicamente la lista de instrumentos de renta fija
-                        # directo del DataFrame que editaste en la interfaz
-                        nombres_renta_fija = df_renta_fija_ui["Instrumento"].tolist()
-                        
-                        for index, row in df_rebalanceo.iterrows():
-                            ticker = row["Activo"]
-                            peso_optimo = row["Peso Óptimo (%)"] / 100.0
+                
+                # ── 1. VERIFICACIÓN DE HORARIO DE MERCADO ──
+                reloj_mercado = trading_client.get_clock()
+                
+                if not reloj_mercado.is_open:
+                    st.error("WALL STREET ESTÁ CERRADO. Las órdenes se quedarían encoladas y chocarían entre sí. El horario operativo es de 7:30 AM a 2:00 PM (Hora Centro de México).")
+                else:
+                    # ── 2. EJECUCIÓN (Solo si el mercado está abierto) ──
+                    with st.spinner("Liquidando posiciones antiguas y ejecutando nueva frontera eficiente..."):
+                        try:
+                            # BOTÓN DE PÁNICO: Cerramos todas las posiciones
+                            st.toast("Paso 1: Cerrando posiciones actuales...")
+                            trading_client.close_all_positions(cancel_orders=True)
                             
-                            # ── FILTRO DINÁMICO E INSTITUCIONAL ──
-                            # 1. ¿Está en tu tabla de Renta Fija?
-                            # 2. ¿Es la variable genérica 'Efectivo'?
-                            # 3. ¿Es un ticker local de la Bolsa Mexicana (.MX)?
-                            if ticker in nombres_renta_fija or ticker == "Efectivo" or str(ticker).endswith(".MX"):
-                                activos_ignorados.append(ticker)
-                                continue
+                            # FIX DE LATENCIA
+                            with st.spinner("Esperando a que el broker liquide el portafolio (5 segundos)..."):
+                                time.sleep(5)
                                 
-                            if peso_optimo > 0:
-                                # 1. Calculamos el valor bruto
-                                dolares_brutos = poder_compra_usd * peso_optimo
+                            # ITERAMOS SOBRE TU TABLA OPTIMIZADA
+                            ordenes_enviadas = 0
+                            activos_ignorados = []
+                            
+                            nombres_renta_fija = df_renta_fija_ui["Instrumento"].tolist()
+                            
+                            for index, row in df_rebalanceo.iterrows():
+                                ticker = row["Activo"]
+                                peso_optimo = row["Peso Óptimo (%)"] / 100.0
                                 
-                                # 2. Lo congelamos como texto con EXACTAMENTE 2 decimales
-                                dolares_texto = "{:.2f}".format(dolares_brutos)
-                                
-                                # 3. Lo convertimos de vuelta a float
-                                dolares_a_invertir = float(dolares_texto)
-                                
-                                # ── BURBUJA DE SEGURIDAD INDIVIDUAL ──
-                                try:
-                                    orden_req = MarketOrderRequest(
-                                        symbol=ticker,
-                                        notional=dolares_a_invertir,
-                                        side=OrderSide.BUY,
-                                        time_in_force=TimeInForce.DAY
-                                    )
-                                    trading_client.submit_order(order_data=orden_req)
-                                    ordenes_enviadas += 1
+                                # FILTRO DINÁMICO E INSTITUCIONAL
+                                if ticker in nombres_renta_fija or ticker == "Efectivo" or str(ticker).endswith(".MX"):
+                                    activos_ignorados.append(ticker)
+                                    continue
                                     
-                                except Exception as error_orden:
-                                    st.warning(f"Alpaca rechazó la orden para el activo '{ticker}'. Motivo: {error_orden}")
+                                if peso_optimo > 0:
+                                    dolares_brutos = poder_compra_usd * peso_optimo
+                                    dolares_texto = "{:.2f}".format(dolares_brutos)
+                                    dolares_a_invertir = float(dolares_texto)
                                     
-                        st.success(f"¡Rebalanceo completado! Se ejecutaron {ordenes_enviadas} órdenes en el mercado.")
-                        if activos_ignorados:
-                            st.info(f"Los siguientes instrumentos locales fueron ignorados por el broker y deben gestionarse manualmente: {', '.join(activos_ignorados)}")
-                        st.balloons()
-                        
-                    except Exception as e:
-                        st.error(f"Error en la mesa de operaciones: {e}")
+                                    try:
+                                        orden_req = MarketOrderRequest(
+                                            symbol=ticker,
+                                            notional=dolares_a_invertir,
+                                            side=OrderSide.BUY,
+                                            time_in_force=TimeInForce.DAY
+                                        )
+                                        trading_client.submit_order(order_data=orden_req)
+                                        ordenes_enviadas += 1
+                                        
+                                    except Exception as error_orden:
+                                        st.warning(f"Alpaca rechazó la orden para el activo '{ticker}'. Motivo: {error_orden}")
+                            
+                            st.success(f"¡Rebalanceo completado! Se ejecutaron {ordenes_enviadas} órdenes en el mercado.")
+                            if activos_ignorados:
+                                st.info(f"Los siguientes instrumentos locales fueron ignorados por el broker y deben gestionarse manualmente: {', '.join(activos_ignorados)}")
+                            st.balloons()
+                            
+                        except Exception as e:
+                            st.error(f"Error en la mesa de operaciones: {e}")
                         
         except Exception as e:
             st.warning("Credenciales de Alpaca no configuradas en secrets.toml o error de red.")
