@@ -1727,8 +1727,15 @@ with tab_motor:
                                 continue
                                 
                             if peso_optimo > 0:
-                                # Calculamos los dólares exactos a invertir
-                                dolares_a_invertir = poder_compra_usd * peso_optimo
+                                # ── EL FIX DEFINITIVO: FORMATEO ESTRICTO A 2 DECIMALES ──
+                                # 1. Calculamos el valor bruto
+                                dolares_brutos = poder_compra_usd * peso_optimo
+                                
+                                # 2. Lo congelamos como texto con EXACTAMENTE 2 decimales (ej. "1540.50")
+                                dolares_texto = "{:.2f}".format(dolares_brutos)
+                                
+                                # 3. Lo convertimos de vuelta a float para que Alpaca lo acepte
+                                dolares_a_invertir = float(dolares_texto)
                                 
                                 # ── BURBUJA DE SEGURIDAD INDIVIDUAL ──
                                 try:
