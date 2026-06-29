@@ -57,8 +57,7 @@ def simular_capital(capital_inicial, aportacion_periodica, rendimiento_anual, vo
 
     # ── 4. SIMULACIÓN ESTOCÁSTICA DE CAPITAL ──
     for m in range(1, meses):
-        # El Alpha Dinámico: Ajustamos el retorno del portafolio sumando o restando 
-        # el movimiento de la tasa Banxico, ponderado por tu porcentaje en Renta Fija
+        # El Alpha Dinámico
         delta_tasa = tasas_dinamicas[m-1] - tasa_benchmark
         rendimiento_mensual_ajustado = (rendimiento_anual + (delta_tasa * peso_rf)) / 12
         
@@ -66,8 +65,15 @@ def simular_capital(capital_inicial, aportacion_periodica, rendimiento_anual, vo
         shocks = t.rvs(df=df_t, loc=0, scale=1, size=num_simulaciones)
         retornos_sim = rendimiento_mensual_ajustado + (vol_mensual * shocks)
         
+        # ── 🛡️ EL ESCUDO ANTI-BANCARROTA ──
+        # Regla financiera #1: Una cartera no puede perder más del 100% de su valor
+        retornos_sim = np.maximum(retornos_sim, -1.0)
+        
         # Crecimiento compuesto
         escenarios[m] = escenarios[m-1] * (1 + retornos_sim)
+        
+        # Regla financiera #2: El saldo en efectivo jamás puede cruzar a cero (no hay margen/deuda)
+        escenarios[m] = np.maximum(escenarios[m], 0.0)
         
         # El Benchmark también acumula la tasa CIR dinámica
         tasa_bench_mensual = np.mean(tasas_dinamicas[m-1]) / 12
@@ -80,6 +86,8 @@ def simular_capital(capital_inicial, aportacion_periodica, rendimiento_anual, vo
         elif frecuencia_aportacion == "Anual" and m % 12 == 0: es_mes_aportacion = True
 
         if es_mes_aportacion:
+            # Solo sumamos la aportación si la cuenta no está en ceros (Opcional: puedes quitar este if si quieres 
+            # simular que sigues aportando incluso después de que la bolsa colapse a cero).
             escenarios[m] += aportacion_periodica
             benchmark_fijo[m] += aportacion_periodica
 
