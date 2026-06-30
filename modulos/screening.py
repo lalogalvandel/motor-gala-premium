@@ -7,10 +7,11 @@ import concurrent.futures
 import warnings
 import requests 
 import io
+import time
+import random
 
 warnings.filterwarnings("ignore")
 
-# ── 1. WEB SCRAPING DINÁMICO (MODO DISFRAZ) ──
 # ── 1. WEB SCRAPING DINÁMICO (MODO DISFRAZ) ──
 def obtener_sp500():
     """Descarga la lista de tickers del S&P 500 simulando ser un navegador."""
@@ -47,19 +48,17 @@ def obtener_nasdaq100():
     except Exception as e:
         print(f"Error NASDAQ: {e}")
         return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA']
+
 # Diccionario inteligente: guarda funciones en lugar de listas estáticas
 UNIVERSOS = {
-    '🇺🇸 S&P 500 (500 activos en vivo)': obtener_sp500,
-    '🤖 NASDAQ 100 (100 activos en vivo)': obtener_nasdaq100,
-    '⚡ Prueba Rápida (FAANG)': ['AAPL', 'AMZN', 'GOOGL', 'META', 'NFLX']
+    'S&P 500 (500 activos en vivo)': obtener_sp500,
+    'NASDAQ 100 (100 activos en vivo)': obtener_nasdaq100,
+    'Prueba Rápida (FAANG)': ['AAPL', 'AMZN', 'GOOGL', 'META', 'NFLX']
 }
 
-import time
-import random
-
-# ── 2. PROCESAMIENTO EN PARALELO (MODO NINJA) ──
+# ── 2. PROCESAMIENTO EN PARALELO (MODO INSTITUCIONAL) ──
 def extraer_datos_ticker(ticker):
-    """Función obrera: Extrae los datos con sigilo para evitar bloqueos de IP."""
+    """Función obrera: Extrae los datos con sigilo y métricas avanzadas (Value/Growth)."""
     try:
         # Pausa aleatoria (0.1 a 0.4 segs) para engañar al firewall de Yahoo
         time.sleep(random.uniform(0.1, 0.4))
@@ -70,26 +69,42 @@ def extraer_datos_ticker(ticker):
         if len(info) < 5:
             return None
             
-        # Plan B: Si no hay P/E pasado, usamos el P/E futuro estimado
-        pe_ratio = info.get('trailingPE', info.get('forwardPE', np.nan))
+        # Cálculo manual de métricas clave si están disponibles
+        market_cap = info.get('marketCap', 0)
+        fcf = info.get('freeCashflow', 0)
+        fcf_yield = (fcf / market_cap * 100) if market_cap > 0 and fcf else np.nan
         
         return {
             'Ticker': ticker,
             'Nombre': info.get('shortName', ticker),
             'Sector': info.get('sector', 'Desconocido'),
-            'Market Cap (B)': info.get('marketCap', 0) / 1e9,
-            'P/E Ratio': pe_ratio,
+            'Market Cap (B)': market_cap / 1e9,
+            
+            # --- VALORACIÓN ---
+            'P/E Ratio': info.get('trailingPE', info.get('forwardPE', np.nan)),
+            'EV/EBITDA': info.get('enterpriseToEbitda', np.nan),
+            'PEG Ratio': info.get('pegRatio', np.nan),
+            'FCF Yield %': fcf_yield,
+            
+            # --- CALIDAD ---
             'Profit Margin %': info.get('profitMargins', 0) * 100 if info.get('profitMargins') else np.nan,
             'ROE %': info.get('returnOnEquity', 0) * 100 if info.get('returnOnEquity') else np.nan,
-            'Beta': info.get('beta', np.nan),
+            'ROIC %': info.get('returnOnAssets', 0) * 100 if info.get('returnOnAssets') else np.nan, # Proxy de ROA a ROIC
+            
+            # --- SALUD FINANCIERA ---
+            'Current Ratio': info.get('currentRatio', np.nan),
             'Deuda/Capital': info.get('debtToEquity', np.nan),
+            
+            # --- CRECIMIENTO & MERCADO ---
+            'Revenue Growth %': info.get('revenueGrowth', 0) * 100 if info.get('revenueGrowth') else np.nan,
+            'Beta': info.get('beta', np.nan),
             'Div Yield %': info.get('dividendYield', 0) * 100 if info.get('dividendYield') else 0.0
         }
     except Exception:
         return None 
 
-def descargar_fundamentales_paralelo(tickers, max_workers=10): # <-- Bajamos los hilos a 10
-    """Motor maestro: Descarga en paralelo pero respetando los límites de la API."""
+def descargar_fundamentales_paralelo(tickers, max_workers=10):
+    """Motor maestro: Descarga en paralelo respetando los límites de la API."""
     resultados = []
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -102,56 +117,93 @@ def descargar_fundamentales_paralelo(tickers, max_workers=10): # <-- Bajamos los
                 
     return pd.DataFrame(resultados)
 
-# ── 3. FILTROS Y MACHINE LEARNING ──
+# ── 3. FILTROS POR TESIS Y MACHINE LEARNING ──
 def filtrar_candidatos(
-    df: pd.DataFrame, min_market_cap: float = 10.0, min_profit_margin: float = 5.0,
-    max_pe: float = 50.0, max_deuda: float = 200.0,
-    min_roe: float = 0.0,        # ← NUEVO
-    exigir_dividendos: bool = True
+    df: pd.DataFrame, 
+    estilo: str = "GARP", 
+    min_market_cap: float = 10.0, 
+    min_profit_margin: float = 5.0, 
+    max_deuda: float = 200.0
 ) -> pd.DataFrame:
+    """Aplica la guillotina heurística dependiendo si el gestor es Value, Growth o GARP."""
     
     df_filtrado = df.copy()
-    df_filtrado = df_filtrado[df_filtrado['Market Cap (B)']  >= min_market_cap]
-    df_filtrado = df_filtrado[df_filtrado['Profit Margin %'] >= min_profit_margin]
-    df_filtrado = df_filtrado[
-        (df_filtrado['P/E Ratio'].isna()) | (df_filtrado['P/E Ratio'] <= max_pe)
-    ]
+    
+    # 1. Guillotina Base (Salud financiera mínima innegociable)
+    df_filtrado = df_filtrado[df_filtrado['Market Cap (B)'] >= min_market_cap]
     df_filtrado = df_filtrado[
         (df_filtrado['Deuda/Capital'].isna()) | (df_filtrado['Deuda/Capital'] <= max_deuda)
     ]
-    # ── NUEVO: filtro ROE mínimo ──────────────────────────────────────────────
-    if min_roe > 0:
+    
+    # 2. Filtros Dinámicos de Tesis de Inversión
+    if "Value" in estilo:
+        # Perfil Cazador de Gangas (Alta generación de caja y baratos)
+        df_filtrado = df_filtrado[df_filtrado['FCF Yield %'] > 3.0] 
         df_filtrado = df_filtrado[
-            (df_filtrado['ROE %'].isna()) | (df_filtrado['ROE %'] >= min_roe)
+            (df_filtrado['EV/EBITDA'].isna()) | (df_filtrado['EV/EBITDA'] < 15.0)
+        ] 
+        df_filtrado = df_filtrado[df_filtrado['Profit Margin %'] >= min_profit_margin]
+        df_filtrado = df_filtrado[df_filtrado['ROE %'] >= 10.0]
+        
+    elif "Growth" in estilo:
+        # Perfil Hipercrecimiento (Escalabilidad por encima de rentabilidad inmediata)
+        df_filtrado = df_filtrado[df_filtrado['Revenue Growth %'] > 12.0]
+        df_filtrado = df_filtrado[
+            (df_filtrado['ROE %'] > 15.0) | (df_filtrado['Profit Margin %'] >= min_profit_margin)
+        ]
+        
+    else: 
+        # Perfil GARP (Growth At a Reasonable Price - Crecimiento a precio razonable)
+        df_filtrado = df_filtrado[df_filtrado['Profit Margin %'] >= min_profit_margin]
+        df_filtrado = df_filtrado[df_filtrado['ROE %'] >= 15.0]
+        df_filtrado = df_filtrado[
+            (df_filtrado['PEG Ratio'].isna()) | ((df_filtrado['PEG Ratio'] > 0) & (df_filtrado['PEG Ratio'] <= 2.5))
         ]
 
-    if exigir_dividendos:
-        df_filtrado = df_filtrado[df_filtrado['Div Yield %'] > 0.0]
-
+    # Limpieza matemática final
+    df_filtrado = df_filtrado.replace([np.inf, -np.inf], np.nan).dropna(subset=['Ticker'])
+    
     return df_filtrado.reset_index(drop=True)
 
 def clustering_activos(df_filtrado: pd.DataFrame, n_clusters: int = 4) -> tuple:
-    features = ['Market Cap (B)', 'P/E Ratio', 'Profit Margin %', 'ROE %', 'Beta', 'Deuda/Capital']
+    """Agrupa activos similares usando IA para garantizar diversificación real."""
+    
+    # Usamos las nuevas features institucionales
+    features = [
+        'EV/EBITDA', 'PEG Ratio', 'FCF Yield %', 
+        'ROE %', 'Revenue Growth %', 'Current Ratio'
+    ]
+    
     df_clean = df_filtrado[features].copy()
     
-    # Seguro matemático contra NaNs absolutos
-    df_clean = df_clean.fillna(df_clean.median(numeric_only=True)).fillna(0)
+    # Rellenamos NaNs con la mediana sectorial/global para no perder data valiosa
+    for col in features:
+        df_clean[col] = df_clean[col].fillna(df_clean[col].median())
+    df_clean = df_clean.fillna(0) # Seguro anti-fallos
 
     scaler   = StandardScaler()
     X_scaled = scaler.fit_transform(df_clean)
 
-    # Autocorrección si hay muy pocas empresas que pasaron la guillotina
+    # Seguro si la guillotina cortó demasiadas empresas
     n_clusters = min(n_clusters, len(df_clean))
     
+    # Si por algún motivo nos quedamos con 1 o 0 empresas, devolvemos sin aplicar KMeans
+    if n_clusters < 2:
+        df_filtrado = df_filtrado.copy()
+        df_filtrado['Cluster'] = 0
+        return df_filtrado, df_filtrado
+        
     kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
     df_filtrado = df_filtrado.copy()
     df_filtrado['Cluster'] = kmeans.fit_predict(X_scaled)
 
+    # Ordenamos a los campeones de cada cluster por Flujo de Caja Libre en lugar de solo Margen
     mejores = (
         df_filtrado
-        .sort_values('Profit Margin %', ascending=False)
+        .sort_values('FCF Yield %', ascending=False)
         .groupby('Cluster')
         .first()
         .reset_index()
     )
+    
     return df_filtrado, mejores
