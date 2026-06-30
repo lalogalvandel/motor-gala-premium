@@ -787,16 +787,31 @@ with st.sidebar:
 
         if usar_screening:
             with st.form("screening_form"):
-                universo_sel  = st.selectbox("Universo de análisis", list(UNIVERSOS.keys()))
-                min_cap       = st.slider("Capitalización mínima (B USD)", 1.0, 100.0, 10.0, step=1.0)
-                min_margin    = st.slider("Margen de beneficio mínimo (%)", 0.0, 30.0, margen_sugerido, step=1.0,
-                                          help=f"Referencia Banxico: {margen_sugerido}%")
-                max_pe        = st.slider("P/E máximo", 10.0, 100.0, 50.0, step=5.0)
-                min_roe_scr   = st.slider("ROE mínimo (%)", 0.0, 50.0, 10.0, step=1.0)
-                max_deuda_scr = st.slider("Deuda/Capital máximo (%)", 0, 500, 150, step=10)
-                n_clusters    = st.slider("Grupos de diversificación (K-Means)", 2, 8, 4)
-                incluir_refugios = st.checkbox("Incluir activos de refugio (TLT, GLD)", value=True)
-                ejecutar_scr  = st.form_submit_button("Ejecutar análisis fundamental", width='stretch')
+                universo_sel = st.selectbox("Universo de análisis", list(UNIVERSOS.keys()))
+                
+                st.markdown("---")
+                st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Tesis Cuantitativa Institucional</div>""", unsafe_allow_html=True)
+                
+                estilo_gestor = st.selectbox(
+                    "Perfil de Inversión",
+                    [
+                        "GARP (Crecimiento a Precio Razonable / Mixto)",
+                        "Value (Subvaluadas / Alta Generación de Caja)",
+                        "Growth (Hiper Crecimiento / Momentum Tecnológico)"
+                    ],
+                    help="El motor ajustará los filtros heurísticos (EV/EBITDA, PEG, Revenue Growth) basándose en este perfil."
+                )
+                
+                c1, c2 = st.columns(2)
+                min_cap       = c1.slider("Cap. mínima (B USD)", 1.0, 100.0, 10.0, step=1.0)
+                n_clusters    = c2.slider("Grupos K-Means", 2, 8, 4)
+                
+                # Dejamos estos como filtros base absolutos
+                min_margin    = c1.slider("Margen base mínimo (%)", 0.0, 30.0, margen_sugerido, step=1.0)
+                max_deuda_scr = c2.slider("Deuda/Capital máx (%)", 0, 500, 150, step=10)
+                
+                incluir_refugios = st.checkbox("Incluir activos de refugio automático (TLT, GLD)", value=True)
+                ejecutar_scr  = st.form_submit_button("Ejecutar motor heurístico", width='stretch')
         else:
             ejecutar_scr = False
 
@@ -1372,12 +1387,18 @@ with tab_motor:
             if df_fund.empty:
                 st.error("No fue posible obtener datos de Yahoo Finance.")
             else:
+                # ── LLAMADA ACTUALIZADA AL BACKEND ──
                 df_filtrado = filtrar_candidatos(
-                    df_fund, min_market_cap=min_cap, min_profit_margin=min_margin,
-                    max_pe=max_pe, max_deuda=float(max_deuda_scr), min_roe=min_roe_scr
+                    df_fund, 
+                    estilo=estilo_gestor, # <── Pasamos la tesis al motor
+                    min_market_cap=min_cap, 
+                    min_profit_margin=min_margin,
+                    max_deuda=float(max_deuda_scr)
                 )
+                
                 if len(df_filtrado) < 2:
-                    st.warning(f"Solo {len(df_filtrado)} instrumentos superaron los filtros.")
+                    st.warning(f"Filtro demasiado estricto para el perfil {estilo_gestor.split()[0]}. Relaje los parámetros.")
+# ...
                 else:
                     df_clusterizado, df_mejores = clustering_activos(df_filtrado, n_clusters)
                     st.session_state["df_screening"] = df_mejores
