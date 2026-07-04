@@ -1733,7 +1733,17 @@ with tab_motor:
                 reloj_mercado = trading_client.get_clock()
                 
                 if not reloj_mercado.is_open:
-                    st.error("WALL STREET ESTÁ CERRADO. Las órdenes se quedarían encoladas y chocarían entre sí. El horario operativo es de 7:30 AM a 2:00 PM (Hora Centro de México).")
+                    # Alpaca nos dice exactamente cuándo vuelve a abrir
+                    proxima_apertura = reloj_mercado.next_open
+                    
+                    # Convertimos la hora UTC de Alpaca a hora local de México
+                    from datetime import timezone, timedelta
+                    hora_mexico = proxima_apertura.astimezone(timezone(timedelta(hours=-6)))
+                    fecha_str = hora_mexico.strftime("%d de %b a las %I:%M %p")
+                    
+                    st.error(f"**WALL STREET ESTÁ CERRADO.** Las órdenes no se enviaron para evitar encolamientos.\n\n"
+                             f"Recuerda que el mercado solo opera de **Lunes a Viernes** (7:30 AM a 2:00 PM CDMX) y cierra los **fines de semana** y **días festivos de EE.UU.**\n\n"
+                             f"🗓️ **Próxima apertura:** {fecha_str}")
                 else:
                     # ── 2. EJECUCIÓN (Solo si el mercado está abierto) ──
                     with st.spinner("Liquidando posiciones antiguas y ejecutando nueva frontera eficiente..."):
