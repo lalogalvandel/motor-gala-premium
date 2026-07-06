@@ -2,24 +2,24 @@ import streamlit as st
 import numpy as np
 from transformers import pipeline
 import yfinance as yf
-import math  # <── NUEVO: El guardián matemático
+import math  
 
 # ── 1. CARGA DEL MODELO EN MEMORIA CACHÉ ──
 @st.cache_resource
 def cargar_motor_finbert():
-    # ProsusAI/finbert es el estándar Quant para noticias financieras
+    # Requiere tener instalado 'transformers' y 'torch'
     return pipeline("sentiment-analysis", model="ProsusAI/finbert", top_k=3)
 
 # ── 2. EL PUENTE ACTUARIAL DUAL (NLP + MOMENTUM) ──
-def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None):
+def generar_vistas_black_litterman(tickers_temp): # <-- Eliminado el argumento llave_api
     vistas_generadas = []
     
-    # Intentamos cargar FinBERT
     try:
         motor_ia = cargar_motor_finbert()
         ia_disponible = True
-    except Exception:
+    except Exception as e:
         ia_disponible = False
+        print(f"Advertencia: Motor IA desactivado. Detalle: {e}")
 
     VOLATILIDAD_BASE = 0.20
     FACTOR_SENSIBILIDAD = 0.50
@@ -29,8 +29,9 @@ def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None)
             info_ticker = yf.Ticker(ticker)
             noticias_crudas = info_ticker.news
             
+            # Extraemos títulos validando que existan y tengan sustancia
             textos = [n.get('title', '') for n in noticias_crudas[:5]] if noticias_crudas else []
-            textos = [t for t in textos if len(t.strip()) > 10]
+            textos = [t for t in textos if isinstance(t, str) and len(t.strip()) > 10]
             
             sentimiento_promedio = 0.0
             
@@ -48,18 +49,16 @@ def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None)
             else:
                 hist = info_ticker.history(period="1mo")
                 
-                # 1. PURIFICACIÓN ESTRUCTURAL
                 if hist.empty or "Close" not in hist.columns:
-                    continue  # Si la bolsa no manda datos, abortamos este activo
+                    continue  
                     
-                hist_clean = hist["Close"].dropna()  # Destruimos los NaNs de origen
+                hist_clean = hist["Close"].dropna()
                 if len(hist_clean) < 2:
                     continue
                 
                 precio_inicial = float(hist_clean.iloc[0])
                 precio_final = float(hist_clean.iloc[-1])
                 
-                # 2. BLINDAJE CONTRA DIVISIONES POR CERO O INFINITOS
                 if precio_inicial <= 0 or math.isnan(precio_inicial) or math.isnan(precio_final):
                     continue
                 
@@ -68,21 +67,20 @@ def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None)
                 if math.isnan(retorno_mensual) or math.isinf(retorno_mensual):
                     continue
                 
-                # Normalizamos el retorno a un "score" de -1 a 1
-                sentimiento_promedio = max(min(retorno_mensual * 10, 1.0), -1.0)
+                # Suavizamos un poco el multiplicador (x5 = 20% para saturar)
+                sentimiento_promedio = max(min(retorno_mensual * 5, 1.0), -1.0)
 
             # ── CÁLCULO DEL RENDIMIENTO ESPERADO (Q) ──
             rendimiento_proyectado = sentimiento_promedio * FACTOR_SENSIBILIDAD * VOLATILIDAD_BASE
             
-            # 3. EL MURO DE TEFLÓN FINAL (Si el cálculo resultó en NaN, se rechaza la perspectiva)
             if math.isnan(rendimiento_proyectado) or math.isinf(rendimiento_proyectado):
                 continue
             
-            # Blindaje contra matrices singulares
+            # Blindaje matemático para evitar matrices singulares en Omega
             if abs(rendimiento_proyectado) < 0.001:
                 rendimiento_proyectado = 0.001 if sentimiento_promedio >= 0 else -0.001
                 
-            # Calibración de la matriz Omega (Niveles de Confianza)
+            # Calibración de la Confianza
             if abs(sentimiento_promedio) >= 0.60:
                 confianza = "Alta"
             elif abs(sentimiento_promedio) >= 0.25:
@@ -97,11 +95,11 @@ def generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api=None)
                 "confianza": confianza
             })
             
-        except Exception as e:
+        except Exception:
             continue
             
-    # Paracaídas de emergencia si la bolsa de valores estuviera totalmente caída
-    if not vistas_generadas:
+    # Paracaídas de emergencia total
+    if not vistas_generadas and tickers_temp:
         vistas_generadas.append({
             "activo_1": tickers_temp[0],
             "tipo": "absoluta",
