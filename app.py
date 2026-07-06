@@ -1634,68 +1634,105 @@ with tab_motor:
         # Rebalanceo
         st.markdown("---")
         _header("Asistente de rebalanceo", "Instrucciones de Asignación")
-        st.caption("Instrucciones exactas para asignar el capital según los pesos óptimos. Asume capital en liquidez total.")
-
-        capital_rebalanceo = st.number_input("Capital disponible para asignar (MXN)",
-            min_value=0, value=int(capital_inicial), step=10_000, key="capital_rebalanceo",
-            help="Por defecto usa el capital inicial configurado.")
 
         # ── EL FILTRO DE FRICCIÓN DE MERCADO (BROKER MINIMUM) ──
         minimo_broker = 50.0  # Límite operativo (Ej. GBM+ compras fraccionadas)
 
-        # 1. Armamos la tabla bruta con la matemática de SLSQP
-        df_rebalanceo = pd.DataFrame({
-            "Activo": nombres_activos_finales,
-            "Peso Bruto": pesos_opt,
-            "Monto Objetivo (MXN)": (pesos_opt * capital_rebalanceo).round(0).astype(int),
-        })
+        tab_total, tab_dca = st.tabs(["Inversión Inicial (Lump Sum)", "Aportaciones Periódicas (DCA)"])
 
-        # 2. Detectamos las "migajas" (montos mayores a 0 pero menores al mínimo del broker)
-        activos_basura = (df_rebalanceo["Monto Objetivo (MXN)"] > 0) & (df_rebalanceo["Monto Objetivo (MXN)"] < minimo_broker)
-        
-        # 3. Sumamos el capital de esas migajas (La "basura" se vuelve liquidez)
-        capital_residual = df_rebalanceo.loc[activos_basura, "Monto Objetivo (MXN)"].sum()
-        
-        # 4. Ponemos en cero esos activos que no podemos comprar en la vida real
-        df_rebalanceo.loc[activos_basura, "Monto Objetivo (MXN)"] = 0
-        df_rebalanceo.loc[activos_basura, "Peso Bruto"] = 0.0
+        # ── PESTAÑA 1: INVERSIÓN INICIAL O REBALANCEO TOTAL ──
+        with tab_total:
+            st.caption("Instrucciones para desplegar capital desde cero. Asume que el dinero está 100% en liquidez.")
 
-        # 5. Ordenamos por convicción (los de mayor peso arriba)
-        df_rebalanceo = df_rebalanceo.sort_values("Peso Bruto", ascending=False).reset_index(drop=True)
-        
-        # 6. Reasignamos las migajas al activo de mayor convicción (el #1) para que no se pierda el dinero
-        if capital_residual > 0 and len(df_rebalanceo) > 0:
-            df_rebalanceo.loc[0, "Monto Objetivo (MXN)"] += capital_residual
-            
-        # 7. Recalculamos el Peso Óptimo Real ya libre de fricciones de mercado
-        df_rebalanceo["Peso Óptimo (%)"] = (df_rebalanceo["Monto Objetivo (MXN)"] / capital_rebalanceo * 100).round(2)
-        
-        # Limpiamos la tabla para que solo muestre lo que sí vamos a comprar
-        df_rebalanceo = df_rebalanceo[df_rebalanceo["Monto Objetivo (MXN)"] > 0].reset_index(drop=True)
-        
-        # ── FIN DEL FILTRO ──
+            capital_rebalanceo = st.number_input("Capital total a asignar (MXN)",
+                min_value=0.0, value=float(capital_inicial), step=10000.0, key="capital_rebalanceo",
+                help="Por defecto usa el capital inicial configurado en el panel izquierdo.")
 
-        # Enmascarar montos si privacidad está activa
-        if st.session_state.modo_privacidad:
-            df_rebalanceo["Instrucción en Mercado"] = df_rebalanceo["Monto Objetivo (MXN)"].apply(lambda m: "Invertir $ ••••••")
-        else:
-            df_rebalanceo["Instrucción en Mercado"] = df_rebalanceo["Monto Objetivo (MXN)"].apply(lambda m: f"Invertir ${m:,}")
-
-        st.dataframe(df_rebalanceo[["Activo","Peso Óptimo (%)","Monto Objetivo (MXN)","Instrucción en Mercado"]],
-            width='stretch',
-            column_config={
-                "Monto Objetivo (MXN)": st.column_config.NumberColumn(format="$%d") if not st.session_state.modo_privacidad else st.column_config.TextColumn(),
-                "Peso Óptimo (%)":      st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.2f%%"),
+            df_rebalanceo = pd.DataFrame({
+                "Activo": nombres_activos_finales,
+                "Peso Bruto": pesos_opt,
+                "Monto Objetivo (MXN)": (pesos_opt * capital_rebalanceo).round(0).astype(int),
             })
 
-        total_asignado = df_rebalanceo["Monto Objetivo (MXN)"].sum()
-        diferencia     = capital_rebalanceo - total_asignado
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Capital disponible",    f_val(capital_rebalanceo))
-        c2.metric("Total a asignar",       f_val(total_asignado))
-        c3.metric("Diferencia (redondeo)", f_val(diferencia),
-                  help="Diferencia marginal por redondeo. El remanente de lotes mínimos fue barrido al activo principal.")
+            activos_basura = (df_rebalanceo["Monto Objetivo (MXN)"] > 0) & (df_rebalanceo["Monto Objetivo (MXN)"] < minimo_broker)
+            capital_residual = df_rebalanceo.loc[activos_basura, "Monto Objetivo (MXN)"].sum()
+            
+            df_rebalanceo.loc[activos_basura, "Monto Objetivo (MXN)"] = 0
+            df_rebalanceo.loc[activos_basura, "Peso Bruto"] = 0.0
+
+            df_rebalanceo = df_rebalanceo.sort_values("Peso Bruto", ascending=False).reset_index(drop=True)
+            
+            if capital_residual > 0 and len(df_rebalanceo) > 0:
+                df_rebalanceo.loc[0, "Monto Objetivo (MXN)"] += capital_residual
+                
+            df_rebalanceo["Peso Óptimo (%)"] = (df_rebalanceo["Monto Objetivo (MXN)"] / capital_rebalanceo * 100).round(2)
+            df_rebalanceo = df_rebalanceo[df_rebalanceo["Monto Objetivo (MXN)"] > 0].reset_index(drop=True)
+
+            if st.session_state.modo_privacidad:
+                df_rebalanceo["Instrucción en Mercado"] = df_rebalanceo["Monto Objetivo (MXN)"].apply(lambda m: "Invertir $ ••••••")
+            else:
+                df_rebalanceo["Instrucción en Mercado"] = df_rebalanceo["Monto Objetivo (MXN)"].apply(lambda m: f"Invertir ${m:,}")
+
+            st.dataframe(df_rebalanceo[["Activo","Peso Óptimo (%)","Monto Objetivo (MXN)","Instrucción en Mercado"]],
+                width='stretch',
+                column_config={
+                    "Monto Objetivo (MXN)": st.column_config.NumberColumn(format="$%d") if not st.session_state.modo_privacidad else st.column_config.TextColumn(),
+                    "Peso Óptimo (%)":      st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.2f%%"),
+                })
+
+            total_asignado = df_rebalanceo["Monto Objetivo (MXN)"].sum()
+            diferencia     = capital_rebalanceo - total_asignado
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Capital total disponible", f_val(capital_rebalanceo))
+            c2.metric("Total asignado",           f_val(total_asignado))
+            c3.metric("Diferencia (redondeo)",    f_val(diferencia), help="Remanente barrido al activo principal.")
+
+        # ── PESTAÑA 2: APORTACIONES PERIÓDICAS (NUEVO FLUJO DE CAJA) ──
+        with tab_dca:
+            st.caption("Distribución exacta para tu ahorro periódico. Inyecta nuevo capital manteniendo el equilibrio de la frontera eficiente.")
+
+            capital_dca = st.number_input("Monto de la aportación (MXN)",
+                min_value=0.0, value=float(aportacion_mensual), step=1000.0, key="capital_dca",
+                help="Toma automáticamente el valor de tu 'Aportación periódica' del panel izquierdo.")
+
+            df_dca = pd.DataFrame({
+                "Activo": nombres_activos_finales,
+                "Peso Bruto": pesos_opt,
+                "Monto Objetivo (MXN)": (pesos_opt * capital_dca).round(0).astype(int),
+            })
+
+            activos_basura_dca = (df_dca["Monto Objetivo (MXN)"] > 0) & (df_dca["Monto Objetivo (MXN)"] < minimo_broker)
+            capital_residual_dca = df_dca.loc[activos_basura_dca, "Monto Objetivo (MXN)"].sum()
+            
+            df_dca.loc[activos_basura_dca, "Monto Objetivo (MXN)"] = 0
+            df_dca.loc[activos_basura_dca, "Peso Bruto"] = 0.0
+
+            df_dca = df_dca.sort_values("Peso Bruto", ascending=False).reset_index(drop=True)
+            
+            if capital_residual_dca > 0 and len(df_dca) > 0:
+                df_dca.loc[0, "Monto Objetivo (MXN)"] += capital_residual_dca
+                
+            df_dca["Peso DCA (%)"] = (df_dca["Monto Objetivo (MXN)"] / capital_dca * 100).round(2)
+            df_dca = df_dca[df_dca["Monto Objetivo (MXN)"] > 0].reset_index(drop=True)
+
+            if st.session_state.modo_privacidad:
+                df_dca["Instrucción de Compra"] = df_dca["Monto Objetivo (MXN)"].apply(lambda m: "Comprar $ ••••••")
+            else:
+                df_dca["Instrucción de Compra"] = df_dca["Monto Objetivo (MXN)"].apply(lambda m: f"Comprar ${m:,}")
+
+            st.dataframe(df_dca[["Activo","Peso DCA (%)","Monto Objetivo (MXN)","Instrucción de Compra"]],
+                width='stretch',
+                column_config={
+                    "Monto Objetivo (MXN)": st.column_config.NumberColumn(format="$%d") if not st.session_state.modo_privacidad else st.column_config.TextColumn(),
+                    "Peso DCA (%)":         st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.2f%%"),
+                })
+
+            total_dca_asignado = df_dca["Monto Objetivo (MXN)"].sum()
+            
+            c1_dca, c2_dca = st.columns(2)
+            c1_dca.metric("Aportación total de este periodo", f_val(capital_dca))
+            c2_dca.metric("Capital distribuido a mercado", f_val(total_dca_asignado))
 
         # ── CONEXIÓN EN VIVO AL BROKER (MESA DE OPERACIONES) ──
         st.markdown("---")
