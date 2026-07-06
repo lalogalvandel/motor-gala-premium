@@ -1776,9 +1776,19 @@ with tab_motor:
                                     dolares_texto = "{:.2f}".format(dolares_brutos)
                                     dolares_a_invertir = float(dolares_texto)
                                     
+                                    # ── TRADUCTOR YAHOO -> ALPACA (CRIPTO Y ACCIONES ESPECIALES) ──
+                                    # Alpaca usa BTC/USD, Yahoo usa BTC-USD. 
+                                    # También arregla acciones como BRK-B (Yahoo) a BRK.B (Alpaca)
+                                    ticker_alpaca = ticker
+                                    if "-USD" in ticker:
+                                        ticker_alpaca = ticker.replace("-", "/")
+                                    elif "-" in ticker:
+                                        ticker_alpaca = ticker.replace("-", ".")
+                                    # ─────────────────────────────────────────────────────────────
+                                    
                                     try:
                                         orden_req = MarketOrderRequest(
-                                            symbol=ticker,
+                                            symbol=ticker_alpaca, # <── USAMOS EL TICKER TRADUCIDO AQUÍ
                                             notional=dolares_a_invertir,
                                             side=OrderSide.BUY,
                                             time_in_force=TimeInForce.DAY
