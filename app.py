@@ -984,39 +984,23 @@ with st.sidebar:
             st.session_state["tau_bl"] = confianza_ia
             
             if st.button("Autogenerar Vistas con IA Heurística", type="primary", width='stretch'):
-                # ... (resto del código del botón) ...
-                with st.spinner("Analizando noticias macroeconómicas y leyendo el mercado..."):
+                with st.spinner("Analizando mercado con FinBERT y Momentum..."):
                     try:
-                        # 1. Obtenemos los tickers activos para buscar sus noticias
+                        # 1. Obtenemos los tickers activos
                         cadena_tickers = st.session_state.get("tickers_procesar", "IVVPESO.MX, AAPL.MX")
                         tickers_temp = [t.strip().upper() for t in cadena_tickers.split(",") if t.strip()]
                         
-                        # 2. Recolectamos noticias rápido y las etiquetamos
-                        noticias_macro = []
-                        for t in tickers_temp: # <── ¡Sin límites! Leemos los 16 activos.
-                            try:
-                                noticias_brutas = yf.Ticker(t).news[:3]
-                                for n in noticias_brutas:
-                                    n['origen_ticker'] = t # <── AQUÍ LE PEGAMOS LA ETIQUETA
-                                    noticias_macro.append(n)
-                            except: pass
-                            
-                        if not noticias_macro:
-                            st.warning("Yahoo Finance no devolvió noticias recientes. El análisis será puramente macroeconómico.")
-                            
-                        # 3. Disparamos la API de Gemini
-                        llave_api = st.secrets["GEMINI_API_KEY"]
-                        ok, resultado_ia = obtener_analisis_ia_cached(noticias_macro, tickers_temp, st.secrets["GEMINI_API_KEY"])
+                        # 2. Disparamos la nueva IA Local (Ya no le pasamos llave ni noticias)
+                        ok, resultado_ia = obtener_analisis_ia_cached(tickers_temp)
                         
                         if ok:
                             st.session_state["vistas_bl"] = resultado_ia
-                            vistas_usuario = resultado_ia  # <── Actualizamos la variable local en caliente
-                            st.success(f"¡IA completó el análisis! Generó {len(resultado_ia)} perspectivas matemáticas.")
-                            # st.rerun() <── ELIMINADO para no cerrar el menú ni borrar el mensaje
+                            vistas_usuario = resultado_ia
+                            st.success(f"¡Análisis completado! Se generaron {len(resultado_ia)} perspectivas matemáticas.")
                         else:
-                            st.error(resultado_ia)
+                            st.error("No se pudieron generar las vistas.")
                     except Exception as e:
-                        st.error(f"Error de conexión con la IA: Asegúrese de haber configurado GEMINI_API_KEY en los Secrets. Detalle: {e}")
+                        st.error(f"Error de ejecución en el motor heurístico: {e}")
 
             st.markdown("<div style='margin: 10px 0;'></div>", unsafe_allow_html=True)
             
