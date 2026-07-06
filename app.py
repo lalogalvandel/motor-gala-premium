@@ -343,9 +343,9 @@ def f_val(valor, formato="${:,.2f}"):
     return "$ ••••••" if st.session_state.modo_privacidad else formato.format(valor)
 
 @st.cache_data(ttl=3600) # El resultado se guarda por 1 hora
-def obtener_analisis_ia_cached(noticias_macro, tickers_temp, llave_api):
-    # Aquí mueves la lógica que ya tienes para llamar a la IA
-    ok, resultado_ia = generar_vistas_black_litterman(noticias_macro, tickers_temp, llave_api)
+def obtener_analisis_ia_cached(tickers_temp):
+    # La IA de FinBERT ahora hace todo el trabajo interno
+    ok, resultado_ia = generar_vistas_black_litterman(tickers_temp)
     return ok, resultado_ia
 
 # ══════════════════════════════════════════════════════════════════════════════
