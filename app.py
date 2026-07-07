@@ -342,6 +342,23 @@ def limpiar_estados_cliente():
 def f_val(valor, formato="${:,.2f}"):
     return "$ ••••••" if st.session_state.modo_privacidad else formato.format(valor)
 
+# ── NUEVO: Formateador Institucional (Abreviado) ──
+def f_val_corto(valor):
+    if st.session_state.modo_privacidad:
+        return "$ ••••••"
+    
+    valor_abs = abs(valor)
+    if valor_abs >= 1_000_000_000:
+        texto = f"${valor / 1_000_000_000:,.2f} B"
+    elif valor_abs >= 1_000_000:
+        texto = f"${valor / 1_000_000:,.2f} M"
+    elif valor_abs >= 1_000:
+        texto = f"${valor / 1_000:,.1f} K"
+    else:
+        texto = f"${valor:,.0f}"
+        
+    return f"-{texto}" if valor < 0 else texto
+
 @st.cache_data(ttl=3600) # El resultado se guarda por 1 hora
 def obtener_analisis_ia_cached(tickers_temp):
     # La IA de FinBERT ahora hace todo el trabajo interno
@@ -2104,11 +2121,17 @@ with tab_motor:
         st.plotly_chart(fig_mc, width='stretch', key="chart_mc")
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Adverso (P5)",    f_val(p5[-1], "${:,.0f}"))
-        c2.metric("Base (P50)",      f_val(p50[-1], "${:,.0f}"))
-        c3.metric("Favorable (P95)", f_val(p95[-1], "${:,.0f}"))
-        c4.metric("Tasa fija",       f_val(benchmark_fijo[-1], "${:,.0f}"),
-                  delta=f_val(p50[-1]-benchmark_fijo[-1], "${:,.0f} diferencial") if not st.session_state.modo_privacidad else None)
+        c1.metric("Adverso (P5)",    f_val_corto(p5[-1]))
+        c2.metric("Base (P50)",      f_val_corto(p50[-1]))
+        c3.metric("Favorable (P95)", f_val_corto(p95[-1]))
+        
+        delta_texto = None
+        if not st.session_state.modo_privacidad:
+            diferencia_mc = p50[-1] - benchmark_fijo[-1]
+            # Formateamos el delta y le quitamos el símbolo de dólar para que se vea más limpio
+            delta_texto = f"{f_val_corto(diferencia_mc).replace('$', '')} dif."
+            
+        c4.metric("Tasa fija",       f_val_corto(benchmark_fijo[-1]), delta=delta_texto)
 
         # Matriz de hitos
         st.markdown("""
