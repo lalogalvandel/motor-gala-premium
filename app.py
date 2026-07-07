@@ -1688,32 +1688,80 @@ with tab_motor:
             c2.metric("Total asignado",           f_val(total_asignado))
             c3.metric("Diferencia (redondeo)",    f_val(diferencia), help="Remanente barrido al activo principal.")
 
-        # ── PESTAÑA 2: APORTACIONES PERIÓDICAS (NUEVO FLUJO DE CAJA) ──
+        # ── PESTAÑA 2: APORTACIONES PERIÓDICAS (DCA INTELIGENTE EN CASCADA) ──
         with tab_dca:
-            st.caption("Distribución exacta para tu ahorro periódico. Inyecta nuevo capital manteniendo el equilibrio de la frontera eficiente.")
+            st.caption("Distribución inteligente por 'Llenado en Cascada'. Detecta topes máximos (ej. límite de SOFIPOS) y redirige el capital excedente a la Renta Variable.")
 
-            capital_dca = st.number_input("Monto de la aportación (MXN)",
+            c_dca1, c_dca2 = st.columns(2)
+            capital_dca = c_dca1.number_input("Monto de la aportación (MXN)",
                 min_value=0.0, value=float(aportacion_mensual), step=1000.0, key="capital_dca",
-                help="Toma automáticamente el valor de tu 'Aportación periódica' del panel izquierdo.")
+                help="Toma automáticamente el valor de tu 'Aportación periódica'.")
+                
+            capital_base_dca = c_dca2.number_input("Capital total actual (MXN)",
+                min_value=0.0, value=float(capital_inicial), step=10000.0, key="capital_base_dca",
+                help="Sirve como referencia para saber qué tan llenas están las cubetas de Renta Fija.")
 
+            # 1. Recuperar Topes Máximos Reales
+            # La bolsa tiene tope infinito, la renta fija tiene los topes que fijaste en la tabla
+            topes_dict = {ticker: float('inf') for ticker in nombres_activos_finales}
+            if activar_renta_fija and not df_renta_fija_ui.empty:
+                for idx, row in df_renta_fija_ui.dropna().iterrows():
+                    topes_dict[row["Instrumento"]] = float(row["Tope Máximo (MXN)"])
+
+            # 2. Estimar el Saldo Actual
+            saldos_actuales = {ticker: capital_base_dca * peso for ticker, peso in zip(nombres_activos_finales, pesos_opt)}
+
+            # 3. ALGORITMO DE CASCADA (Water-filling)
+            monto_objetivo_dca = {ticker: 0.0 for ticker in nombres_activos_finales}
+            capital_por_asignar = capital_dca
+            pesos_relativos = np.array(pesos_opt.copy())
+            
+            # Repetimos el ciclo por si el "derrame" de una cubeta llena otra
+            for _ in range(len(nombres_activos_finales)):
+                if capital_por_asignar <= 0.01: # Si ya no hay dinero, salimos
+                    break
+                    
+                suma_pesos = np.sum(pesos_relativos)
+                if suma_pesos == 0: 
+                    # Si todo está topado (rarísimo), mandamos el remanente a liquidez/activo 1
+                    monto_objetivo_dca[nombres_activos_finales[0]] += capital_por_asignar
+                    break
+                    
+                pesos_normalizados = pesos_relativos / suma_pesos
+                asignacion_teorica = capital_por_asignar * pesos_normalizados
+                capital_por_asignar = 0.0 
+                
+                for i, ticker in enumerate(nombres_activos_finales):
+                    if asignacion_teorica[i] > 0:
+                        # ¿Cuánto le cabe a este activo antes de topar?
+                        espacio_disponible = max(0.0, topes_dict[ticker] - (saldos_actuales[ticker] + monto_objetivo_dca[ticker]))
+                        
+                        if asignacion_teorica[i] <= espacio_disponible:
+                            # Cabe perfecto, lo metemos
+                            monto_objetivo_dca[ticker] += asignacion_teorica[i]
+                        else:
+                            # Se desborda la cubeta. Llenamos hasta el tope y guardamos el "spillover"
+                            monto_objetivo_dca[ticker] += espacio_disponible
+                            capital_por_asignar += (asignacion_teorica[i] - espacio_disponible)
+                            pesos_relativos[i] = 0.0 # Clausuramos esta cubeta para la siguiente iteración
+
+            # 4. Formateo y Limpieza de Fricciones del Broker
             df_dca = pd.DataFrame({
                 "Activo": nombres_activos_finales,
-                "Peso Bruto": pesos_opt,
-                "Monto Objetivo (MXN)": (pesos_opt * capital_dca).round(0).astype(int),
+                "Monto Objetivo (MXN)": list(monto_objetivo_dca.values()),
             })
-
+            
             activos_basura_dca = (df_dca["Monto Objetivo (MXN)"] > 0) & (df_dca["Monto Objetivo (MXN)"] < minimo_broker)
             capital_residual_dca = df_dca.loc[activos_basura_dca, "Monto Objetivo (MXN)"].sum()
-            
             df_dca.loc[activos_basura_dca, "Monto Objetivo (MXN)"] = 0
-            df_dca.loc[activos_basura_dca, "Peso Bruto"] = 0.0
 
-            df_dca = df_dca.sort_values("Peso Bruto", ascending=False).reset_index(drop=True)
+            df_dca = df_dca.sort_values("Monto Objetivo (MXN)", ascending=False).reset_index(drop=True)
             
             if capital_residual_dca > 0 and len(df_dca) > 0:
                 df_dca.loc[0, "Monto Objetivo (MXN)"] += capital_residual_dca
                 
             df_dca["Peso DCA (%)"] = (df_dca["Monto Objetivo (MXN)"] / capital_dca * 100).round(2)
+            df_dca["Monto Objetivo (MXN)"] = df_dca["Monto Objetivo (MXN)"].round(0).astype(int)
             df_dca = df_dca[df_dca["Monto Objetivo (MXN)"] > 0].reset_index(drop=True)
 
             if st.session_state.modo_privacidad:
