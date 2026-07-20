@@ -1540,18 +1540,43 @@ with tab_wallet:
                     fig_asignacion_pdf = None
                     
                     if not cartera_global_pdf.empty and cartera_global_pdf["Valor Mercado (MXN)"].sum() > 0:
+                        
+                        # ── FILTRO INSTITUCIONAL PARA LA GRÁFICA (AGRUPAR "OTROS") ──
+                        df_pie = cartera_global_pdf.copy()
+                        total_pie = df_pie["Valor Mercado (MXN)"].sum()
+                        
+                        # Calculamos el peso real
+                        df_pie["Peso (%)"] = df_pie["Valor Mercado (MXN)"] / total_pie
+                        
+                        # Separamos activos grandes (>= 2%) y pequeños (< 2%)
+                        umbral = 0.02 
+                        grandes = df_pie[df_pie["Peso (%)"] >= umbral]
+                        pequenos = df_pie[df_pie["Peso (%)"] < umbral]
+                        
+                        # Si hay pedacería, la colapsamos en una sola fila
+                        if not pequenos.empty:
+                            otros_val = pequenos["Valor Mercado (MXN)"].sum()
+                            num_otros = len(pequenos)
+                            df_otros = pd.DataFrame([{"Ticker": f"Otros ({num_otros} activos)", "Valor Mercado (MXN)": otros_val}])
+                            df_pie = pd.concat([grandes, df_otros], ignore_index=True)
+                        else:
+                            df_pie = grandes
+                        # ───────────────────────────────────────────────────────────
+                        
                         fig_asignacion_pdf = go.Figure(data=[go.Pie(
-                            labels=cartera_global_pdf["Ticker"], 
-                            values=cartera_global_pdf["Valor Mercado (MXN)"], 
-                            hole=0.55,
+                            labels=df_pie["Ticker"], 
+                            values=df_pie["Valor Mercado (MXN)"], 
+                            hole=0.6, # Un hueco un poco más amplio para que se vea más estética
                             textinfo='label+percent',
                             textposition='outside',
                             marker=dict(line=dict(color='#0B0F19', width=2))
                         )])
+                        
+                        # Aumentamos los márgenes laterales (l=80, r=80) para darle respiro al texto
                         fig_asignacion_pdf.update_layout(
-                            template="plotly_dark", showlegend=False, height=350,
+                            template="plotly_dark", showlegend=False, height=380,
                             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                            margin=dict(t=20, b=20, l=40, r=40)
+                            margin=dict(t=20, b=20, l=80, r=80)
                         )
 
                     # ── 2. MOTOR ESTOCÁSTICO EN VIVO ──
