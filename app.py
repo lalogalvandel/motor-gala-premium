@@ -1124,6 +1124,11 @@ with tab_wallet:
         ])
 
     df_rv = st.session_state["df_ledger_acciones"].dropna(subset=["Ticker"]).copy()
+    
+    # SOLUCIÓN AL "NONE": Forzar a que los campos vacíos o nulos sean 0.0
+    df_rv["Títulos"] = pd.to_numeric(df_rv["Títulos"], errors='coerce').fillna(0.0)
+    df_rv["Precio Compra (MXN)"] = pd.to_numeric(df_rv["Precio Compra (MXN)"], errors='coerce').fillna(0.0)
+
     valor_total_rv = 0.0
     plusvalia_total_rv = 0.0
     
@@ -1132,21 +1137,36 @@ with tab_wallet:
         tickers_unicos = df_rv["Ticker"].unique().tolist()
         
         try:
-            # Magia Quant: Descargamos precios al segundo de forma silenciosa
-            datos_mercado = yf.download(tickers_unicos, period="1d", progress=False)["Close"]
+            # SOLUCIÓN A DIVISAS: Descargamos el USD/MXN en vivo ("MXN=X") junto con tus acciones
+            tickers_descarga = tickers_unicos + ["MXN=X"]
+            datos_mercado = yf.download(tickers_descarga, period="1d", progress=False)["Close"]
             
+            # Capturamos el tipo de cambio actual
+            try:
+                tipo_cambio_usd_mxn = float(datos_mercado["MXN=X"].iloc[-1])
+            except Exception:
+                tipo_cambio_usd_mxn = 18.50 # Fallback si Yahoo no responde el FX
+                
             precios_actuales = {}
-            if len(tickers_unicos) == 1:
-                precios_actuales[tickers_unicos[0]] = float(datos_mercado.iloc[-1])
-            else:
-                ultima_fila = datos_mercado.iloc[-1]
-                for t in tickers_unicos:
-                    if t in ultima_fila:
-                        precios_actuales[t] = float(ultima_fila[t])
+            ultima_fila = datos_mercado.iloc[-1]
+            for t in tickers_unicos:
+                if t in ultima_fila and not pd.isna(ultima_fila[t]):
+                    precios_actuales[t] = float(ultima_fila[t])
         except Exception:
             precios_actuales = {}
+            tipo_cambio_usd_mxn = 18.50
 
-        df_rv["Precio Actual (MXN)"] = df_rv["Ticker"].map(lambda x: precios_actuales.get(x, 0.0))
+        # Función inteligente de homologación de moneda
+        def ajustar_precio_a_mxn(fila):
+            ticker = str(fila["Ticker"]).upper()
+            precio_origen = precios_actuales.get(ticker, 0.0)
+            
+            # Si el ticker NO termina en .MX, asumimos que viene en USD y lo convertimos
+            if not ticker.endswith(".MX") and precio_origen > 0:
+                return precio_origen * tipo_cambio_usd_mxn
+            return precio_origen
+
+        df_rv["Precio Actual (MXN)"] = df_rv.apply(ajustar_precio_a_mxn, axis=1)
         
         # Si Yahoo falla o el mercado está cerrado, usamos el de compra para evitar mostrar ceros
         df_rv["Precio Actual (MXN)"] = np.where(df_rv["Precio Actual (MXN)"] > 0, df_rv["Precio Actual (MXN)"], df_rv["Precio Compra (MXN)"])
