@@ -657,3 +657,131 @@ def generar_reporte(
     doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
     buffer.seek(0)
     return buffer.getvalue()
+
+# ─────────────────────────────────────────────────────────────────────────────
+def generar_reporte_auditoria(
+    titular, fecha_corte, capital_global, capital_liquidez, 
+    capital_rv, tasa_ponderada, renta_mensual, plusvalia_rv, 
+    df_cuentas, df_rv, anios_proyeccion, p5_val, p50_val, p95_val, 
+    mu_portafolio, sigma_portafolio
+) -> bytes:
+    """
+    Genera un 'Tear Sheet' institucional del portafolio actual (Snapshot) + Monte Carlo.
+    Utilizando la arquitectura de ReportLab de Motor GaLa.
+    """
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=letter,
+        leftMargin=0.6 * inch, rightMargin=0.6 * inch,
+        topMargin=0.65 * inch, bottomMargin=0.55 * inch
+    )
+    E = _estilos()
+    story = []
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PÁGINA 1 — PORTADA Y RESUMEN
+    story.append(Spacer(1, 1.5 * inch))
+    story.append(Paragraph("MOTOR GALA PREMIUM", E['titulo']))
+    story.append(Spacer(1, 0.22 * inch))
+    story.append(Paragraph("Estado de Cuenta y Auditoría Patrimonial", E['subtitulo']))
+    story.append(Spacer(1, 0.12 * inch))
+    story.append(Paragraph(fecha_corte.upper(), E['titulo_marca']))
+    
+    story.append(Spacer(1, 0.35 * inch))
+    story.append(Paragraph(f"Titular del Portafolio: {titular.upper()}", 
+                 ParagraphStyle('cliente', fontSize=10, textColor=VERDE, fontName='Helvetica-Bold', alignment=TA_CENTER, charSpace=1)))
+    story.append(Spacer(1, 0.75 * inch))
+
+    # ── RESUMEN EJECUTIVO ──
+    story += _seccion("Resumen Ejecutivo (AUM Global)", E['seccion'], etiqueta="Snapshot Patrimonial")
+    story.append(_kpi_cards([
+        ("Capital Consolidado", f"${capital_global:,.2f}", "Total AUM Activo"),
+        ("Renta Fija / Liquidez", f"${capital_liquidez:,.2f}", f"{(capital_liquidez/capital_global*100) if capital_global>0 else 0:.1f}% del portafolio"),
+        ("Renta Variable", f"${capital_rv:,.2f}", f"{(capital_rv/capital_global*100) if capital_global>0 else 0:.1f}% del portafolio"),
+    ]))
+    story.append(Spacer(1, 0.3 * inch))
+
+    # ── SALUD BURSÁTIL ──
+    story += _seccion("Salud y Rendimiento Bursátil (Renta Variable)", E['seccion'], etiqueta="Mark-to-Market")
+    
+    if not df_rv.empty and capital_rv > 0:
+        costo_total = df_rv["Costo Total (MXN)"].sum()
+        rend_pct = (plusvalia_rv / costo_total) * 100 if costo_total > 0 else 0
+        
+        story.append(_kpi_cards([
+            ("Inversión Inicial", f"${costo_total:,.2f}", "Costo Promedio (MXN)"),
+            ("Valor de Mercado", f"${capital_rv:,.2f}", "MTM en vivo"),
+            ("Plusvalía Latente", f"{'+' if plusvalia_rv>0 else ''}${plusvalia_rv:,.2f}", f"{rend_pct:+.2f}% de rendimiento"),
+        ]))
+        story.append(Spacer(1, 0.2 * inch))
+
+        rv_data = [['Ticker', 'Títulos', 'Precio Actual', 'Valor Mercado', 'P&L (%)']]
+        for _, row in df_rv.iterrows():
+            costo = row['Precio Compra (MXN)'] * row['Títulos']
+            pct = ((row['Valor Mercado (MXN)'] / costo) - 1) * 100 if costo > 0 else 0
+            rv_data.append([
+                str(row['Ticker']),
+                f"{row['Títulos']:.4f}",
+                f"${row['Precio Actual (MXN)']:,.2f}",
+                f"${row['Valor Mercado (MXN)']:,.2f}",
+                f"{pct:+.2f}%"
+            ])
+        story.append(_tabla_estilo(rv_data, [1.5*inch, 1*inch, 1.2*inch, 1.5*inch, 1.1*inch]))
+    else:
+        story.append(Paragraph("No hay posiciones en Renta Variable actualmente registradas en el Libro Mayor.", E['normal']))
+    
+    story.append(PageBreak())
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PÁGINA 2 — RENTA FIJA Y MONTE CARLO
+    story.append(Spacer(1, 0.3 * inch))
+    
+    # ── RENTA FIJA ──
+    story += _seccion("Estructura de Renta Fija y Efectivo", E['seccion'], etiqueta="Liquidez y Rendimiento Pasivo")
+    story.append(_kpi_cards([
+        ("Tasa Efectiva Ponderada", f"{tasa_ponderada:.2f}%", "Rendimiento Anualizado"),
+        ("Flujo Mensual Estimado", f"${renta_mensual:,.2f}", "Renta pasiva bruta"),
+        ("Capital Comprometido", f"${capital_liquidez:,.2f}", "Disponible en cuentas")
+    ]))
+    story.append(Spacer(1, 0.2 * inch))
+
+    if not df_cuentas.empty:
+        rf_data = [['Institución / Cuenta', 'Saldo (MXN)', 'Tasa Anual', 'Peso en RF (%)']]
+        for _, row in df_cuentas.iterrows():
+            rf_data.append([
+                str(row['Institución']),
+                f"${row['Saldo (MXN)']:,.2f}",
+                f"{row['Tasa Anual (%)']:.2f}%",
+                f"{row['Peso (%)']:.1f}%"
+            ])
+        story.append(_tabla_estilo(rf_data, [2.3*inch, 1.5*inch, 1.2*inch, 1.3*inch]))
+    else:
+        story.append(Paragraph("No hay cuentas de renta fija o liquidez registradas en la Tesorería.", E['normal']))
+
+    story.append(Spacer(1, 0.4 * inch))
+
+    # ── MONTE CARLO ──
+    story += _seccion("Proyección Estocástica de Crecimiento (Monte Carlo)", E['seccion'], etiqueta="Proyección a Futuro")
+    story.append(Paragraph(f"Se ejecutaron 2,000 simulaciones de Movimiento Browniano Geométrico para proyectar el crecimiento del Capital Global a un horizonte de <b>{anios_proyeccion} años</b>. Se asumió la estructura actual de la cartera (Rendimiento Esperado: {mu_portafolio*100:.1f}%, Volatilidad Asignada: {sigma_portafolio*100:.1f}%).", E['justificado']))
+    story.append(Spacer(1, 0.15 * inch))
+
+    mc_data = [
+        ['Escenario Probabilístico', 'Valor Terminal (MXN)', 'Multiplicador Patrimonial'],
+        ['Adverso (Percentil 5%)', f"${p5_val:,.2f}", f"{(p5_val/capital_global) if capital_global>0 else 0:.2f}x"],
+        ['Escenario Base (Percentil 50%)', f"${p50_val:,.2f}", f"{(p50_val/capital_global) if capital_global>0 else 0:.2f}x"],
+        ['Favorable (Percentil 95%)', f"${p95_val:,.2f}", f"{(p95_val/capital_global) if capital_global>0 else 0:.2f}x"]
+    ]
+    story.append(_tabla_estilo(mc_data, [2.3*inch, 2*inch, 2*inch]))
+    story.append(Spacer(1, 0.1 * inch))
+    story.append(Paragraph("* Esta proyección asume la capitalización y reinversión del portafolio actual SIN aportaciones de capital adicionales.", E['pie']))
+
+    # ── DISCLAIMER ──
+    story.append(Spacer(1, 0.6 * inch))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=GRIS_LINEA, spaceAfter=0))
+    story.append(Spacer(1, 0.1 * inch))
+    story.append(Paragraph("Este documento ha sido autogenerado por Motor GaLa Premium como un Snapshot del estado actual de las inversiones. Los valores de Renta Variable representan un cálculo Mark-to-Market utilizando el último precio de cierre disponible y no garantizan ejecución exacta. Las proyecciones de Monte Carlo son probabilísticas y no garantizan rendimientos futuros. Dictamen para fines informativos y de auditoría interna.", E['disclaimer']))
+
+    # Construimos usando tu función de fondos oscuros
+    doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
+    buffer.seek(0)
+    return buffer.getvalue()
