@@ -1276,7 +1276,7 @@ with tab_wallet:
     
     # 2. Extraemos tu Renta Variable
     df_rv_memoria = pd.DataFrame()
-    if not df_rv.empty:
+    if not df_rv.empty and "Valor Mercado (MXN)" in df_rv.columns:
         df_rv_memoria = df_rv[["Ticker", "Valor Mercado (MXN)"]].copy()
 
     # 3. Consolidamos el AUM Global y lo mandamos al motor
