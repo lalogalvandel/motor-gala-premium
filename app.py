@@ -1172,14 +1172,19 @@ with tab_wallet:
 
     # 1. DASHBOARD DE POSICIÓN GLOBAL
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Capital Total (AUM Consolidado)", f_val(capital_total_global))
     
-    # Formateo de la plusvalía para que el delta de Streamlit la reconozca verde o roja
-    delta_rv = f"{plusvalia_total_rv:+,.2f} latente" if not st.session_state.modo_privacidad else None
-    c2.metric("Renta Variable (MTM en vivo)", f_val(valor_total_rv), delta=delta_rv)
+    # 1. Acortamos títulos y quitamos decimales en montos grandes ("${:,.0f}")
+    c1.metric("Capital Global (AUM)", f_val(capital_total_global, "${:,.0f}"))
     
-    c3.metric("Renta Fija / Liquidez", f_val(capital_liquidez), f"Tasa ponderada: {tasa_ponderada:.2f}%")
-    c4.metric("Renta Diaria (Tasa Fija)", f_val(renta_anual/365))
+    # 2. Acortamos la palabra "latente" por algo más limpio
+    delta_rv = f"{plusvalia_total_rv:+,.0f} MXN" if not st.session_state.modo_privacidad else None
+    c2.metric("Renta Variable (MTM)", f_val(valor_total_rv, "${:,.0f}"), delta=delta_rv)
+    
+    # 3. Reducimos el texto del delta de la tasa
+    c3.metric("Renta Fija / Liquidez", f_val(capital_liquidez, "${:,.0f}"), f"Tasa: {tasa_ponderada:.1f}%")
+    
+    # 4. La renta diaria SÍ mantiene decimales porque es un monto pequeño
+    c4.metric("Renta Diaria (Fija)", f_val(renta_anual/365, "${:,.2f}"))
 
     st.markdown("---")
 
