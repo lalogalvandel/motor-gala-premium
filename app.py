@@ -1935,9 +1935,9 @@ with tab_motor:
             c1_dca.metric("Aportación total de este periodo", f_val(capital_dca))
             c2_dca.metric("Capital distribuido a mercado", f_val(total_dca_asignado))
 
-        # ── NUEVA PESTAÑA 3: ANÁLISIS DE DESVIACIÓN (DRIFT) ──
+        # ── NUEVA PESTAÑA 3: ANÁLISIS DE DESVIACIÓN (DRIFT ACTIVO) ──
         with tab_drift:
-            st.caption("Compara tu portafolio actual (registrado en tu Dashboard) con la Frontera Eficiente sugerida para detectar desalineaciones de riesgo.")
+            st.caption("Compara tu portafolio actual con la Frontera Eficiente sugerida y calcula los montos exactos (MXN) que debes mover para realinear tu riesgo.")
             
             cartera_viva = st.session_state.get("cartera_viva_calculada", pd.DataFrame())
             
@@ -1952,25 +1952,28 @@ with tab_motor:
                 })
                 
                 # Cruzamos tu cartera real con el modelo de Markowitz
-                df_drift = pd.merge(df_optimo, cartera_viva[["Ticker", "Peso Actual (%)"]], on="Ticker", how="outer").fillna(0.0)
+                df_drift = pd.merge(df_optimo, cartera_viva[["Ticker", "Peso Actual (%)", "Valor Mercado (MXN)"]], on="Ticker", how="outer").fillna(0.0)
                 df_drift["Desviación (%)"] = df_drift["Peso Actual (%)"] - df_drift["Peso Óptimo (%)"]
                 
-                # Lógica Táctica: ¿Qué hacer con el activo?
-                def accion_recomendada(desviacion):
-                    if pd.isna(desviacion): return "Sin datos"
-                    if abs(desviacion) <= 2.5: # Rango de tolerancia del 2.5%
-                        return "Mantener (En rango)"
-                    elif desviacion > 2.5:
-                        return "Vender / Reducir (Sobreponderado)"
-                    else:
-                        return "Comprar (Subponderado)"
-                        
-                df_drift["Sugerencia Táctica"] = df_drift["Desviación (%)"].apply(accion_recomendada)
+                # ── MATEMÁTICA TÁCTICA: Cálculo de operaciones exactas ──
+                df_drift["Monto Óptimo (MXN)"] = valor_total_actual * (df_drift["Peso Óptimo (%)"] / 100)
+                df_drift["Ajuste Requerido (MXN)"] = df_drift["Monto Óptimo (MXN)"] - df_drift["Valor Mercado (MXN)"]
                 
-                # Ordenamos mostrando primero los activos más desviados
-                df_drift = df_drift.sort_values(by="Desviación (%)", key=abs, ascending=False).reset_index(drop=True)
+                # Generamos las instrucciones exactas de compra/venta protegiendo la privacidad
+                if st.session_state.modo_privacidad:
+                    df_drift["Operación a Ejecutar"] = df_drift["Ajuste Requerido (MXN)"].apply(
+                        lambda x: "Mantener" if abs(x) < minimo_broker else ("Comprar $ ••••••" if x > 0 else "Vender $ ••••••")
+                    )
+                else:
+                    df_drift["Operación a Ejecutar"] = df_drift["Ajuste Requerido (MXN)"].apply(
+                        lambda x: "Mantener" if abs(x) < minimo_broker else (f"Comprar ${x:,.0f}" if x > 0 else f"Vender ${abs(x):,.0f}")
+                    )
                 
-                st.dataframe(df_drift, width='stretch',
+                # Ordenamos mostrando primero los activos que requieren los movimientos más grandes de dinero
+                df_drift = df_drift.sort_values(by="Ajuste Requerido (MXN)", key=abs, ascending=False).reset_index(drop=True)
+                
+                st.dataframe(df_drift[["Ticker", "Peso Actual (%)", "Peso Óptimo (%)", "Desviación (%)", "Operación a Ejecutar"]], 
+                    width='stretch',
                     column_config={
                         "Peso Óptimo (%)": st.column_config.NumberColumn(format="%.2f%%"),
                         "Peso Actual (%)": st.column_config.NumberColumn(format="%.2f%%"),
@@ -1980,11 +1983,11 @@ with tab_motor:
                 desviacion_absoluta_media = abs(df_drift["Desviación (%)"]).mean()
                 
                 if desviacion_absoluta_media > 5.0:
-                    st.warning(f"**Desalineación Crítica:** Tu portafolio tiene una desviación promedio del {desviacion_absoluta_media:.1f}%. Has roto la estructura de riesgo sugerida. Se recomienda aplicar un rebalanceo para realinear tus posiciones.")
+                    st.warning(f"**Desalineación Crítica:** Tu portafolio tiene una desviación promedio del {desviacion_absoluta_media:.1f}%. Has roto la estructura de riesgo sugerida. **Ejecuta las ventas sugeridas en la tabla de arriba y utiliza ese efectivo para fondear las compras.**")
                 else:
-                    st.success(f"**Portafolio Sano:** Tu cartera está perfectamente alineada con el modelo (Desviación promedio: {desviacion_absoluta_media:.1f}%). Utiliza el DCA para mantener el rumbo pasivamente.")
+                    st.success(f"**Portafolio Sano:** Tu cartera está perfectamente alineada con el modelo (Desviación promedio: {desviacion_absoluta_media:.1f}%). Utiliza la pestaña de aportaciones periódicas (DCA) para mantener el rumbo.")
             else:
-                st.info("No hay datos en el Libro Mayor de Títulos. Ve a la pestaña 'Dashboard Patrimonial', registra tu portafolio vivo y regresa para ver la comparativa.")
+                st.info("No hay datos en el Libro Mayor de Títulos. Ve a la pestaña 'Dashboard Patrimonial', registra tus saldos en Renta Fija y Acciones, y regresa para ver la comparativa.")
 
         # ── CONEXIÓN EN VIVO AL BROKER (MESA DE OPERACIONES) ──
         st.markdown("---")
