@@ -1509,6 +1509,79 @@ with tab_wallet:
         else:
             st.info("Aún no hay transacciones históricas para generar la analítica.")
 
+# ── 4. EXPORTACIÓN INSTITUCIONAL (AUDITORÍA) ──
+    st.markdown("---")
+    _header("Cumplimiento y Transparencia", "Generación de Estado Patrimonial (PDF)")
+    st.caption("Emita un documento oficial con el desglose exacto de su AUM actual y proyecciones estocásticas para fines de auditoría o presentación a socios.")
+
+    col_pdf_info, col_pdf_btn = st.columns([2, 1])
+    
+    with col_pdf_info:
+        nombre_auditoria = st.text_input("Emitir a nombre de / Título del documento:", value=f"Auditoría Patrimonial - {nombre_display}")
+        anios_proyeccion = st.slider("Horizonte de proyección Monte Carlo (Años)", min_value=1, max_value=30, value=10, help="El sistema correrá 2,000 escenarios posibles de tu capital actual a futuro.")
+    
+    with col_pdf_btn:
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+        from modulos.reporte import generar_reporte_auditoria
+        import numpy as np
+        
+        if st.button("📄 Generar Dictamen (PDF)", type="primary", width='stretch'):
+            with st.spinner("Compilando estados financieros y ejecutando 2,000 simulaciones Monte Carlo..."):
+                try:
+                    # ── MOTOR ESTOCÁSTICO EN VIVO (Para el PDF) ──
+                    peso_rf = capital_liquidez / capital_total_global if capital_total_global > 0 else 0
+                    peso_rv = valor_total_rv / capital_total_global if capital_total_global > 0 else 0
+                    
+                    # Asumimos la tasa real ponderada para RF y una prima de riesgo histórica (10%) para RV
+                    mu_portafolio = (peso_rf * (tasa_ponderada / 100)) + (peso_rv * 0.10) 
+                    sigma_portafolio = peso_rv * 0.18 # Volatilidad estimada del S&P500 ajustada a tu peso en RV
+                    
+                    meses_sim = anios_proyeccion * 12
+                    dt = 1/12
+                    escenarios = np.zeros((meses_sim + 1, 2000))
+                    escenarios[0] = capital_total_global
+                    
+                    # Movimiento Browniano Geométrico
+                    for t in range(1, meses_sim + 1):
+                        z = np.random.standard_normal(2000)
+                        escenarios[t] = escenarios[t-1] * np.exp((mu_portafolio - 0.5 * sigma_portafolio**2) * dt + sigma_portafolio * np.sqrt(dt) * z)
+                        
+                    capitales_finales = escenarios[-1]
+                    p5_auditoria = float(np.percentile(capitales_finales, 5))
+                    p50_auditoria = float(np.percentile(capitales_finales, 50))
+                    p95_auditoria = float(np.percentile(capitales_finales, 95))
+                    # ─────────────────────────────────────────────
+
+                    # Empaquetamos la información viva y la proyección
+                    pdf_bytes = generar_reporte_auditoria(
+                        titular=nombre_auditoria,
+                        fecha_corte=datetime.now().strftime("%d de %B de %Y - %H:%M"),
+                        capital_global=capital_total_global,
+                        capital_liquidez=capital_liquidez,
+                        capital_rv=valor_total_rv,
+                        tasa_ponderada=tasa_ponderada,
+                        renta_mensual=renta_anual / 12,
+                        plusvalia_rv=plusvalia_total_rv,
+                        df_cuentas=df_cuentas if not df_cuentas.empty else pd.DataFrame(),
+                        df_rv=df_rv if not df_rv.empty else pd.DataFrame(),
+                        anios_proyeccion=anios_proyeccion,
+                        p5_val=p5_auditoria,
+                        p50_val=p50_auditoria,
+                        p95_val=p95_auditoria,
+                        mu_portafolio=mu_portafolio,
+                        sigma_portafolio=sigma_portafolio
+                    )
+                    
+                    st.download_button(
+                        label="⬇️ Descargar Documento Oficial", 
+                        data=pdf_bytes,
+                        file_name=f"Estado_Patrimonial_{nombre_display.replace(' ', '')}_{datetime.now().strftime('%Y%m%d')}.pdf",
+                        mime="application/pdf"
+                    )
+                    st.success("Dictamen compilado. Listo para descargar.")
+                except Exception as e:
+                    st.error(f"Error al compilar el documento: {e}")
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — MOTOR CUANTITATIVO
 # ══════════════════════════════════════════════════════════════════════════════
