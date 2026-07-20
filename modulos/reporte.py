@@ -663,11 +663,10 @@ def generar_reporte_auditoria(
     titular, fecha_corte, capital_global, capital_liquidez, 
     capital_rv, tasa_ponderada, renta_mensual, plusvalia_rv, 
     df_cuentas, df_rv, anios_proyeccion, p5_val, p50_val, p95_val, 
-    mu_portafolio, sigma_portafolio
+    mu_portafolio, sigma_portafolio, fig_asignacion=None, fig_mc=None
 ) -> bytes:
     """
-    Genera un 'Tear Sheet' institucional del portafolio actual (Snapshot) + Monte Carlo.
-    Utilizando la arquitectura de ReportLab de Motor GaLa.
+    Genera un 'Tear Sheet' institucional del portafolio actual (Snapshot) + Gráficas.
     """
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -699,6 +698,20 @@ def generar_reporte_auditoria(
         ("Renta Fija / Liquidez", f"${capital_liquidez:,.2f}", f"{(capital_liquidez/capital_global*100) if capital_global>0 else 0:.1f}% del portafolio"),
         ("Renta Variable", f"${capital_rv:,.2f}", f"{(capital_rv/capital_global*100) if capital_global>0 else 0:.1f}% del portafolio"),
     ]))
+    
+    # ── GRÁFICA DE ASIGNACIÓN GLOBAL ──
+    if fig_asignacion:
+        story.append(Spacer(1, 0.15 * inch))
+        story.append(KeepTogether([
+            Paragraph("Distribución Estructural del Capital (Asset Allocation)", E['subseccion']),
+            Paragraph("Proporción del capital desplegado entre instrumentos de protección de capital (tasa fija) y activos de crecimiento (bolsa de valores).", E['normal']),
+            _fig_a_imagen(fig_asignacion, h_inch=2.4),
+        ]))
+        
+    story.append(PageBreak())
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PÁGINA 2 — RENTABILIDAD BURSÁTIL Y RENTA FIJA
     story.append(Spacer(1, 0.3 * inch))
 
     # ── SALUD BURSÁTIL ──
@@ -730,11 +743,7 @@ def generar_reporte_auditoria(
     else:
         story.append(Paragraph("No hay posiciones en Renta Variable actualmente registradas en el Libro Mayor.", E['normal']))
     
-    story.append(PageBreak())
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 2 — RENTA FIJA Y MONTE CARLO
-    story.append(Spacer(1, 0.3 * inch))
+    story.append(Spacer(1, 0.4 * inch))
     
     # ── RENTA FIJA ──
     story += _seccion("Estructura de Renta Fija y Efectivo", E['seccion'], etiqueta="Liquidez y Rendimiento Pasivo")
@@ -758,7 +767,11 @@ def generar_reporte_auditoria(
     else:
         story.append(Paragraph("No hay cuentas de renta fija o liquidez registradas en la Tesorería.", E['normal']))
 
-    story.append(Spacer(1, 0.4 * inch))
+    story.append(PageBreak())
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PÁGINA 3 — MONTE CARLO
+    story.append(Spacer(1, 0.3 * inch))
 
     # ── MONTE CARLO ──
     story += _seccion("Proyección Estocástica de Crecimiento (Monte Carlo)", E['seccion'], etiqueta="Proyección a Futuro")
@@ -772,6 +785,16 @@ def generar_reporte_auditoria(
         ['Favorable (Percentil 95%)', f"${p95_val:,.2f}", f"{(p95_val/capital_global) if capital_global>0 else 0:.2f}x"]
     ]
     story.append(_tabla_estilo(mc_data, [2.3*inch, 2*inch, 2*inch]))
+    
+    # ── GRÁFICA DEL CONO ESTOCÁSTICO ──
+    if fig_mc:
+        story.append(Spacer(1, 0.15 * inch))
+        story.append(KeepTogether([
+            Paragraph("Distribución de Trayectorias de Capital a Futuro", E['subseccion']),
+            Paragraph("El rango entre el escenario adverso y favorable encapsula el 90% de las probabilidades matemáticas de crecimiento de su capital a largo plazo.", E['normal']),
+            _fig_a_imagen(fig_mc, h_inch=2.8),
+        ]))
+
     story.append(Spacer(1, 0.1 * inch))
     story.append(Paragraph("* Esta proyección asume la capitalización y reinversión del portafolio actual SIN aportaciones de capital adicionales.", E['pie']))
 
