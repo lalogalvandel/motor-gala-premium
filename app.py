@@ -1776,7 +1776,8 @@ with tab_motor:
         # ── EL FILTRO DE FRICCIÓN DE MERCADO (BROKER MINIMUM) ──
         minimo_broker = 50.0  # Límite operativo (Ej. GBM+ compras fraccionadas)
 
-        tab_total, tab_dca = st.tabs(["Inversión Inicial (Lump Sum)", "Aportaciones Periódicas (DCA)"])
+        # ── AÑADIMOS LA TERCERA PESTAÑA: DRIFT ──
+        tab_total, tab_dca, tab_drift = st.tabs(["Inversión Inicial (Lump Sum)", "Aportaciones Periódicas (DCA)", "Análisis de Desviación (Drift)"])
 
         # ── PESTAÑA 1: INVERSIÓN INICIAL O REBALANCEO TOTAL ──
         with tab_total:
@@ -1919,6 +1920,57 @@ with tab_motor:
             c1_dca, c2_dca = st.columns(2)
             c1_dca.metric("Aportación total de este periodo", f_val(capital_dca))
             c2_dca.metric("Capital distribuido a mercado", f_val(total_dca_asignado))
+
+        # ── NUEVA PESTAÑA 3: ANÁLISIS DE DESVIACIÓN (DRIFT) ──
+        with tab_drift:
+            st.caption("Compara tu portafolio actual (registrado en tu Dashboard) con la Frontera Eficiente sugerida para detectar desalineaciones de riesgo.")
+            
+            cartera_viva = st.session_state.get("cartera_viva_calculada", pd.DataFrame())
+            
+            if not cartera_viva.empty and cartera_viva["Valor Mercado (MXN)"].sum() > 0:
+                valor_total_actual = cartera_viva["Valor Mercado (MXN)"].sum()
+                cartera_viva["Peso Actual (%)"] = (cartera_viva["Valor Mercado (MXN)"] / valor_total_actual) * 100
+                
+                # Armamos el dataframe del modelo óptimo
+                df_optimo = pd.DataFrame({
+                    "Ticker": nombres_activos_finales,
+                    "Peso Óptimo (%)": (pesos_opt * 100).round(2)
+                })
+                
+                # Cruzamos tu cartera real con el modelo de Markowitz
+                df_drift = pd.merge(df_optimo, cartera_viva[["Ticker", "Peso Actual (%)"]], on="Ticker", how="outer").fillna(0.0)
+                df_drift["Desviación (%)"] = df_drift["Peso Actual (%)"] - df_drift["Peso Óptimo (%)"]
+                
+                # Lógica Táctica: ¿Qué hacer con el activo?
+                def accion_recomendada(desviacion):
+                    if pd.isna(desviacion): return "Sin datos"
+                    if abs(desviacion) <= 2.5: # Rango de tolerancia del 2.5%
+                        return "Mantener (En rango)"
+                    elif desviacion > 2.5:
+                        return "Vender / Reducir (Sobreponderado)"
+                    else:
+                        return "Comprar (Subponderado)"
+                        
+                df_drift["Sugerencia Táctica"] = df_drift["Desviación (%)"].apply(accion_recomendada)
+                
+                # Ordenamos mostrando primero los activos más desviados
+                df_drift = df_drift.sort_values(by="Desviación (%)", key=abs, ascending=False).reset_index(drop=True)
+                
+                st.dataframe(df_drift, width='stretch',
+                    column_config={
+                        "Peso Óptimo (%)": st.column_config.NumberColumn(format="%.2f%%"),
+                        "Peso Actual (%)": st.column_config.NumberColumn(format="%.2f%%"),
+                        "Desviación (%)":  st.column_config.NumberColumn(format="%+.2f%%"),
+                    })
+                    
+                desviacion_absoluta_media = abs(df_drift["Desviación (%)"]).mean()
+                
+                if desviacion_absoluta_media > 5.0:
+                    st.warning(f"**Desalineación Crítica:** Tu portafolio tiene una desviación promedio del {desviacion_absoluta_media:.1f}%. Has roto la estructura de riesgo sugerida. Se recomienda aplicar un rebalanceo para realinear tus posiciones.")
+                else:
+                    st.success(f"**Portafolio Sano:** Tu cartera está perfectamente alineada con el modelo (Desviación promedio: {desviacion_absoluta_media:.1f}%). Utiliza el DCA para mantener el rumbo pasivamente.")
+            else:
+                st.info("No hay datos en el Libro Mayor de Títulos. Ve a la pestaña 'Dashboard Patrimonial', registra tu portafolio vivo y regresa para ver la comparativa.")
 
         # ── CONEXIÓN EN VIVO AL BROKER (MESA DE OPERACIONES) ──
         st.markdown("---")
