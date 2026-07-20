@@ -1261,7 +1261,21 @@ with tab_wallet:
             st.rerun()
 
     # ── CONEXIÓN CLAVE: Guardamos la cartera viva en la RAM para el Motor Cuantitativo ──
-    st.session_state["cartera_viva_calculada"] = df_rv
+    # ── CONEXIÓN CLAVE: Guardamos la cartera TOTAL viva en la RAM ──
+    # 1. Extraemos tu Renta Fija / Liquidez
+    df_rf_memoria = pd.DataFrame()
+    if not df_cuentas.empty:
+        df_rf_memoria = df_cuentas[["Institución", "Saldo (MXN)"]].copy()
+        df_rf_memoria = df_rf_memoria.rename(columns={"Institución": "Ticker", "Saldo (MXN)": "Valor Mercado (MXN)"})
+    
+    # 2. Extraemos tu Renta Variable
+    df_rv_memoria = pd.DataFrame()
+    if not df_rv.empty:
+        df_rv_memoria = df_rv[["Ticker", "Valor Mercado (MXN)"]].copy()
+
+    # 3. Consolidamos el AUM Global y lo mandamos al motor
+    df_cartera_global = pd.concat([df_rf_memoria, df_rv_memoria], ignore_index=True)
+    st.session_state["cartera_viva_calculada"] = df_cartera_global
 
     st.markdown("---")
     
