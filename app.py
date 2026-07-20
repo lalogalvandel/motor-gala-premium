@@ -1524,24 +1524,42 @@ with tab_wallet:
         st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
         from modulos.reporte import generar_reporte_auditoria
         import numpy as np
+        import plotly.graph_objects as go
         
         if st.button("📄 Generar Dictamen (PDF)", type="primary", width='stretch'):
-            with st.spinner("Compilando estados financieros y ejecutando 2,000 simulaciones Monte Carlo..."):
+            with st.spinner("Compilando gráficas, estados financieros y ejecutando 2,000 simulaciones Monte Carlo..."):
                 try:
-                    # ── MOTOR ESTOCÁSTICO EN VIVO (Para el PDF) ──
+                    # ── 1. CREACIÓN DE GRÁFICA: ASIGNACIÓN GLOBAL ──
+                    cartera_global_pdf = st.session_state.get("cartera_viva_calculada", pd.DataFrame())
+                    fig_asignacion_pdf = None
+                    
+                    if not cartera_global_pdf.empty and cartera_global_pdf["Valor Mercado (MXN)"].sum() > 0:
+                        fig_asignacion_pdf = go.Figure(data=[go.Pie(
+                            labels=cartera_global_pdf["Ticker"], 
+                            values=cartera_global_pdf["Valor Mercado (MXN)"], 
+                            hole=0.55,
+                            textinfo='label+percent',
+                            textposition='outside',
+                            marker=dict(line=dict(color='#0B0F19', width=2))
+                        )])
+                        fig_asignacion_pdf.update_layout(
+                            template="plotly_dark", showlegend=False, height=350,
+                            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                            margin=dict(t=20, b=20, l=40, r=40)
+                        )
+
+                    # ── 2. MOTOR ESTOCÁSTICO EN VIVO ──
                     peso_rf = capital_liquidez / capital_total_global if capital_total_global > 0 else 0
                     peso_rv = valor_total_rv / capital_total_global if capital_total_global > 0 else 0
                     
-                    # Asumimos la tasa real ponderada para RF y una prima de riesgo histórica (10%) para RV
                     mu_portafolio = (peso_rf * (tasa_ponderada / 100)) + (peso_rv * 0.10) 
-                    sigma_portafolio = peso_rv * 0.18 # Volatilidad estimada del S&P500 ajustada a tu peso en RV
+                    sigma_portafolio = peso_rv * 0.18 
                     
                     meses_sim = anios_proyeccion * 12
                     dt = 1/12
                     escenarios = np.zeros((meses_sim + 1, 2000))
                     escenarios[0] = capital_total_global
                     
-                    # Movimiento Browniano Geométrico
                     for t in range(1, meses_sim + 1):
                         z = np.random.standard_normal(2000)
                         escenarios[t] = escenarios[t-1] * np.exp((mu_portafolio - 0.5 * sigma_portafolio**2) * dt + sigma_portafolio * np.sqrt(dt) * z)
@@ -1550,9 +1568,26 @@ with tab_wallet:
                     p5_auditoria = float(np.percentile(capitales_finales, 5))
                     p50_auditoria = float(np.percentile(capitales_finales, 50))
                     p95_auditoria = float(np.percentile(capitales_finales, 95))
+                    
+                    # ── 3. CREACIÓN DE GRÁFICA: MONTE CARLO ──
+                    fig_mc_auditoria = go.Figure()
+                    # Dibujamos 20 trayectorias de sombra
+                    for i in range(min(20, escenarios.shape[1])):
+                        fig_mc_auditoria.add_trace(go.Scatter(y=escenarios[:,i], mode="lines",
+                            line=dict(width=1, color="rgba(0,150,255,0.07)"), showlegend=False, hoverinfo="skip"))
+                            
+                    # Trazamos los percentiles en el tiempo
+                    p5_serie = np.percentile(escenarios, 5, axis=1)
+                    p50_serie = np.percentile(escenarios, 50, axis=1)
+                    p95_serie = np.percentile(escenarios, 95, axis=1)
+                    
+                    fig_mc_auditoria.add_trace(go.Scatter(y=p50_serie, mode="lines", line=dict(width=3, color="#17C37B"), name="Base (P50)"))
+                    fig_mc_auditoria.add_trace(go.Scatter(y=p95_serie, mode="lines", line=dict(width=2, color="rgba(23,195,123,0.5)", dash="dot"), name="Favorable (P95)"))
+                    fig_mc_auditoria.add_trace(go.Scatter(y=p5_serie, mode="lines", line=dict(width=2, color="#FF4B4B", dash="dot"), name="Adverso (P5)"))
+                    fig_mc_auditoria.update_layout(template="plotly_dark", xaxis_title="Meses", yaxis_title="Capital (MXN)", height=350, legend=dict(x=0.01, y=0.99), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
                     # ─────────────────────────────────────────────
 
-                    # Empaquetamos la información viva y la proyección
+                    # Empaquetamos la información viva y las gráficas
                     pdf_bytes = generar_reporte_auditoria(
                         titular=nombre_auditoria,
                         fecha_corte=datetime.now().strftime("%d de %B de %Y - %H:%M"),
@@ -1569,7 +1604,9 @@ with tab_wallet:
                         p50_val=p50_auditoria,
                         p95_val=p95_auditoria,
                         mu_portafolio=mu_portafolio,
-                        sigma_portafolio=sigma_portafolio
+                        sigma_portafolio=sigma_portafolio,
+                        fig_asignacion=fig_asignacion_pdf, # <── Nueva gráfica 1
+                        fig_mc=fig_mc_auditoria            # <── Nueva gráfica 2
                     )
                     
                     st.download_button(
@@ -1578,7 +1615,7 @@ with tab_wallet:
                         file_name=f"Estado_Patrimonial_{nombre_display.replace(' ', '')}_{datetime.now().strftime('%Y%m%d')}.pdf",
                         mime="application/pdf"
                     )
-                    st.success("Dictamen compilado. Listo para descargar.")
+                    st.success("Dictamen compilado con visualizaciones. Listo para descargar.")
                 except Exception as e:
                     st.error(f"Error al compilar el documento: {e}")
 
