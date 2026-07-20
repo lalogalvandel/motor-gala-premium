@@ -1211,7 +1211,8 @@ with tab_wallet:
     # ── 2. LIBRO MAYOR DE ACCIONES (EL TRACKER) ──
     st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Libro Mayor de Títulos (Renta Variable)</div>""", unsafe_allow_html=True)
     
-    col_rv_tabla, col_rv_info = st.columns([2.5, 1], gap="large")
+    # Ajustamos sutilmente el ratio para darle más respiro a la tabla editable
+    col_rv_tabla, col_rv_info = st.columns([2.2, 1], gap="large") 
     
     with col_rv_tabla:
         st.caption("Registre sus posiciones aquí. Se actualizarán conectándose a Wall Street / BMV.")
@@ -1232,17 +1233,35 @@ with tab_wallet:
     with col_rv_info:
         if valor_total_rv > 0:
             rend_pct = (plusvalia_total_rv / df_rv["Costo Total (MXN)"].sum()) * 100
-            st.metric("Rendimiento del Portafolio", f"{rend_pct:.2f}%", f"{f_val(plusvalia_total_rv)}")
+            st.metric("Rendimiento del Portafolio", f"{rend_pct:.2f}%", f"{f_val_corto(plusvalia_total_rv)}")
             
-            df_mostrar = df_rv[["Ticker", "Precio Actual (MXN)", "Valor Mercado (MXN)"]].copy()
-            if st.session_state.modo_privacidad:
-                df_mostrar["Valor Mercado (MXN)"] = "$ ••••••"
-            st.dataframe(df_mostrar, width='stretch', hide_index=True)
+            # ── SOLUCIÓN UI: Reemplazamos la tabla fea por una Gráfica Institucional ──
+            fig_dona = go.Figure(data=[go.Pie(
+                labels=df_rv["Ticker"], 
+                values=df_rv["Valor Mercado (MXN)"], 
+                hole=0.6,
+                textinfo='label+percent',
+                textposition='inside',
+                marker=dict(line=dict(color='#1E232E', width=2))
+            )])
+            fig_dona.update_layout(
+                template="plotly_dark",
+                margin=dict(t=20, b=20, l=10, r=10),
+                height=240,
+                showlegend=False,
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)"
+            )
+            st.plotly_chart(fig_dona, use_container_width=True)
+            # ──────────────────────────────────────────────────────────────────────────
         else:
             st.info("Añada títulos para iniciar el tracking algorítmico.")
             
         if st.button("🔄 Refrescar Precios de Bolsa", width='stretch'):
             st.rerun()
+
+    # ── CONEXIÓN CLAVE: Guardamos la cartera viva en la RAM para el Motor Cuantitativo ──
+    st.session_state["cartera_viva_calculada"] = df_rv
 
     st.markdown("---")
     
