@@ -1099,49 +1099,133 @@ with tab_wallet:
         _header("Consolidación de Activos", "Tesorería y Tracking Patrimonial")
         
     with col_tog:
-        # Aquí vive ahora el switch, alineado a la derecha
         st.toggle("Ocultar saldos", key="modo_privacidad")
     
-    st.caption("Registro de flujos de efectivo, conciliación de saldos y cálculo de tasa ponderada efectiva.")
+    st.caption("Registro de flujos de efectivo, conciliación de saldos y cálculo MTM algorítmico.")
 
-    # ── CONEXIÓN REAL A SUPABASE ──
+    # ── CONEXIÓN A SUPABASE (RENTA FIJA / LIQUIDEZ) ──
     cuentas_db = obtener_cuentas_wallet(usuario.get("id_corp"))
     
     if not cuentas_db:
         df_cuentas = pd.DataFrame(columns=["id", "institucion", "tasa_anual", "saldo"])
-        capital_total = 0.0
+        capital_liquidez = 0.0
     else:
         df_cuentas = pd.DataFrame(cuentas_db)
         df_cuentas = df_cuentas.rename(columns={"institucion": "Institución", "saldo": "Saldo (MXN)", "tasa_anual": "Tasa Anual (%)"})
-        capital_total = df_cuentas["Saldo (MXN)"].sum()
+        capital_liquidez = df_cuentas["Saldo (MXN)"].sum()
     
     mapa_cuentas = dict(zip(df_cuentas["Institución"], df_cuentas["id"])) if not df_cuentas.empty else {}
 
-    # Cálculos actuariales de rendimiento
-    if capital_total > 0:
-        df_cuentas["Peso (%)"] = (df_cuentas["Saldo (MXN)"] / capital_total) * 100
+    # ── NUEVO: TRACKER ALGORÍTMICO RENTA VARIABLE (MTM EN VIVO) ──
+    if "df_ledger_acciones" not in st.session_state:
+        st.session_state["df_ledger_acciones"] = pd.DataFrame([
+            {"Ticker": "IVVPESO.MX", "Títulos": 0.0, "Precio Compra (MXN)": 0.0},
+            {"Ticker": "AAPL", "Títulos": 0.0, "Precio Compra (MXN)": 0.0}
+        ])
+
+    df_rv = st.session_state["df_ledger_acciones"].dropna(subset=["Ticker"]).copy()
+    valor_total_rv = 0.0
+    plusvalia_total_rv = 0.0
+    
+    # Solo procesamos si hay títulos registrados
+    if not df_rv.empty and df_rv["Títulos"].sum() > 0:
+        tickers_unicos = df_rv["Ticker"].unique().tolist()
+        
+        try:
+            # Magia Quant: Descargamos precios al segundo de forma silenciosa
+            datos_mercado = yf.download(tickers_unicos, period="1d", progress=False)["Close"]
+            
+            precios_actuales = {}
+            if len(tickers_unicos) == 1:
+                precios_actuales[tickers_unicos[0]] = float(datos_mercado.iloc[-1])
+            else:
+                ultima_fila = datos_mercado.iloc[-1]
+                for t in tickers_unicos:
+                    if t in ultima_fila:
+                        precios_actuales[t] = float(ultima_fila[t])
+        except Exception:
+            precios_actuales = {}
+
+        df_rv["Precio Actual (MXN)"] = df_rv["Ticker"].map(lambda x: precios_actuales.get(x, 0.0))
+        
+        # Si Yahoo falla o el mercado está cerrado, usamos el de compra para evitar mostrar ceros
+        df_rv["Precio Actual (MXN)"] = np.where(df_rv["Precio Actual (MXN)"] > 0, df_rv["Precio Actual (MXN)"], df_rv["Precio Compra (MXN)"])
+        
+        df_rv["Valor Mercado (MXN)"] = df_rv["Títulos"] * df_rv["Precio Actual (MXN)"]
+        df_rv["Costo Total (MXN)"] = df_rv["Títulos"] * df_rv["Precio Compra (MXN)"]
+        
+        valor_total_rv = df_rv["Valor Mercado (MXN)"].sum()
+        plusvalia_total_rv = valor_total_rv - df_rv["Costo Total (MXN)"].sum()
+
+    # ── CONSOLIDACIÓN GLOBAL DE CAPITAL ──
+    capital_total_global = capital_liquidez + valor_total_rv
+
+    if capital_liquidez > 0:
+        df_cuentas["Peso (%)"] = (df_cuentas["Saldo (MXN)"] / capital_liquidez) * 100
         tasa_ponderada = (df_cuentas["Tasa Anual (%)"] * (df_cuentas["Peso (%)"] / 100)).sum()
-        renta_anual = capital_total * (tasa_ponderada / 100)
+        renta_anual = capital_liquidez * (tasa_ponderada / 100)
     else:
         if not df_cuentas.empty:
             df_cuentas["Peso (%)"] = 0.0
         tasa_ponderada = 0.0
         renta_anual = 0.0
 
-    # 1. DASHBOARD DE POSICIÓN
+    # 1. DASHBOARD DE POSICIÓN GLOBAL
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Capital Total (AUM)", f_val(capital_total))
-    c2.metric("Tasa Efectiva Ponderada", f"{tasa_ponderada:.2f}%")
-    c3.metric("Renta Mensual Estimada", f_val(renta_anual/12))
-    c4.metric("Renta Diaria Estimada", f_val(renta_anual/365))
+    c1.metric("Capital Total (AUM Consolidado)", f_val(capital_total_global))
+    
+    # Formateo de la plusvalía para que el delta de Streamlit la reconozca verde o roja
+    delta_rv = f"{plusvalia_total_rv:+,.2f} latente" if not st.session_state.modo_privacidad else None
+    c2.metric("Renta Variable (MTM en vivo)", f_val(valor_total_rv), delta=delta_rv)
+    
+    c3.metric("Renta Fija / Liquidez", f_val(capital_liquidez), f"Tasa ponderada: {tasa_ponderada:.2f}%")
+    c4.metric("Renta Diaria (Tasa Fija)", f_val(renta_anual/365))
 
     st.markdown("---")
 
+    # ── 2. LIBRO MAYOR DE ACCIONES (EL TRACKER) ──
+    st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Libro Mayor de Títulos (Renta Variable)</div>""", unsafe_allow_html=True)
+    
+    col_rv_tabla, col_rv_info = st.columns([2.5, 1], gap="large")
+    
+    with col_rv_tabla:
+        st.caption("Registre sus posiciones aquí. Se actualizarán conectándose a Wall Street / BMV.")
+        df_editado_rv = st.data_editor(
+            st.session_state["df_ledger_acciones"],
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            key="editor_acciones_rv",
+            column_config={
+                "Ticker": st.column_config.TextColumn("Ticker (Ej. AAPL, IVVPESO.MX)", required=True),
+                "Títulos": st.column_config.NumberColumn(min_value=0.0, format="%.4f"),
+                "Precio Compra (MXN)": st.column_config.NumberColumn(min_value=0.0, format="$%.2f")
+            }
+        )
+        st.session_state["df_ledger_acciones"] = df_editado_rv
+        
+    with col_rv_info:
+        if valor_total_rv > 0:
+            rend_pct = (plusvalia_total_rv / df_rv["Costo Total (MXN)"].sum()) * 100
+            st.metric("Rendimiento del Portafolio", f"{rend_pct:.2f}%", f"{f_val(plusvalia_total_rv)}")
+            
+            df_mostrar = df_rv[["Ticker", "Precio Actual (MXN)", "Valor Mercado (MXN)"]].copy()
+            if st.session_state.modo_privacidad:
+                df_mostrar["Valor Mercado (MXN)"] = "$ ••••••"
+            st.dataframe(df_mostrar, width='stretch', hide_index=True)
+        else:
+            st.info("Añada títulos para iniciar el tracking algorítmico.")
+            
+        if st.button("🔄 Refrescar Precios de Bolsa", width='stretch'):
+            st.rerun()
+
+    st.markdown("---")
+    
+    # ── 3. TESORERÍA (RENTA FIJA) Y MESA DE OPERACIONES ──
     col_tabla, col_ops = st.columns([1.5, 1], gap="large")
 
-    # 2. ESTADO DE CUENTA
     with col_tabla:
-        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Distribución de Capital</div>""", unsafe_allow_html=True)
+        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Distribución de Capital (Cuentas Efectivo / Renta Fija)</div>""", unsafe_allow_html=True)
         if df_cuentas.empty:
             st.info("No hay cuentas registradas. Utilice la 'Mesa de Operaciones' para aperturar su primera cuenta.")
         else:
@@ -1159,9 +1243,8 @@ with tab_wallet:
                 }
             )
 
-    # 3. MESA DE OPERACIONES
     with col_ops:
-        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Mesa de Operaciones</div>""", unsafe_allow_html=True)
+        st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Mesa de Operaciones (Efectivo)</div>""", unsafe_allow_html=True)
         
         tab_flujo, tab_transf, tab_mtm, tab_nueva, tab_eliminar = st.tabs(["Flujo", "Transferencia", "MTM", "Nueva", "Eliminar"])
 
@@ -1186,9 +1269,7 @@ with tab_wallet:
                             if monto_transf > saldo_origen:
                                 st.error(f"Fondo insuficiente en {cta_origen}.")
                             else:
-                                # 1. Retiro de la cuenta origen
                                 registrar_transaccion_wallet(id_origen, saldo_origen, "GASTO", monto_transf, f"{nota_transf} (Hacia {cta_destino})")
-                                # 2. Aportación a la cuenta destino
                                 registrar_transaccion_wallet(id_destino, saldo_destino, "INGRESO", monto_transf, f"{nota_transf} (Desde {cta_origen})")
                                 st.success("Migración de capital liquidada exitosamente.")
                                 st.rerun()
@@ -1200,11 +1281,9 @@ with tab_wallet:
             with st.form("form_eliminar_cuenta"):
                 if not df_cuentas.empty:
                     cta_eliminar = st.selectbox("Seleccione la cuenta a cerrar", list(mapa_cuentas.keys()))
-                    
                     if st.form_submit_button("Cerrar Cuenta", type="primary", width='stretch'):
                         id_baja = mapa_cuentas[cta_eliminar]
                         saldo_baja = df_cuentas.loc[df_cuentas["id"] == id_baja, "Saldo (MXN)"].values[0]
-                        
                         if saldo_baja > 0:
                             st.error("Protocolo de seguridad: No puede eliminar una cuenta con capital activo. Utilice la pestaña 'Transferencia' para vaciarla a $0.00 primero.")
                         else:
@@ -1249,7 +1328,6 @@ with tab_wallet:
                     
         with tab_mtm:
             st.caption("Concilie el saldo del sistema con el saldo real de su broker (Mark-to-Market).")
-            
             if not df_cuentas.empty:
                 cuenta_mtm_nom = st.selectbox("Cuenta a conciliar", list(mapa_cuentas.keys()))
                 saldo_actual_mtm = df_cuentas.loc[df_cuentas["Institución"] == cuenta_mtm_nom, "Saldo (MXN)"].values[0]
@@ -1304,7 +1382,7 @@ with tab_wallet:
     with col_tit:
         st.subheader("Analítica de Flujos y Evolución de Capital")
     with col_btn:
-        if st.button("Refrescar Datos", width='stretch'):
+        if st.button("Refrescar Datos Históricos", width='stretch'):
             st.rerun()
     
     if not df_cuentas.empty:
@@ -1315,7 +1393,6 @@ with tab_wallet:
             df_movs = pd.DataFrame(movimientos_db)
             
             df_movs["created_at_utc"] = pd.to_datetime(df_movs["created_at"], errors="coerce", utc=True)
-            # En lugar de borrarlos, si la fecha es Nula (NaT), le asignamos el momento actual exacto
             df_movs["created_at_utc"] = df_movs["created_at_utc"].fillna(pd.Timestamp.now(tz="UTC"))
             df_movs["Fecha Local"] = df_movs["created_at_utc"].dt.tz_convert("America/Mexico_City").dt.tz_localize(None)
             
@@ -1335,7 +1412,7 @@ with tab_wallet:
             df_diario = df_movs.groupby("Día")["Flujo Neto"].sum().reset_index()
             
             flujo_total_registrado = df_diario["Flujo Neto"].sum()
-            capital_semilla = capital_total - flujo_total_registrado
+            capital_semilla = capital_liquidez - flujo_total_registrado
             
             df_diario["Capital Acumulado"] = capital_semilla + df_diario["Flujo Neto"].cumsum()
             df_linea = df_diario.set_index("Día")[["Capital Acumulado"]]
@@ -1343,7 +1420,7 @@ with tab_wallet:
             col_graf1, col_graf2 = st.columns(2)
             
             with col_graf1:
-                st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Evolución del Patrimonio (AUM)</div>""", unsafe_allow_html=True)
+                st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0.6;margin-bottom:.75rem;'>Evolución del Patrimonio (Liquidez / Renta Fija)</div>""", unsafe_allow_html=True)
                 st.line_chart(df_linea, width='stretch', color="#17C37B")
                 
             with col_graf2:
