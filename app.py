@@ -1129,6 +1129,12 @@ with tab_wallet:
     df_rv["Títulos"] = pd.to_numeric(df_rv["Títulos"], errors='coerce').fillna(0.0)
     df_rv["Precio Compra (MXN)"] = pd.to_numeric(df_rv["Precio Compra (MXN)"], errors='coerce').fillna(0.0)
 
+    # ── NUEVO PARCHE ANTI-CRASH: Inicializamos las columnas por defecto en 0 ──
+    df_rv["Precio Actual (MXN)"] = 0.0
+    df_rv["Valor Mercado (MXN)"] = 0.0
+    df_rv["Costo Total (MXN)"] = 0.0
+    # ──────────────────────────────────────────────────────────────────────────
+
     valor_total_rv = 0.0
     plusvalia_total_rv = 0.0
     
