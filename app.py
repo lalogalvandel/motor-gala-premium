@@ -1140,11 +1140,13 @@ with tab_wallet:
     
     # Solo procesamos si hay títulos registrados
     if not df_rv.empty and df_rv["Títulos"].sum() > 0:
-        tickers_unicos = df_rv["Ticker"].unique().tolist()
+        tickers_unicos = df_rv["Ticker"].str.upper().str.strip().unique().tolist()
         
         try:
-            # SOLUCIÓN A DIVISAS: Descargamos el USD/MXN en vivo ("MXN=X") junto con tus acciones
-            tickers_descarga = tickers_unicos + ["MXN=X"]
+            # SOLUCIÓN A DIVISAS Y EFECTIVO: Filtramos el ticker sintético "USD" para no confundir a Yahoo
+            tickers_limpios = [t for t in tickers_unicos if t not in ["USD", "CASH-USD", "DOLARES"]]
+            tickers_descarga = tickers_limpios + ["MXN=X"]
+            
             datos_mercado = yf.download(tickers_descarga, period="1d", progress=False)["Close"]
             
             # Capturamos el tipo de cambio actual
@@ -1154,17 +1156,24 @@ with tab_wallet:
                 tipo_cambio_usd_mxn = 18.50 # Fallback si Yahoo no responde el FX
                 
             precios_actuales = {}
-            ultima_fila = datos_mercado.iloc[-1]
-            for t in tickers_unicos:
-                if t in ultima_fila and not pd.isna(ultima_fila[t]):
-                    precios_actuales[t] = float(ultima_fila[t])
+            if not datos_mercado.empty:
+                ultima_fila = datos_mercado.iloc[-1]
+                for t in tickers_limpios:
+                    if t in ultima_fila and not pd.isna(ultima_fila[t]):
+                        precios_actuales[t] = float(ultima_fila[t])
         except Exception:
             precios_actuales = {}
             tipo_cambio_usd_mxn = 18.50
 
         # Función inteligente de homologación de moneda
         def ajustar_precio_a_mxn(fila):
-            ticker = str(fila["Ticker"]).upper()
+            ticker = str(fila["Ticker"]).upper().strip()
+            
+            # ── NUEVO: SOPORTE PARA DÓLARES EN EFECTIVO ──
+            if ticker in ["USD", "CASH-USD", "DOLARES"]:
+                return tipo_cambio_usd_mxn
+            # ─────────────────────────────────────────────
+            
             precio_origen = precios_actuales.get(ticker, 0.0)
             
             # Si el ticker NO termina en .MX, asumimos que viene en USD y lo convertimos
