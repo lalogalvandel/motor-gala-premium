@@ -2153,11 +2153,128 @@ with tab_motor:
                 desviacion_absoluta_media = abs(df_drift["Desviación (%)"]).mean()
                 
                 if desviacion_absoluta_media > 5.0:
-                    st.warning(f"**Desalineación Crítica:** Tu portafolio tiene una desviación promedio del {desviacion_absoluta_media:.1f}%. Has roto la estructura de riesgo sugerida. **Ejecuta las ventas sugeridas en la tabla de arriba y utiliza ese efectivo para fondear las compras.**")
+                    st.warning(f"**Desalineación Crítica:** Tu portafolio tiene una desviación promedio del {desviacion_absoluta_media:.1f}%. Has roto la estructura de riesgo sugerida. **Analiza el rebalanceo en la tabla superior.**")
                 else:
-                    st.success(f"**Portafolio Sano:** Tu cartera está perfectamente alineada con el modelo (Desviación promedio: {desviacion_absoluta_media:.1f}%). Utiliza la pestaña de aportaciones periódicas (DCA) para mantener el rumbo.")
+                    st.success(f"**Portafolio Sano:** Tu cartera está perfectamente alineada con el modelo (Desviación promedio: {desviacion_absoluta_media:.1f}%).")
+                
+                # ═════════════════════════════════════════════════════════════════════
+                # ── MESA DE OPERACIONES ANCLADA AL ANÁLISIS DE DESVIACIÓN (DRIFT) ──
+                # ═════════════════════════════════════════════════════════════════════
+                st.markdown("---")
+                st.markdown("""<div style='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#4488FF;margin-bottom:.75rem;'>Ejecución de Rebalanceo (Alpaca Broker)</div>""", unsafe_allow_html=True)
+                
+                try:
+                    alpaca_api = st.secrets["ALPACA_API_KEY"]
+                    alpaca_secret = st.secrets["ALPACA_SECRET_KEY"]
+                    trading_client = TradingClient(alpaca_api, alpaca_secret, paper=True)
+                    cuenta_broker = trading_client.get_account()
+                    
+                    # Leemos el valor total del portafolio, no solo el efectivo libre
+                    valor_total_alpaca = float(cuenta_broker.portfolio_value) 
+                    st.info(f"**Conexión Alpaca Establecida:** Valor Total en Wall Street: **${valor_total_alpaca:,.2f} USD**")
+                    
+                    tipo_orden = st.radio(
+                        "Estrategia de Realineación", 
+                        ["⚡ Rebalanceo a Mercado (Liquidación y recompra inmediata para regresar al peso óptimo)", 
+                         "🎯 Rebalanceo Limitado (Cazar acciones con descuento mediante Limit Orders)"],
+                        horizontal=False
+                    )
+                    
+                    descuento_limite = 0.0
+                    if "Limitado" in tipo_orden:
+                        descuento_limite = st.slider("Descuento objetivo para cazar las acciones (%)", min_value=0.5, max_value=15.0, value=2.5, step=0.5) / 100
+                        st.caption(f"El motor liquidará las posiciones actuales para tener efectivo, y dejará órdenes de compra (GTC). Se ejecutarán SOLO si las acciones caen un **{descuento_limite*100}%**.")
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    
+                    if st.button("Ejecutar Rebalanceo Algorítmico", type="primary", width='stretch'):
+                        reloj_mercado = trading_client.get_clock()
+                        
+                        if not reloj_mercado.is_open and "Mercado" in tipo_orden:
+                            proxima_apertura = reloj_mercado.next_open
+                            from datetime import timezone, timedelta
+                            hora_mexico = proxima_apertura.astimezone(timezone(timedelta(hours=-6)))
+                            fecha_str = hora_mexico.strftime("%d de %b a las %I:%M %p")
+                            
+                            st.error(f"**WALL STREET ESTÁ CERRADO.** Las órdenes a mercado no se enviaron para evitar encolamientos.\n\n"
+                                     f"🗓️ **Próxima apertura:** {fecha_str}")
+                        else:
+                            with st.spinner("Compilando algoritmo de rebalanceo y transmitiendo a Nueva York..."):
+                                try:
+                                    # 1. Liquidamos todo para alinear desde cero
+                                    st.toast("Paso 1: Liquidando portafolio actual para liberar liquidez...")
+                                    trading_client.close_all_positions(cancel_orders=True)
+                                    time.sleep(5)
+                                    
+                                    # 2. Recalculamos el poder de compra FRESCO tras las ventas
+                                    cuenta_broker_fresca = trading_client.get_account()
+                                    poder_compra_fresco = float(cuenta_broker_fresca.buying_power)
+                                        
+                                    ordenes_enviadas = 0
+                                    activos_ignorados = []
+                                    # Usamos .get para blindar en caso de que df_renta_fija_ui no exista localmente
+                                    try: nombres_renta_fija = df_renta_fija_ui["Instrumento"].tolist()
+                                    except: nombres_renta_fija = []
+                                    
+                                    # 3. Disparamos iterando sobre el modelo Markowitz Óptimo
+                                    for index, row in df_optimo.iterrows():
+                                        ticker = row["Ticker"]
+                                        peso_optimo = row["Peso Óptimo (%)"] / 100.0
+                                        
+                                        if ticker in nombres_renta_fija or ticker == "Efectivo" or str(ticker).endswith(".MX"):
+                                            activos_ignorados.append(ticker)
+                                            continue
+                                            
+                                        if peso_optimo > 0:
+                                            dolares_brutos = poder_compra_fresco * peso_optimo
+                                            dolares_a_invertir = float("{:.2f}".format(dolares_brutos))
+                                            
+                                            ticker_alpaca = ticker
+                                            if "-USD" in ticker: ticker_alpaca = ticker.replace("-", "/")
+                                            elif "-" in ticker:  ticker_alpaca = ticker.replace("-", ".")
+                                            
+                                            try:
+                                                if "Mercado" in tipo_orden:
+                                                    orden_req = MarketOrderRequest(
+                                                        symbol=ticker_alpaca,
+                                                        notional=dolares_a_invertir,
+                                                        side=OrderSide.BUY,
+                                                        time_in_force=TimeInForce.DAY
+                                                    )
+                                                else:
+                                                    hist_precio = yf.Ticker(ticker).history(period="1d")
+                                                    if hist_precio.empty:
+                                                        raise Exception(f"No se pudo obtener precio para {ticker}")
+                                                        
+                                                    precio_actual_usd = float(hist_precio["Close"].iloc[-1])
+                                                    precio_caza = round(precio_actual_usd * (1 - descuento_limite), 2)
+                                                    cantidad_acciones = round(dolares_a_invertir / precio_caza, 4)
+                                                    
+                                                    orden_req = LimitOrderRequest(
+                                                        symbol=ticker_alpaca,
+                                                        qty=cantidad_acciones,
+                                                        limit_price=precio_caza,
+                                                        side=OrderSide.BUY,
+                                                        time_in_force=TimeInForce.GTC 
+                                                    )
+
+                                                trading_client.submit_order(order_data=orden_req)
+                                                ordenes_enviadas += 1
+                                                
+                                            except Exception as error_orden:
+                                                st.warning(f"Alpaca rechazó la orden para '{ticker}'. Motivo: {error_orden}")
+                                    
+                                    st.success(f"¡Rebalanceo completado! Se transmitieron {ordenes_enviadas} órdenes a Wall Street para volver a los pesos óptimos.")
+                                    if activos_ignorados:
+                                        st.info(f"Instrumentos locales (Ignorados por broker US): {', '.join(activos_ignorados)}")
+                                    st.balloons()
+                                    
+                                except Exception as e:
+                                    st.error(f"Error en la mesa de operaciones: {e}")
+                                
+                except Exception as e:
+                    st.warning("Credenciales de Alpaca no configuradas en secrets.toml o error de red.")
             else:
-                st.info("No hay datos en el Libro Mayor de Títulos. Ve a la pestaña 'Dashboard Patrimonial', registra tus saldos en Renta Fija y Acciones, y regresa para ver la comparativa.")
+                st.info("No hay datos en el Libro Mayor de Títulos. Ve a la pestaña 'Dashboard Patrimonial', registra tus posiciones, y regresa para ver la comparativa de Drift.")
 
         # ── CONEXIÓN EN VIVO AL BROKER (MESA DE OPERACIONES) ──
         st.markdown("---")
