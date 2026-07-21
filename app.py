@@ -1244,6 +1244,26 @@ with tab_wallet:
             }
         )
         st.session_state["df_ledger_acciones"] = df_editado_rv
+        # ── NUEVO: ASISTENTE DE COSTO PROMEDIO ──
+        with st.expander(" Asistente de Compras (Calcular Costo Promedio)"):
+            st.caption("Si vas a comprar MÁS acciones de una empresa que ya tienes, usa esto para saber qué 'Precio de Compra' poner en la tabla.")
+            
+            c_calc1, c_calc2 = st.columns(2)
+            t_actuales = c_calc1.number_input("Títulos que ya tienes", min_value=0.0, step=1.0)
+            p_actual = c_calc2.number_input("Precio de Compra Actual", min_value=0.0, step=10.0)
+            
+            t_nuevos = c_calc1.number_input("Títulos NUEVOS a comprar", min_value=0.0, step=1.0)
+            p_nuevo = c_calc2.number_input("Precio de la NUEVA compra", min_value=0.0, step=10.0)
+            
+            if (t_actuales + t_nuevos) > 0:
+                costo_total = (t_actuales * p_actual) + (t_nuevos * p_nuevo)
+                titulos_totales = t_actuales + t_nuevos
+                precio_promedio = costo_total / titulos_totales
+                
+                st.info(f"**Actualiza la fila en tu tabla con estos datos:**\n\n"
+                        f"**Títulos:** `{titulos_totales:.4f}`\n\n"
+                        f"**Precio Compra:** `${precio_promedio:,.2f}`")
+        # ──────────────────────────────────────────
         
     with col_rv_info:
         if valor_total_rv > 0:
