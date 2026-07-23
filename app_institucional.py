@@ -1,3 +1,10 @@
+# =============================================================================
+# Copyright (c) 2026 Eduardo Galván del Río. Todos los derechos reservados.
+# 
+# Este código fuente es propiedad exclusiva y confidencial. Queda estrictamente
+# prohibida su reproducción, distribución, comercialización o modificación
+# sin autorización expresa y por escrito del autor.
+# =============================================================================
 import streamlit as st
 import requests
 from datetime import datetime
