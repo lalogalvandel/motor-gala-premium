@@ -1,5 +1,5 @@
 # =============================================================================
-# Copyright (c) 2026 Eduardo Galván del Río. Todos los derechos reservados.
+# Copyright (c) 2026 Eduardo Galván del Rio. Todos los derechos reservados.
 # 
 # Este código fuente es propiedad exclusiva y confidencial. Queda estrictamente
 # prohibida su reproducción, distribución, comercialización o modificación
