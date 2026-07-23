@@ -1,3 +1,10 @@
+# =============================================================================
+# Copyright (c) 2026 Eduardo Galván del Rio. Todos los derechos reservados.
+# 
+# Este código fuente es propiedad exclusiva y confidencial. Queda estrictamente
+# prohibida su reproducción, distribución, comercialización o modificación
+# sin autorización expresa y por escrito del autor.
+# =============================================================================
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
