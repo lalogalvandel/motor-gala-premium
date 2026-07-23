@@ -1,3 +1,10 @@
+# =============================================================================
+# Copyright (c) 2026 Eduardo Galván del Rio. Todos los derechos reservados.
+# 
+# Este código fuente es propiedad exclusiva y confidencial. Queda estrictamente
+# prohibida su reproducción, distribución, comercialización o modificación
+# sin autorización expresa y por escrito del autor.
+# =============================================================================
 # modulos/pensiones.py
 import numpy as np
 
