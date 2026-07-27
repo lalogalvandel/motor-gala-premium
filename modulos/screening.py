@@ -46,12 +46,29 @@ def obtener_nasdaq100():
         
         tablas = pd.read_html(io.StringIO(respuesta.text))
         for tabla in tablas:
-            if 'Ticker' in tabla.columns:
-                return tabla['Ticker'].astype(str).str.replace('.', '-').tolist()
-        return ['QQQ']
+            # Limpiamos los nombres de las columnas (minúsculas y sin espacios) para evadir cambios en Wikipedia
+            columnas_limpias = [str(c).strip().lower() for c in tabla.columns]
+            
+            if 'ticker' in columnas_limpias or 'symbol' in columnas_limpias:
+                # Identificamos cuál de las dos columnas existe y extraemos el nombre original
+                if 'ticker' in columnas_limpias:
+                    col_real = tabla.columns[columnas_limpias.index('ticker')]
+                else:
+                    col_real = tabla.columns[columnas_limpias.index('symbol')]
+                    
+                return tabla[col_real].astype(str).str.replace('.', '-').tolist()
+                
+        # Si revisó todas las tablas y no encontró nada, forzamos la excepción
+        raise ValueError("Wikipedia cambió el formato de la tabla.")
+        
     except Exception as e:
         print(f"Error NASDAQ: {e}")
-        return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA']
+        # FALLBACK INSTITUCIONAL: 30 activos principales garantizados para no romper Markowitz
+        return [
+            'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA', 'AVGO', 'PEP', 'COST', 
+            'CSCO', 'TMUS', 'ADBE', 'TXN', 'NFLX', 'AMD', 'CMCSA', 'INTU', 'QCOM', 'AMGN', 
+            'HON', 'INTC', 'ISRG', 'SBUX', 'BKNG', 'GILD', 'MDLZ', 'VRTX', 'LRCX', 'ADP'
+        ]
 
 UNIVERSOS = {
     'S&P 500 (500 activos en vivo)': obtener_sp500,
