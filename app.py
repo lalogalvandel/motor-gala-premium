@@ -1150,25 +1150,42 @@ with tab_wallet:
         tickers_unicos = df_rv["Ticker"].str.upper().str.strip().unique().tolist()
         
         try:
-            # SOLUCIÓN A DIVISAS Y EFECTIVO: Filtramos el ticker sintético "USD" para no confundir a Yahoo
             tickers_limpios = [t for t in tickers_unicos if t not in ["USD", "CASH-USD", "DOLARES"]]
             tickers_descarga = tickers_limpios + ["MXN=X"]
             
-            datos_mercado = yf.download(tickers_descarga, period="1d", progress=False)["Close"]
+            # Descarga de datos
+            datos_mercado = yf.download(tickers_descarga, period="1d", progress=False)
             
-            # Capturamos el tipo de cambio actual
-            try:
-                tipo_cambio_usd_mxn = float(datos_mercado["MXN=X"].iloc[-1])
-            except Exception:
-                tipo_cambio_usd_mxn = 18.50 # Fallback si Yahoo no responde el FX
+            # ── BLINDAJE MULTI-INDEX PARA YFINANCE NUEVO ──
+            if isinstance(datos_mercado.columns, pd.MultiIndex):
+                df_close = datos_mercado['Close']
+            elif 'Close' in datos_mercado.columns:
+                df_close = datos_mercado[['Close']]
+            else:
+                df_close = datos_mercado
                 
             precios_actuales = {}
-            if not datos_mercado.empty:
-                ultima_fila = datos_mercado.iloc[-1]
+            tipo_cambio_usd_mxn = 18.50
+            
+            if not df_close.empty:
+                # Convertimos la última fila a un diccionario nativo seguro
+                if isinstance(df_close, pd.DataFrame):
+                    ultima_fila = df_close.iloc[-1].to_dict()
+                else:
+                    ultima_fila = {tickers_descarga[0]: float(df_close.iloc[-1])}
+                    
+                # Extraemos el tipo de cambio sin que el código explote
+                tipo_cambio_usd_mxn = float(ultima_fila.get("MXN=X", 18.50))
+                if pd.isna(tipo_cambio_usd_mxn) or tipo_cambio_usd_mxn <= 0:
+                    tipo_cambio_usd_mxn = 18.50
+                    
+                # Extraemos los precios de las acciones
                 for t in tickers_limpios:
-                    if t in ultima_fila and not pd.isna(ultima_fila[t]):
-                        precios_actuales[t] = float(ultima_fila[t])
-        except Exception:
+                    val = ultima_fila.get(t)
+                    if val is not None and not pd.isna(val):
+                        precios_actuales[t] = float(val)
+
+        except Exception as e:
             precios_actuales = {}
             tipo_cambio_usd_mxn = 18.50
 
