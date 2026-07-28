@@ -1153,28 +1153,36 @@ with tab_wallet:
             tickers_limpios = [t for t in tickers_unicos if t not in ["USD", "CASH-USD", "DOLARES"]]
             tickers_descarga = tickers_limpios + ["MXN=X"]
             
-            # Descarga de datos
-            datos_mercado = yf.download(tickers_descarga, period="1d", progress=False)
+            # Descarga de datos (Bajamos 5 días para asegurar que haya datos en fines de semana)
+            datos_mercado = yf.download(tickers_descarga, period="5d", progress=False)
             
-            # ── BLINDAJE MULTI-INDEX PARA YFINANCE NUEVO ──
-            if isinstance(datos_mercado.columns, pd.MultiIndex):
-                df_close = datos_mercado['Close']
-            elif 'Close' in datos_mercado.columns:
-                df_close = datos_mercado[['Close']]
-            else:
-                df_close = datos_mercado
-                
+            # ── EL BLINDAJE DEFINITIVO PARA YFINANCE ──
             precios_actuales = {}
             tipo_cambio_usd_mxn = 18.50
             
-            if not df_close.empty:
-                # Convertimos la última fila a un diccionario nativo seguro
-                if isinstance(df_close, pd.DataFrame):
-                    ultima_fila = df_close.iloc[-1].to_dict()
+            if not datos_mercado.empty:
+                # 1. Encontrar y aislar la columna 'Close' sin importar la versión de Pandas/YFinance
+                if isinstance(datos_mercado.columns, pd.MultiIndex):
+                    # Si 'Close' está en el nivel superior (YFinance clásico)
+                    if 'Close' in datos_mercado.columns.get_level_values(0):
+                        df_close = datos_mercado['Close']
+                    # Si 'Close' está en el nivel inferior (YFinance versión 0.2.40+)
+                    else:
+                        df_close = datos_mercado.xs('Close', axis=1, level=1)
+                elif 'Close' in datos_mercado.columns:
+                    # Caso de un solo Ticker (raro, pero protegido)
+                    df_close = datos_mercado[['Close']].rename(columns={'Close': tickers_descarga[0]})
                 else:
-                    ultima_fila = {tickers_descarga[0]: float(df_close.iloc[-1])}
+                    df_close = datos_mercado
                     
-                # Extraemos el tipo de cambio sin que el código explote
+                # 2. EL SECRETO: Llenado hacia adelante (Forward Fill). 
+                # Esto arrastra el último precio válido para que NO haya NaNs por diferencias de horario.
+                df_close = df_close.ffill().bfill()
+                
+                # 3. Ahora sí, extraemos con total seguridad la última fila
+                ultima_fila = df_close.iloc[-1].to_dict()
+                
+                # Extraemos el tipo de cambio
                 tipo_cambio_usd_mxn = float(ultima_fila.get("MXN=X", 18.50))
                 if pd.isna(tipo_cambio_usd_mxn) or tipo_cambio_usd_mxn <= 0:
                     tipo_cambio_usd_mxn = 18.50
