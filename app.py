@@ -1268,8 +1268,9 @@ with tab_wallet:
             }
         )
         st.session_state["df_ledger_acciones"] = df_editado_rv
+        
         # ── NUEVO: ASISTENTE DE COSTO PROMEDIO ──
-        with st.expander(" Asistente de Compras (Calcular Costo Promedio)"):
+        with st.expander("🛠️ Asistente de Compras (Calcular Costo Promedio)"):
             st.caption("Si vas a comprar MÁS acciones de una empresa que ya tienes, usa esto para saber qué 'Precio de Compra' poner en la tabla.")
             
             c_calc1, c_calc2 = st.columns(2)
@@ -1291,10 +1292,27 @@ with tab_wallet:
         
     with col_rv_info:
         if valor_total_rv > 0:
-            rend_pct = (plusvalia_total_rv / df_rv["Costo Total (MXN)"].sum()) * 100
-            st.metric("Rendimiento del Portafolio", f"{rend_pct:.2f}%", f"{f_val_corto(plusvalia_total_rv)}")
+            kpi_rendimiento = st.empty() # Creamos un "hueco" en la interfaz
+            
+            # Inyectamos el resultado real en el espacio que reservamos arriba
+            costo_total_rv = df_rv["Costo Total (MXN)"].sum()
+            rend_pct = (plusvalia_total_rv / costo_total_rv) * 100 if costo_total_rv > 0 else 0.0
+            
+            # Respetamos el modo privacidad para ocultar el dinero ganado
+            if st.session_state.modo_privacidad:
+                kpi_rendimiento.metric(
+                    label="Rendimiento del Portafolio", 
+                    value=f"{rend_pct:.2f}%"
+                )
+            else:
+                kpi_rendimiento.metric(
+                    label="Rendimiento del Portafolio", 
+                    value=f"{rend_pct:.2f}%", 
+                    delta=f"${plusvalia_total_rv:,.2f}"
+                )
             
             # ── SOLUCIÓN UI: Reemplazamos la tabla fea por una Gráfica Institucional ──
+            import plotly.graph_objects as go
             fig_dona = go.Figure(data=[go.Pie(
                 labels=df_rv["Ticker"], 
                 values=df_rv["Valor Mercado (MXN)"], 
@@ -1319,7 +1337,6 @@ with tab_wallet:
         if st.button("🔄 Refrescar Precios de Bolsa", width='stretch'):
             st.rerun()
 
-    # ── CONEXIÓN CLAVE: Guardamos la cartera viva en la RAM para el Motor Cuantitativo ──
     # ── CONEXIÓN CLAVE: Guardamos la cartera TOTAL viva en la RAM ──
     # 1. Extraemos tu Renta Fija / Liquidez
     df_rf_memoria = pd.DataFrame()
