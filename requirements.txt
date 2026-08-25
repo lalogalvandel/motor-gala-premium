@@ -3,7 +3,7 @@ pandas
 plotly
 reportlab
 yfinance
-psycopg2-binary==2.9.9
+psycopg2-binary
 scipy
 scikit-learn
 numpy==1.26.4
