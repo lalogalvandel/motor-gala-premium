@@ -30,7 +30,7 @@ from modulos.black_litterman import calcular_black_litterman
 from modulos.pensiones import MotorActuarial
 from modulos.heuristica import generar_vistas_black_litterman
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest
+from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
 
 # ── Configuración de página ────────────────────────────────────────────────────
@@ -202,7 +202,8 @@ def obtener_clientes(id_corp: str) -> list:
     try:
         r = db.table("clientes_asesor").select("*").eq("id_corp", id_corp).order("nombre_cliente").execute()
         return r.data or []
-    except Exception:
+    except Exception as e:
+        print(f"ERROR EN BD (Clientes): {e}") # <--- Agrega esto
         return []
 
 def guardar_cliente(datos: dict, id_corp: str) -> tuple[bool, str]:
@@ -222,7 +223,8 @@ def obtener_cuentas_wallet(id_corp: str) -> list:
     try:
         r = db.table("wallet_cuentas").select("id, institucion, tasa_anual, saldo").eq("id_corp", id_corp).order("institucion").execute()
         return r.data or []
-    except Exception:
+    except Exception as e:
+        print(f"ERROR EN BD (Cuentas Wallet): {e}") # <--- Agrega esto
         return []
 
 def agregar_cuenta_wallet(id_asesor: str, id_corp: str, institucion: str, tasa_anual: float, saldo: float) -> tuple[bool, str]:
