@@ -1,6 +1,9 @@
 # =============================================================================
-# Motor GaLa VIP - Edición Especial Consultoría
-# Creado por: Eduardo Galván del Río
+# Copyright (c) 2026 Eduardo Galván del Rio. Todos los derechos reservados.
+# 
+# Este código fuente es propiedad exclusiva y confidencial. Queda estrictamente
+# prohibida su reproducción, distribución, comercialización o modificación
+# sin autorización expresa y por escrito del autor.
 # =============================================================================
 import io
 import numpy as np
@@ -48,7 +51,7 @@ def _estilos() -> dict:
         'titulo': ParagraphStyle('titulo', fontSize=32, textColor=BLANCO, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=12, leading=38),
         'titulo_marca': ParagraphStyle('titulo_marca', fontSize=10, textColor=AZUL_BRILLO, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=6, charSpace=3, leading=14),
         'subtitulo': ParagraphStyle('subtitulo', fontSize=11.5, textColor=AZUL_BRILLO, fontName='Helvetica', alignment=TA_CENTER, spaceAfter=8, leading=17),
-        'portada_cuerpo': ParagraphStyle('portada_cuerpo', fontSize=10.5, textColor=GRIS_SUAVE, fontName='Helvetica', alignment=TA_JUSTIFY, spaceAfter=8, leading=17, leftIndent=24, rightIndent=24),
+        'portada_cuerpo': ParagraphStyle('portada_cuerpo', fontSize=9.5, textColor=GRIS_SUAVE, fontName='Helvetica', alignment=TA_JUSTIFY, spaceAfter=8, leading=17, leftIndent=24, rightIndent=24),
         'etiqueta_seccion': ParagraphStyle('etiqueta_seccion', fontSize=7, textColor=AZUL_ACENTO, fontName='Helvetica-Bold', spaceBefore=14, spaceAfter=2, charSpace=2, leading=10),
         'seccion': ParagraphStyle('seccion', fontSize=14, textColor=BLANCO, fontName='Helvetica-Bold', spaceBefore=4, spaceAfter=4, leading=18),
         'subseccion': ParagraphStyle('subseccion', fontSize=10.5, textColor=AZUL_BRILLO, fontName='Helvetica-Bold', spaceBefore=10, spaceAfter=4, leading=14),
@@ -67,9 +70,21 @@ def _estilos() -> dict:
     }
 
 # ── Bloques de layout reutilizables ───────────────────────────────────────────
+def _nota(texto: str, E: dict) -> Table:
+    celda = Table([[Paragraph(texto, E['metodo'])]], colWidths=[PAGE_W - 0.1 * inch])
+    celda.setStyle(TableStyle([
+        ('BACKGROUND',     (0, 0), (-1, -1), AZUL_ICE),
+        ('LINEBEFORE',     (0, 0), (0, -1),  3, AZUL_ACENTO),
+        ('TOPPADDING',     (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING',  (0, 0), (-1, -1), 9),
+        ('LEFTPADDING',    (0, 0), (-1, -1), 14),
+        ('RIGHTPADDING',   (0, 0), (-1, -1), 12),
+    ]))
+    return celda
+
 def _callout_tecnico(titulo: str, texto: str, formula: str = None) -> list:
     E = _estilos()
-    encabezado = Paragraph(f"◈  ANÁLISIS GALA  ·  {titulo.upper()}", E['caja_titulo'])
+    encabezado = Paragraph(f"◈  METODOLOGÍA  ·  {titulo.upper()}", E['caja_titulo'])
     cuerpo = Paragraph(texto, E['caja_cuerpo'])
     elementos: list = [encabezado, cuerpo]
 
@@ -98,7 +113,7 @@ def _callout_tecnico(titulo: str, texto: str, formula: str = None) -> list:
 
 def _callout_alerta(titulo: str, texto: str) -> list:
     E = _estilos()
-    encabezado = Paragraph(f"⚑  PLAN DE ACCIÓN  ·  {titulo.upper()}", E['caja_titulo_alerta'])
+    encabezado = Paragraph(f"⚑  PRESCRIPCIÓN  ·  {titulo.upper()}", E['caja_titulo_alerta'])
     cuerpo = Paragraph(texto, E['caja_cuerpo'])
     t = Table([[[encabezado, cuerpo]]], colWidths=[PAGE_W])
     t.setStyle(TableStyle([
@@ -218,7 +233,7 @@ def _on_page(canvas, doc):
 
         canvas.setFont('Helvetica-Bold', 8)
         canvas.setFillColor(AZUL_BRILLO)
-        canvas.drawString(0.5 * inch, h - 0.52 * inch, "MOTOR CUANTITATIVO  ·  CONSULTORÍA PRIVADA")
+        canvas.drawString(0.5 * inch, h - 0.52 * inch, "MOTOR CUANTITATIVO  ·  ANÁLISIS INSTITUCIONAL DE PORTAFOLIOS")
         canvas.setFont('Helvetica', 7.5)
         canvas.setFillColor(GRIS_SUAVE)
         canvas.drawRightString(w - 0.5 * inch, h - 0.52 * inch, datetime.now().strftime("%d %b %Y").upper())
@@ -244,7 +259,7 @@ def _on_page(canvas, doc):
         canvas.setFillColor(GRIS_SUAVE)
         canvas.drawString(0.5 * inch, 0.23 * inch, "DOCUMENTO CONFIDENCIAL  ·  DISTRIBUCIÓN RESTRINGIDA AL DESTINATARIO")
         canvas.setFont('Helvetica', 7)
-        canvas.drawRightString(w - 0.5 * inch, 0.23 * inch, f"Motor GaLa ©  {datetime.now().year}  ·  Lalo Galván")
+        canvas.drawRightString(w - 0.5 * inch, 0.23 * inch, f"Motor GaLa ©  {datetime.now().year}  ·  Todos los derechos reservados")
 
     else:
         canvas.setFillColor(AZUL_NOCHE)
@@ -260,7 +275,7 @@ def _on_page(canvas, doc):
         canvas.drawString(16, h - 22, "MOTOR CUANTITATIVO  GaLa")
         canvas.setFont('Helvetica', 7.5)
         canvas.setFillColor(AZUL_BRILLO)
-        canvas.drawRightString(w - 16, h - 22, f"Planeación Patrimonial  ·  p. {doc.page}")
+        canvas.drawRightString(w - 16, h - 22, f"Análisis Institucional  ·  p. {doc.page}")
 
         canvas.setFillColor(AZUL_OSCURO)
         canvas.rect(0, 0, w, 22, fill=True, stroke=False)
@@ -268,17 +283,15 @@ def _on_page(canvas, doc):
         canvas.rect(0, 22, w, 1, fill=True, stroke=False)
         canvas.setFont('Helvetica', 6.5)
         canvas.setFillColor(GRIS_SUAVE)
-        canvas.drawString(16, 7, "Documento confidencial — Motor GaLa  ©  2026")
+        canvas.drawString(16, 7, "Documento confidencial — Motor GaLa  ©  2026  ·  Distribución restringida al destinatario autorizado")
         canvas.drawRightString(w - 16, 7, datetime.now().strftime("%d/%m/%Y  %H:%M"))
 
     canvas.restoreState()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LA FUNCIÓN MAESTRA DEL REPORTE (PULIDA PARA EL CLIENTE)
-# ─────────────────────────────────────────────────────────────────────────────
 def generar_reporte(
-    nombre_cliente, meta_mensual, tasa_retiro_swr, regimen_pensional, 
+    nombre_cliente, meta_mensual, tasa_retiro_swr, regimen_pensional, # <── ¡AQUÍ ESTÁN LOS NUEVOS!
     tickers, pesos_opt, ret_opt, vol_opt, sharpe_opt, sortino, desv_down, df_t,
     var_cvar, max_dd, duracion_dd, inicio_dd, fin_dd, df_stress, capital_riesgo,
     p5_final, p25_final, p50_final, p75_final, p95_final,
@@ -301,101 +314,147 @@ def generar_reporte(
     story = []
 
     # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 1 — PORTADA Y DIAGNÓSTICO
+    # PÁGINA 1 — PORTADA
     story.append(Spacer(1, 1.5 * inch))
     story.append(Paragraph("MOTOR CUANTITATIVO GaLa", E['titulo']))
     story.append(Spacer(1, 0.22 * inch))
-    story.append(Paragraph("Tu Plan Patrimonial Personalizado", E['subtitulo']))
+    story.append(Paragraph("Reporte Institucional de Portafolio  ·  Metodología White-Box", E['subtitulo']))
     story.append(Spacer(1, 0.12 * inch))
     story.append(Paragraph(datetime.now().strftime("%d de %B de %Y").upper(), E['titulo_marca']))
     
+    # ── EL TOQUE INSTITUCIONAL: NOMBRE DEL CLIENTE ──
     story.append(Spacer(1, 0.35 * inch))
     story.append(Paragraph(f"Análisis preparado exclusivamente para: {nombre_cliente.upper()}", 
-                 ParagraphStyle('cliente', fontSize=12, textColor=VERDE, fontName='Helvetica-Bold', alignment=TA_CENTER, charSpace=1)))
-    story.append(Spacer(1, 0.5 * inch))
+                 ParagraphStyle('cliente', fontSize=10, textColor=VERDE, fontName='Helvetica-Bold', alignment=TA_CENTER, charSpace=1)))
+    story.append(Spacer(1, 0.35 * inch))
 
-    story.append(Paragraph("Este plan patrimonial ha sido diseñado específicamente para ti, utilizando modelos matemáticos avanzados (Motor GaLa). El objetivo de este documento es darte claridad absoluta sobre dónde estás parado hoy, si tus ahorros serán suficientes para tu retiro, y exactamente qué debes hacer a partir de mañana para optimizar tu dinero de forma profesional.", E['portada_cuerpo']))
-    
-    # ── RESUMEN LDI (DIAGNÓSTICO DIRECTO) ──
-    story.append(Spacer(1, 0.4 * inch))
-    story += _seccion("Tu Diagnóstico Financiero de Retiro", E['seccion'], etiqueta="Paso 1: ¿Te va a alcanzar?")
-    
-    es_ley_73 = (pension_imss is not None and pension_imss > 0)
-    
-    ldi_data = [['Variable Clave', 'Tu Situación Actual']]
-    ldi_data.append(['Años para tu retiro', f"{horizonte_años} años"])
-    ldi_data.append(['Ingreso mensual que deseas', f"${meta_mensual:,.2f} MXN libres"])
-    
-    if es_ley_73:
-        ldi_data.append(['Pensión del Gobierno Estimada', f"${pension_imss:,.2f} MXN / mes"])
-    else:
-        ldi_data.append(['Pensión del Gobierno', '$0.00 MXN (Dependes 100% de tus inversiones)'])
-
-    diagnostico = "⚠ Necesitas ajustar tu estrategia de inversión" if brecha_pensional > 0 else "✓ Vas por excelente camino (Superávit)"
-    ldi_data.append(['Diagnóstico del Motor GaLa', diagnostico])
-
-    story.append(_tabla_estilo(ldi_data, [3.3 * inch, 3.2 * inch]))
-    story.append(Spacer(1, 0.2 * inch))
-
-    if brecha_pensional > 0:
-        story += _callout_alerta(
-            titulo="Atención: Existe un déficit para tu meta",
-            texto=f"Si continúas invirtiendo de la misma forma, te faltarán aproximadamente ${brecha_pensional:,.0f} MXN al mes para mantener el estilo de vida que deseas en tu retiro (ajustado por inflación). Para solucionar esto, el Motor GaLa ha diseñado el portafolio de la siguiente página, el cual asume el nivel de riesgo estadístico exacto para ayudarte a cerrar esta brecha."
-        )
-    else:
-        story += _callout_tecnico(
-            titulo="Felicidades: Tu plan es financieramente sólido",
-            texto=f"Tus aportaciones y capital actual son suficientes para superar tu meta mensual por ${abs(brecha_pensional):,.0f} MXN (ya descontando la inflación). El portafolio de la siguiente página fue diseñado para **preservar** tu riqueza, evitando tomar riesgos innecesarios en la bolsa de valores."
-        )
+    story.append(Paragraph("  ·  ".join(tickers), ParagraphStyle('universo_portada', fontSize=10, textColor=GRIS_SUAVE, fontName='Helvetica', alignment=TA_CENTER, spaceAfter=0, leading=15)))
+    story.append(Spacer(1, 0.75 * inch))
+    story.append(Paragraph("El presente reporte expone, con transparencia metodológica íntegra, la arquitectura algorítmica empleada en la estructuración del portafolio óptimo. El universo de inversión fue procesado a través de un motor estocástico de segunda generación, calibrado con distribuciones asimétricas de cola pesada y parámetros macroeconómicos actualizados, con el propósito expreso de superar las limitaciones estadísticas inherentes a los modelos de varianza media convencionales.", E['portada_cuerpo']))
+    story.append(Paragraph("Cada sección de este documento detalla el fundamento cuantitativo subyacente a las decisiones adoptadas, proveyendo al lector institucional los elementos necesarios para la auditoría, replicación y validación independiente de los resultados presentados.", E['portada_cuerpo']))
     story.append(PageBreak())
+    # ══════════════════════════════════════════════════════════════════════════
+    # PÁGINA CONDICIONAL — MODELADO LDI (AHORA ES DINÁMICA: LEY 73 vs PPR)
+    if brecha_pensional is not None:
+        story.append(Spacer(1, 0.3 * inch))
+        story += _seccion("Modelado Actuarial LDI y Pasivos", E['seccion'], etiqueta="Análisis de Pasivos · LDI")
+        story.append(Paragraph("I. Calibración del Régimen Pensional", E['subseccion']))
+        story.append(Paragraph(
+            "El modelo cuantifica la brecha de cobertura frente al nivel de consumo objetivo. "
+            "Los flujos proyectados se presentan en términos reales (poder adquisitivo actual), "
+            "habiendo descontado la erosión inflacionaria esperada mediante la Ecuación de Fisher.", E['justificado']
+        ))
+
+        # Detectar si el usuario corrió Ley 73 o PPR Puro
+        es_ley_73 = (pension_imss is not None and pension_imss > 0)
+        
+        ldi_data = [['Parámetro Actuarial', 'Valor Calibrado']]
+        
+        if es_ley_73:
+            ldi_data.extend([
+                ['Régimen detectado', 'Beneficio Definido (IMSS Ley 73)'],
+                ['Semanas cotizadas al régimen obligatorio', f"{semanas_cotizadas:,}" if semanas_cotizadas else "N/D"],
+                ['Salario Promedio Diario Integrado (SPDI)', f"${salario_promedio:,.2f} MXN" if salario_promedio else "N/D"],
+                ['Pensión vitalicia estimada', f"${pension_imss:,.2f} MXN / mes"],
+            ])
+        else:
+            ldi_data.extend([
+                ['Régimen detectado', 'Contribución Definida (PPR / Ley 97)'],
+                ['Pensión Gubernamental Estimada', '$0.00 MXN / mes'],
+                ['Dependencia del Portafolio Privado', '100.0%'],
+            ])
+
+        diagnostico = "⚠  Déficit estructural de cobertura" if brecha_pensional > 0 else "✓  Superávit — Régimen de preservación"
+        ldi_data.append(['Diagnóstico de suficiencia (Valor Real)', diagnostico])
+
+        story.append(_tabla_estilo(ldi_data, [3.3 * inch, 3.2 * inch]))
+        story.append(Spacer(1, 0.08 * inch))
+
+        if es_ley_73:
+            if simular_m40:
+                story += _callout_tecnico(
+                    titulo="Estrategia de Continuación Voluntaria — Modalidad 40",
+                    texto="El modelo actuarial incorpora la estrategia de Continuación Voluntaria al Régimen Obligatorio durante los últimos cinco años previos al retiro. Bajo este esquema, el Salario Promedio Diario Integrado (SPDI) converge matemáticamente al tope máximo de cotización equivalente a 25 UMAs, generando una asimetría actuarial positiva de gran magnitud."
+                )
+            else:
+                story += _callout_tecnico(
+                    titulo="Algoritmo de Cuantificación Pensional — IMSS Ley 73",
+                    texto="La estimación de la pensión gubernamental se fundamenta en el marco normativo de la Ley del Seguro Social de 1973. El algoritmo calibra la Cuantía Básica en función del número de semanas cotizadas acreditadas y aplica los Incrementos Anuales correspondientes."
+                )
+        else:
+            story += _callout_tecnico(
+                titulo="Régimen de Contribución Definida y Ecuación de Fisher",
+                texto="Bajo un régimen de acumulación privada estricta, la totalidad de la tasa de reemplazo depende de la capitalización del fondo. El Motor GaLa proyecta el Valor Futuro del portafolio en términos reales descontando la tasa de inflación objetivo, lo que permite que la meta de retiro se exprese en pesos de poder adquisitivo actual (eliminando la ilusión monetaria)."
+            )
+
+        story.append(Paragraph("II. Prescripción Algorítmica del Presupuesto de Riesgo", E['subseccion']))
+        riesgo_asignado = limite_riesgo_global * 100 if limite_riesgo_global else 80.0
+        story.append(Paragraph(
+            f"El Motor GaLa determinó, mediante análisis de suficiencia actuarial sobre el flujo neto proyectado, un perfil de inversión <b>{perfil_estrategico or 'Optimizado'}</b>. "
+            f"Con base en la certidumbre del diferencial entre retiros esperados y renta vitalicia, el presupuesto máximo de exposición a activos de renta variable fue fijado algorítmicamente en <b>{riesgo_asignado:.1f}%</b> del capital total gestionado.", E['normal']
+        ))
+
+        story += _callout_alerta(
+            titulo="Inversión Basada en Pasivos (LDI — Liability-Driven Investing)",
+            texto="El paradigma LDI reorienta el objetivo de optimización: en lugar de maximizar el retorno esperado en abstracto, el algoritmo subordina la construcción del portafolio al análisis del pasivo financiero individual. En presencia de superávit actuarial, el optimizador contrae el presupuesto de riesgo. En escenarios de déficit, el algoritmo amplía la frontera eficiente hacia mayor exposición a renta variable, buscando capturar la prima de riesgo necesaria para cerrar la brecha de cobertura."
+        )
+        story.append(PageBreak())
 
     # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 2 — LA RECETA (PORTAFOLIO ÓPTIMO)
+    # PÁGINA 2 — PORTAFOLIO ÓPTIMO
     story.append(Spacer(1, 0.3 * inch))
-    story += _seccion("Tu Plan de Acción (Portafolio Óptimo)", E['seccion'], etiqueta="Paso 2: ¿Qué debes hacer con tu dinero?")
+    story += _seccion("Arquitectura del Portafolio Óptimo", E['seccion'], etiqueta="Optimización Cuantitativa · Frontera Eficiente")
 
-    story.append(Paragraph("Para alcanzar la máxima eficiencia (mayor ganancia posible con el menor riesgo matemático), tu dinero debe estar distribuido exactamente de la siguiente manera:", E['normal']))
+    story += _callout_tecnico(
+        titulo="Optimización SLSQP con Restricciones de Concentración y Presupuesto de Riesgo",
+        texto="La distribución de pesos no responde a criterios heurísticos ni a juicios discrecionales. El Motor convergió iterativamente mediante el algoritmo SLSQP (Sequential Least Squares Programming) —programación cuadrática secuencial— operando sobre la matriz de covarianzas estimada por ventana rodante, con el propósito de mitigar el sesgo de estacionariedad implícito en las estimaciones estáticas. Las restricciones de caja aseguran que ningún instrumento individual supere el techo de concentración definido, mientras que la restricción de riesgo global garantiza que la exposición agregada a activos de renta variable no exceda el presupuesto actuarial autorizado en ningún punto del proceso de optimización.",
+        formula="Max: Sharpe = ( E[Rp] − Rf ) / σp    |    Sujeto a: Σ wᵢ = 1,  Σ w_riesgo ≤ Límite Global"
+    )
+    story.append(Spacer(1, 0.1 * inch))
+
+    story.append(_kpi_cards([
+        ("Retorno Anual Esperado",  f"{ret_opt*100:.2f}%",  "E[Rp] histórico anualizado"),
+        ("Volatilidad Anual",       f"{vol_opt*100:.2f}%",  "σp — desviación estándar"),
+        ("Ratio Sharpe",            f"{sharpe_opt:.4f}",    "Prima por unidad de riesgo total"),
+        ("Ratio Sortino",           f"{sortino:.4f}",       "Prima por unidad de riesgo a la baja"),
+    ]))
+    story.append(Spacer(1, 0.2 * inch))
+
+    story.append(Paragraph("Distribución Óptima del Capital por Instrumento", E['subseccion']))
+    story.append(Paragraph("La siguiente tabla presenta la asignación de capital resultante del proceso de optimización, ordenada de mayor a menor ponderación. La columna de intensidad de asignación permite apreciar de forma intuitiva la concentración relativa por instrumento.", E['justificado']))
 
     df_pesos = pd.DataFrame({'Activo': tickers, 'Peso (%)': (pesos_opt * 100).round(2)})
     df_pesos_reales = df_pesos[df_pesos['Peso (%)'] > 0].sort_values('Peso (%)', ascending=False)
     
-    pesos_data = [['Instrumento / Activo a Comprar', 'Porcentaje de tu Capital Sugerido']]
+    pesos_data = [['Instrumento / Activo', 'Ponderación (%)', 'Intensidad de asignación']]
     for _, row in df_pesos_reales.iterrows():
-        pesos_data.append([row['Activo'], f"{row['Peso (%)']:.2f} %"])
-    story.append(_tabla_estilo(pesos_data, [3.2 * inch, 3.3 * inch]))
-
-    story.append(Spacer(1, 0.2 * inch))
-    story.append(_kpi_cards([
-        ("Rendimiento Promedio Anual",  f"{ret_opt*100:.2f}%",  "Histórico esperado"),
-        ("Volatilidad de la Estrategia", f"{vol_opt*100:.2f}%",  "Nivel de fluctuación"),
-        ("Calificación de Eficiencia",   f"{sharpe_opt:.2f}",    "Ratio de Sharpe (>1 es excelente)"),
-    ]))
+        barra = '█' * max(1, int(row['Peso (%)'] / 3))
+        pesos_data.append([row['Activo'], f"{row['Peso (%)']:.2f} %", barra])
+    story.append(_tabla_estilo(pesos_data, [1.8 * inch, 1.4 * inch, 3.3 * inch]))
 
     if fig_markowitz:
         story.append(Spacer(1, 0.15 * inch))
         story.append(KeepTogether([
-            Paragraph("El Mapa de tus Inversiones (Frontera Eficiente)", E['subseccion']),
-            Paragraph("La estrella roja representa tu portafolio sugerido. Hemos analizado matemáticamente miles de combinaciones (los puntos de colores) para asegurarnos de que estás ubicado en la 'frontera', el borde exacto donde nadie más en el mercado puede obtener mejores rendimientos sin asumir un riesgo desproporcionado.", E['normal']),
+            Paragraph("Superficie de la Frontera Eficiente de Markowitz", E['subseccion']),
+            Paragraph("Cada punto sobre la curva representa un portafolio matemáticamente inalcanzable de superar en términos de Sharpe dentro del universo analizado. El portafolio tangencial maximiza la prima de riesgo ajustada por volatilidad.", E['normal']),
             _fig_a_imagen(fig_markowitz, h_inch=2.8),
         ]))
     story.append(PageBreak())
 
     # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 3 — RIESGO TRADUCIDO AL ESPAÑOL
+    # PÁGINA 3 — RIESGO ESTRUCTURAL
     story.append(Spacer(1, 0.3 * inch))
-    story += _seccion("Radiografía de Riesgos", E['seccion'], etiqueta="Paso 3: ¿Qué esperar en las crisis?")
-    story.append(Paragraph(f"Toda inversión conlleva riesgo. Como tu consultor, mi responsabilidad es que estés psicológicamente preparado para los movimientos naturales del mercado. Si invirtieras un portafolio de **${capital_riesgo:,.0f} MXN** con la distribución sugerida, esto es matemáticamente lo peor que podría pasar:", E['justificado']))
-    story.append(Spacer(1, 0.08 * inch))
+    story += _seccion("Análisis de Riesgo Estructural — VaR, CVaR y Drawdown", E['seccion'], etiqueta="Gestión de Riesgos · Métricas Downside")
 
     riesgo_data = [
-        ['Escenario en la Bolsa', 'Caída Máxima Esperada', f'Dinero en Riesgo (MXN)'],
-        ['En un mes malo \n(1 de cada 20 meses - VaR 95%)', f"{var_cvar['VaR_95_hist']*100:.1f} %", f"${abs(var_cvar['VaR_95_hist']) * capital_riesgo:,.0f}"],
-        ['En un mes catastrófico \n(1 de cada 100 meses - VaR 99%)', f"{var_cvar['VaR_99_hist']*100:.1f} %", f"${abs(var_cvar['VaR_99_hist']) * capital_riesgo:,.0f}"],
-        ['En la peor crisis global de la historia \n(Maximum Drawdown)', f"{max_dd*100:.1f} %", f"${abs(max_dd) * capital_riesgo:,.0f}"],
+        ['Métrica de Riesgo', 'Cuantía  (%)', f'Pérdida diaria estimada  (${capital_riesgo:,} USD)'],
+        ['VaR 95%  — Simulación Histórica', f"{var_cvar['VaR_95_hist']*100:.2f} %", f"${abs(var_cvar['VaR_95_hist']) * capital_riesgo:,.0f}"],
+        ['VaR 99%  — Simulación Histórica', f"{var_cvar['VaR_99_hist']*100:.2f} %", f"${abs(var_cvar['VaR_99_hist']) * capital_riesgo:,.0f}"],
+        ['CVaR 95%  (Expected Shortfall)', f"{var_cvar['CVaR_95']*100:.2f} %", f"${abs(var_cvar['CVaR_95']) * capital_riesgo:,.0f}"],
+        ['CVaR 99%  (Expected Shortfall)', f"{var_cvar['CVaR_99']*100:.2f} %", f"${abs(var_cvar['CVaR_99']) * capital_riesgo:,.0f}"],
+        ['Maximum Drawdown  —  Período histórico', f"{max_dd*100:.2f} %", f"${abs(max_dd) * capital_riesgo:,.0f}"],
     ]
-    
-    # Tabla con formato más amable
-    t_riesgo = Table(riesgo_data, colWidths=[3.0 * inch, 1.5 * inch, 2.0 * inch])
+    t_riesgo = Table(riesgo_data, colWidths=[2.8 * inch, 1.5 * inch, 2.2 * inch])
     t_riesgo.setStyle(TableStyle([
         ('BACKGROUND',    (0, 0), (-1, 0),  AZUL_OSCURO),
         ('TEXTCOLOR',     (0, 0), (-1, 0),  AZUL_BRILLO), 
@@ -408,44 +467,120 @@ def generar_reporte(
         ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
         ('ROWBACKGROUNDS',(0, 1), (-1, -1), [GRIS_FONDO, GRIS_CLARO]),
         ('TEXTCOLOR',     (0, 1), (0, -1),  GRIS_TEXTO),
-        ('TEXTCOLOR',     (1, 1), (2, -1),  ROJO),
+        ('TEXTCOLOR',     (1, 1), (1, -1),  ROJO),
+        ('TEXTCOLOR',     (2, 1), (2, -1),  ROJO),
         ('GRID',          (0, 0), (-1, -1), 0.5, GRIS_LINEA),
-        ('TOPPADDING',    (0, 1), (-1, -1), 12),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 12),
-        ('FONTNAME',      (1, 1), (2, -1),  'Helvetica-Bold'),
+        ('TOPPADDING',    (0, 1), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+        ('FONTNAME',      (1, 1), (1, -1),  'Helvetica-Bold'),
     ]))
     story.append(t_riesgo)
-    story.append(Spacer(1, 0.2 * inch))
+    story.append(Spacer(1, 0.08 * inch))
 
     story += _callout_tecnico(
-        titulo="Nota sobre la Cobertura Cambiaria",
-        texto="Si gran parte de tu portafolio está en dólares (Ej. S&P 500, ETFs globales), tienes un escudo natural. En la historia de México, cuando hay pánico en los mercados globales, el Peso Mexicano suele perder valor frente al Dólar. Esto hace que tus inversiones dolarizadas ganen valor en pesos, amortiguando e incluso borrando las caídas de la bolsa."
+        titulo="Modelado de Eventos Extremos — Distribución t-Student vs. Distribución Gaussiana",
+        texto=f"Los sistemas convencionales de gestión de riesgos asumen distribuciones normales en los retornos, lo que conduce a una subestimación sistemática y estructural de la frecuencia e intensidad de los eventos extremos —eventos de cola o, en la terminología popular, 'Cisnes Negros'—. El Motor GaLa calibró los retornos diarios del portafolio a una distribución t de Student empírica. Con grados de libertad estimados en gl = {df_t:.1f}, el modelo engrosa matemáticamente las colas de la distribución, produciendo un CVaR (Expected Shortfall o Déficit Esperado en Escenarios Adversos) que refleja con fidelidad estadística superior el comportamiento del portafolio bajo condiciones de estrés sistémico."
     )
+
+    if fig_var:
+        story.append(KeepTogether([
+            Paragraph("Distribución Empírica de Retornos Diarios — VaR y CVaR", E['subseccion']),
+            Paragraph("La línea vertical sólida delimita el umbral del VaR; el área sombreada a su izquierda representa el Expected Shortfall (CVaR): la pérdida promedio esperada condicionada a exceder dicho umbral, con probabilidad 1 − α.", E['normal']),
+            _fig_a_imagen(fig_var, h_inch=2.7),
+        ]))
 
     if fig_dd:
         story.append(KeepTogether([
             Spacer(1, 0.15 * inch),
-            Paragraph("Curva de las peores caídas históricas de esta estrategia", E['subseccion']),
-            _fig_a_imagen(fig_dd, h_inch=2.3),
+            Paragraph("Curva de Drawdown Histórico Acumulado", E['subseccion']),
+            Paragraph("El Maximum Drawdown cuantifica la caída máxima observada desde un máximo histórico hasta el mínimo subsecuente. Es la métrica canónica de evaluación del Riesgo de Secuencia de Retornos y determina el capital en riesgo de no recuperación.", E['normal']),
+            _fig_a_imagen(fig_dd, h_inch=2.2),
         ]))
     story.append(PageBreak())
 
     # ══════════════════════════════════════════════════════════════════════════
-    # PÁGINA 4 — TU FUTURO (MONTE CARLO)
+    # PÁGINA 4 — STRESS TESTING + CORRELACIÓN DINÁMICA
     story.append(Spacer(1, 0.3 * inch))
-    story += _seccion("Proyección de tu Futuro Financiero", E['seccion'], etiqueta="Paso 4: El poder del tiempo")
+    story += _seccion("Pruebas de Estrés — Retroproyección sobre Crisis Históricas", E['seccion'], etiqueta="Análisis de Escenarios · Stress Testing")
+    story.append(Paragraph("El portafolio fue sometido a retroproyección sistemática (backtesting de estrés) sobre los principales episodios de dislocación sistémica registrados en los mercados financieros globales. Los factores de choque aplicados corresponden a las caídas efectivamente observadas en los activos del universo durante cada crisis, sin suavizamiento temporal ni ajuste de supervivencia.", E['justificado']))
+    story.append(Spacer(1, 0.08 * inch))
 
-    story.append(Paragraph(f"Para calcular adónde vas a llegar, el Motor GaLa corrió **2,000 líneas de tiempo alternativas** simulando todos los escenarios de suerte posibles (buenos y malos) en la bolsa durante los próximos **{horizonte_años} años**.", E['justificado']))
-    story.append(Spacer(1, 0.15 * inch))
+    # ── CORRECCIÓN: Cambiamos (USD) por (MXN) en el Header y en el llamado a la fila ──
+    stress_data = [['Escenario Histórico de Estrés', 'Impacto  (%)', 'Pérdida estimada (MXN)']]
+    for _, row in df_stress.iterrows():
+        stress_data.append([row['Escenario'], f"{row['Pérdida (%)']:.1f} %", f"${abs(row['Pérdida (MXN)']):,.0f}"])
+    
+    t_stress = Table(stress_data, colWidths=[3.2 * inch, 1.5 * inch, 1.8 * inch])
+    t_stress.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, 0),  AZUL_OSCURO),
+        ('TEXTCOLOR',     (0, 0), (-1, 0),  AZUL_BRILLO), 
+        ('FONTNAME',      (0, 0), (-1, 0),  'Helvetica-Bold'),
+        ('FONTSIZE',      (0, 0), (-1, -1), 9),
+        ('TOPPADDING',    (0, 0), (-1, 0),  10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0),  10),
+        ('LINEBELOW',     (0, 0), (-1, 0),  1.5, AZUL_ACENTO),
+        ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('ROWBACKGROUNDS',(0, 1), (-1, -1), [GRIS_FONDO, GRIS_CLARO]),
+        ('TEXTCOLOR',     (0, 1), (0, -1),  GRIS_TEXTO),
+        ('TEXTCOLOR',     (1, 1), (1, -1),  ROJO), 
+        ('TEXTCOLOR',     (2, 1), (2, -1),  ROJO), 
+        ('GRID',          (0, 0), (-1, -1), 0.5, GRIS_LINEA),
+        ('TOPPADDING',    (0, 1), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+        ('FONTNAME',      (1, 1), (1, -1),  'Helvetica-Bold'),
+    ]))
+    story.append(t_stress)
 
+    if fig_stress:
+        story.append(KeepTogether([
+            Spacer(1, 0.15 * inch),
+            Paragraph("Impacto por Escenario de Crisis — Comparativa Visual", E['subseccion']),
+            _fig_a_imagen(fig_stress, h_inch=2.7),
+        ]))
+
+    if fig_corr:
+        story.append(KeepTogether([
+            Spacer(1, 0.25 * inch),
+            *_seccion("Correlación Dinámica Rodante — Ventana de 60 Días", E['seccion'], etiqueta="Análisis de Dependencia · Correlación Condicional"),
+            Paragraph("La correlación móvil captura la dinámica de codependencia entre los activos a lo largo del tiempo, revelando regímenes de mercado en los cuales los beneficios de diversificación se comprimen o invierten —fenómeno característico durante episodios de aversión al riesgo sistémico—. Este análisis informa la robustez real de la estructura del portafolio bajo condiciones de mercado adversas, donde la correlación observada en períodos normales pierde validez predictiva.", E['justificado']),
+            _fig_a_imagen(fig_corr, h_inch=2.7),
+        ]))
+    story.append(PageBreak())
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PÁGINA 5 — PROYECCIÓN DE CAPITAL MONTE CARLO
+    story.append(Spacer(1, 0.3 * inch))
+    story += _seccion("Proyección Estocástica de Capital — Simulación de Monte Carlo", E['seccion'], etiqueta="Proyección Financiera · Simulación Estocástica")
+
+    story += _callout_tecnico(
+        titulo="Motor de Inferencia Estocástica — Movimiento Browniano Geométrico (GBM)",
+        texto="La proyección de capital no se sustenta en tasas de crecimiento lineales ni en modelos deterministas que omitan la volatilidad intrínseca del portafolio. El Motor implementa un Movimiento Browniano Geométrico (Geometric Brownian Motion) de frecuencia mensual, con shocks de distribución t-Student calibrados a la volatilidad histórica real de la cartera y ajustados por el drift esperado neto de aportaciones periódicas. El percentil Adverso (P5) proporciona un intervalo de confianza del 95% para la supervivencia financiera del portafolio, exhibiendo con rigor matemático el Riesgo de Secuencia de Retornos: el orden cronológico en que se materializan los retornos negativos puede erosionar el capital de forma irreversible, incluso cuando el retorno promedio del período completo resulte positivo."
+    )
+
+    # ── TABLA DE RENTA VITALICIA REAL ──
+    pension_base = pension_imss if pension_imss is not None else 0.0
+    flujo_p5 = ((p5_final * tasa_retiro_swr) / 12) + pension_base
+    flujo_p25 = ((p25_final * tasa_retiro_swr) / 12) + pension_base
+    flujo_p50 = ((p50_final * tasa_retiro_swr) / 12) + pension_base
+    flujo_p75 = ((p75_final * tasa_retiro_swr) / 12) + pension_base
+    flujo_p95 = ((p95_final * tasa_retiro_swr) / 12) + pension_base
+
+    # ── Corrección Visual: Textos institucionales concisos ──
     mc_data = [
-        ['Si el mundo se comporta de manera...', 'Tu Capital Acumulado será de:'],
-        ['Crisis Prolongada y Mala Suerte \n(Solo pasa el 5% de las veces)', f"${p5_final:,.0f} MXN"],
-        ['Crecimiento Normal y Promedio \n(El Escenario Base esperado)', f"${p50_final:,.0f} MXN"],
-        ['Mercado Altamente Favorable \n(Solo pasa el 5% de las veces)', f"${p95_final:,.0f} MXN"]
+        ['Escenario Probabilístico', 'Capital Real (Pesos de Hoy)', f'Renta Mensual (SWR {tasa_retiro_swr*100:.1f}%)'],
+        ['Adverso extremo  — P5',         f"${p5_final:,.0f}", f"${flujo_p5:,.0f} / mes"],
+        ['Moderadamente adverso  — P25',  f"${p25_final:,.0f}", f"${flujo_p25:,.0f} / mes"],
+        ['Escenario base  — P50',         f"${p50_final:,.0f}", f"${flujo_p50:,.0f} / mes"],
+        ['Moderadamente favorable  — P75', f"${p75_final:,.0f}", f"${flujo_p75:,.0f} / mes"],
+        ['Favorable extremo  — P95',       f"${p95_final:,.0f}", f"${flujo_p95:,.0f} / mes"],
     ]
-    t_mc = Table(mc_data, colWidths=[3.5*inch, 3.0*inch])
+    
+    # ── Corrección Visual: Balanceo de anchos (2.1 + 2.2 + 2.2 = 6.5 inch) ──
+    t_mc = Table(mc_data, colWidths=[2.1 * inch, 2.2 * inch, 2.2 * inch])
+    
     t_mc.setStyle(TableStyle([
+        # Headers
         ('BACKGROUND',    (0, 0), (-1, 0),  AZUL_OSCURO),
         ('TEXTCOLOR',     (0, 0), (-1, 0),  AZUL_BRILLO),
         ('FONTNAME',      (0, 0), (-1, 0),  'Helvetica-Bold'),
@@ -455,35 +590,230 @@ def generar_reporte(
         ('LINEBELOW',     (0, 0), (-1, 0),  1.5, AZUL_ACENTO),
         ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
         ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        
+        # Columna 1 (Nombres de escenarios) en gris claro
         ('TEXTCOLOR',     (0, 1), (0, -1),  GRIS_TEXTO), 
+        
+        # ── FONDOS POR ESCENARIO ──
         ('BACKGROUND',    (0, 1), (-1, 1),  ROJO_SUAVE),    # P5
-        ('BACKGROUND',    (0, 2), (-1, 2),  GRIS_FONDO),    # P50
-        ('BACKGROUND',    (0, 3), (-1, 3),  AZUL_ICE),      # P95
-        ('TEXTCOLOR',     (1, 1), (1, 1),   ROJO),          # P5
-        ('TEXTCOLOR',     (1, 2), (1, 2),   GRIS_TEXTO),    # P50
-        ('TEXTCOLOR',     (1, 3), (1, 3),   AZUL_BRILLO),   # P95
+        ('BACKGROUND',    (0, 2), (-1, 2),  AMBAR_SUAVE),   # P25
+        ('BACKGROUND',    (0, 3), (-1, 3),  GRIS_FONDO),    # P50
+        ('BACKGROUND',    (0, 4), (-1, 4),  VERDE_SUAVE),   # P75 
+        ('BACKGROUND',    (0, 5), (-1, 5),  AZUL_ICE),      # P95
+        
+        # ── COLORES DE TEXTO DE RESULTADOS ──
+        ('TEXTCOLOR',     (1, 1), (-1, 1),  ROJO),          # P5
+        ('TEXTCOLOR',     (1, 2), (-1, 2),  AMBAR),         # P25
+        ('TEXTCOLOR',     (1, 3), (-1, 3),  GRIS_TEXTO),    # P50
+        ('TEXTCOLOR',     (1, 4), (-1, 4),  VERDE),         # P75 
+        ('TEXTCOLOR',     (1, 5), (-1, 5),  AZUL_BRILLO),   # P95
+        
+        # Formato de la tabla general
         ('FONTNAME',      (1, 1), (-1, -1), 'Helvetica-Bold'),
         ('GRID',          (0, 0), (-1, -1), 0.5, GRIS_LINEA),
-        ('TOPPADDING',    (0, 1), (-1, -1), 12),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 12),
+        ('TOPPADDING',    (0, 1), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 9),
     ]))
     story.append(t_mc)
 
     if fig_mc:
         story.append(KeepTogether([
             Spacer(1, 0.2 * inch),
-            Paragraph(f"Gráfica de Crecimiento Patrimonial a {horizonte_años} años", E['subseccion']),
-            Paragraph("El rango entre la línea roja y azul encapsula el 90% de las probabilidades matemáticas de crecimiento de tu dinero, asumiendo que te apegas con disciplina a la estrategia trazada hoy.", E['normal']),
-            _fig_a_imagen(fig_mc, h_inch=3.0),
+            Paragraph(f"Distribución de Trayectorias de Capital — {num_sims:,} Simulaciones", E['subseccion']),
+            Paragraph("Las trayectorias visualizan la dispersión probabilística de resultados posibles. La métrica crítica es la 'Renta Mensual Total' proyectada en el Escenario Adverso (P5), ya que representa su nivel de vida mínimo garantizado ante un estrés de mercado prolongado.", E['normal']),
+            _fig_a_imagen(fig_mc, h_inch=3.2),
         ]))
 
-    # ── DISCLAIMER ──
-    story.append(Spacer(1, 0.5 * inch))
+    # ── MOTOR LÓGICO DE DICTAMEN ──
+    story.append(Spacer(1, 0.2 * inch))
+    
+    if flujo_p5 >= meta_mensual:
+        titulo_dictamen = "DICTAMEN ACTUARIAL: ESTRUCTURA PATRIMONIAL INVULNERABLE"
+        texto_dictamen = (
+            f"Felicidades, {nombre_cliente}. Tras someter su estructura a {num_sims:,} escenarios de estrés, "
+            f"el modelo confirma que en el peor de los casos históricos (Percentil 5), su flujo total esperado "
+            f"(${flujo_p5:,.0f} MXN mensuales) superará su meta vital de ${meta_mensual:,.0f} MXN reales.\n\n"
+            "El mandato de inversión dictamina que su portafolio no requiere asumir riesgos adicionales en renta "
+            "variable agresiva. Su enfoque primario debe transicionar de inmediato hacia la Preservación Patrimonial, "
+            "optimización fiscal mediante fideicomisos y protección estructural contra inflación sistémica."
+        )
+        story += _callout_tecnico(titulo_dictamen, texto_dictamen)
+    else:
+        deficit = meta_mensual - flujo_p5
+        titulo_dictamen = "DICTAMEN ACTUARIAL: RIESGO DE RUPTURA ESTRUCTURAL EN ESCENARIO ADVERSO"
+        texto_dictamen = (
+            f"Atención, {nombre_cliente}. Si se materializa un régimen de estrés macroeconómico sostenido "
+            f"(Escenario P5), su flujo proyectado será de ${flujo_p5:,.0f} MXN mensuales, dejando un DÉFICIT de "
+            f"${deficit:,.0f} MXN respecto a su nivel de vida objetivo.\n\n"
+            "PRESCRIPCIÓN EJECUTIVA: La matemática institucional requiere la activación inmediata de contramedidas. "
+            "Debe aplicar al menos una de las siguientes palancas: 1) Incrementar radicalmente la aportación mensual "
+            "en su fase actual de acumulación. 2) Retrasar la edad de liquidación de su capital. 3) Ajustar a la baja "
+            "su expectativa de gasto (Meta Mensual) en el futuro. 4) Migrar hacia una frontera eficiente más agresiva "
+            "solo si su perfil de tolerancia al riesgo lo permite."
+        )
+        story += _callout_alerta(titulo_dictamen, texto_dictamen)
+
+    # ── Disclaimer y nota legal ────────────────────────────────────────────────
+    story.append(Spacer(1, 0.45 * inch))
     story.append(HRFlowable(width="100%", thickness=0.5, color=GRIS_LINEA, spaceAfter=0))
     story.append(Spacer(1, 0.1 * inch))
-    story.append(Paragraph("Este documento fue diseñado exclusivamente para la sesión de consultoría privada de Motor GaLa. Los resultados presentados constituyen el producto de modelos matemáticos avanzados y no representan una garantía de rendimientos futuros. La ejecución de este plan de inversión es responsabilidad exclusiva del titular.", E['disclaimer']))
+    story.append(Paragraph(
+        "Este documento fue generado de forma automatizada por Motor Cuantitativo GaLa. Los resultados presentados constituyen el producto de modelos matemáticos y estadísticos con fines exclusivamente informativos y analíticos; no representan asesoría de inversión, gestión patrimonial ni recomendación financiera individualizada en los términos de la legislación aplicable. Los rendimientos históricos no garantizan resultados futuros. El modelo de riesgo emplea una distribución t de Student para la captura de eventos extremos; toda interpretación debe ser realizada por un profesional calificado en el marco regulatorio pertinente.", E['disclaimer']
+    ))
 
-    # Construimos usando tu función de fondos oscuros (Que dejé intacta al principio del script)
     doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
     buffer.seek(0)
     return buffer.getvalue()
+
+# ─────────────────────────────────────────────────────────────────────────────
+def generar_reporte_auditoria(
+    titular, fecha_corte, capital_global, capital_liquidez, 
+    capital_rv, tasa_ponderada, renta_mensual, plusvalia_rv, 
+    df_cuentas, df_rv, anios_proyeccion, p5_val, p50_val, p95_val, 
+    mu_portafolio, sigma_portafolio, fig_asignacion=None, fig_mc=None
+) -> bytes:
+    """
+    Genera un 'Tear Sheet' institucional del portafolio actual (Snapshot) + Gráficas.
+    """
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=letter,
+        leftMargin=0.6 * inch, rightMargin=0.6 * inch,
+        topMargin=0.65 * inch, bottomMargin=0.55 * inch
+    )
+    E = _estilos()
+    story = []
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PÁGINA 1 — PORTADA Y RESUMEN
+    story.append(Spacer(1, 1.5 * inch))
+    story.append(Paragraph("MOTOR GALA PREMIUM", E['titulo']))
+    story.append(Spacer(1, 0.22 * inch))
+    story.append(Paragraph("Estado de Cuenta y Auditoría Patrimonial", E['subtitulo']))
+    story.append(Spacer(1, 0.12 * inch))
+    story.append(Paragraph(fecha_corte.upper(), E['titulo_marca']))
+    
+    story.append(Spacer(1, 0.35 * inch))
+    story.append(Paragraph(f"Titular del Portafolio: {titular.upper()}", 
+                 ParagraphStyle('cliente', fontSize=10, textColor=VERDE, fontName='Helvetica-Bold', alignment=TA_CENTER, charSpace=1)))
+    story.append(Spacer(1, 0.75 * inch))
+
+    # ── RESUMEN EJECUTIVO ──
+    story += _seccion("Resumen Ejecutivo (AUM Global)", E['seccion'], etiqueta="Snapshot Patrimonial")
+    story.append(_kpi_cards([
+        ("Capital Consolidado", f"${capital_global:,.2f}", "Total AUM Activo"),
+        ("Renta Fija / Liquidez", f"${capital_liquidez:,.2f}", f"{(capital_liquidez/capital_global*100) if capital_global>0 else 0:.1f}% del portafolio"),
+        ("Renta Variable", f"${capital_rv:,.2f}", f"{(capital_rv/capital_global*100) if capital_global>0 else 0:.1f}% del portafolio"),
+    ]))
+    
+    # ── GRÁFICA DE ASIGNACIÓN GLOBAL ──
+    if fig_asignacion:
+        story.append(Spacer(1, 0.15 * inch))
+        story.append(KeepTogether([
+            Paragraph("Distribución Estructural del Capital (Asset Allocation)", E['subseccion']),
+            Paragraph("Proporción del capital desplegado entre instrumentos de protección de capital (tasa fija) y activos de crecimiento (bolsa de valores).", E['normal']),
+            _fig_a_imagen(fig_asignacion, h_inch=2.4),
+        ]))
+        
+    story.append(PageBreak())
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PÁGINA 2 — RENTABILIDAD BURSÁTIL Y RENTA FIJA
+    story.append(Spacer(1, 0.3 * inch))
+
+    # ── SALUD BURSÁTIL ──
+    story += _seccion("Salud y Rendimiento Bursátil (Renta Variable)", E['seccion'], etiqueta="Mark-to-Market")
+    
+    if not df_rv.empty and capital_rv > 0:
+        costo_total = df_rv["Costo Total (MXN)"].sum()
+        rend_pct = (plusvalia_rv / costo_total) * 100 if costo_total > 0 else 0
+        
+        story.append(_kpi_cards([
+            ("Inversión Inicial", f"${costo_total:,.2f}", "Costo Promedio (MXN)"),
+            ("Valor de Mercado", f"${capital_rv:,.2f}", "MTM en vivo"),
+            ("Plusvalía Latente", f"{'+' if plusvalia_rv>0 else ''}${plusvalia_rv:,.2f}", f"{rend_pct:+.2f}% de rendimiento"),
+        ]))
+        story.append(Spacer(1, 0.2 * inch))
+
+        rv_data = [['Ticker', 'Títulos', 'Precio Actual', 'Valor Mercado', 'P&L (%)']]
+        for _, row in df_rv.iterrows():
+            costo = row['Precio Compra (MXN)'] * row['Títulos']
+            pct = ((row['Valor Mercado (MXN)'] / costo) - 1) * 100 if costo > 0 else 0
+            rv_data.append([
+                str(row['Ticker']),
+                f"{row['Títulos']:.4f}",
+                f"${row['Precio Actual (MXN)']:,.2f}",
+                f"${row['Valor Mercado (MXN)']:,.2f}",
+                f"{pct:+.2f}%"
+            ])
+        story.append(_tabla_estilo(rv_data, [1.5*inch, 1*inch, 1.2*inch, 1.5*inch, 1.1*inch]))
+    else:
+        story.append(Paragraph("No hay posiciones en Renta Variable actualmente registradas en el Libro Mayor.", E['normal']))
+    
+    story.append(Spacer(1, 0.4 * inch))
+    
+    # ── RENTA FIJA ──
+    story += _seccion("Estructura de Renta Fija y Efectivo", E['seccion'], etiqueta="Liquidez y Rendimiento Pasivo")
+    story.append(_kpi_cards([
+        ("Tasa Efectiva Ponderada", f"{tasa_ponderada:.2f}%", "Rendimiento Anualizado"),
+        ("Flujo Mensual Estimado", f"${renta_mensual:,.2f}", "Renta pasiva bruta"),
+        ("Capital Comprometido", f"${capital_liquidez:,.2f}", "Disponible en cuentas")
+    ]))
+    story.append(Spacer(1, 0.2 * inch))
+
+    if not df_cuentas.empty:
+        rf_data = [['Institución / Cuenta', 'Saldo (MXN)', 'Tasa Anual', 'Peso en RF (%)']]
+        for _, row in df_cuentas.iterrows():
+            rf_data.append([
+                str(row['Institución']),
+                f"${row['Saldo (MXN)']:,.2f}",
+                f"{row['Tasa Anual (%)']:.2f}%",
+                f"{row['Peso (%)']:.1f}%"
+            ])
+        story.append(_tabla_estilo(rf_data, [2.3*inch, 1.5*inch, 1.2*inch, 1.3*inch]))
+    else:
+        story.append(Paragraph("No hay cuentas de renta fija o liquidez registradas en la Tesorería.", E['normal']))
+
+    story.append(PageBreak())
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PÁGINA 3 — MONTE CARLO
+    story.append(Spacer(1, 0.3 * inch))
+
+    # ── MONTE CARLO ──
+    story += _seccion("Proyección Estocástica de Crecimiento (Monte Carlo)", E['seccion'], etiqueta="Proyección a Futuro")
+    story.append(Paragraph(f"Se ejecutaron 2,000 simulaciones de Movimiento Browniano Geométrico para proyectar el crecimiento del Capital Global a un horizonte de <b>{anios_proyeccion} años</b>. Se asumió la estructura actual de la cartera (Rendimiento Esperado: {mu_portafolio*100:.1f}%, Volatilidad Asignada: {sigma_portafolio*100:.1f}%).", E['justificado']))
+    story.append(Spacer(1, 0.15 * inch))
+
+    mc_data = [
+        ['Escenario Probabilístico', 'Valor Terminal (MXN)', 'Multiplicador Patrimonial'],
+        ['Adverso (Percentil 5%)', f"${p5_val:,.2f}", f"{(p5_val/capital_global) if capital_global>0 else 0:.2f}x"],
+        ['Escenario Base (Percentil 50%)', f"${p50_val:,.2f}", f"{(p50_val/capital_global) if capital_global>0 else 0:.2f}x"],
+        ['Favorable (Percentil 95%)', f"${p95_val:,.2f}", f"{(p95_val/capital_global) if capital_global>0 else 0:.2f}x"]
+    ]
+    story.append(_tabla_estilo(mc_data, [2.3*inch, 2*inch, 2*inch]))
+    
+    # ── GRÁFICA DEL CONO ESTOCÁSTICO ──
+    if fig_mc:
+        story.append(Spacer(1, 0.15 * inch))
+        story.append(KeepTogether([
+            Paragraph("Distribución de Trayectorias de Capital a Futuro", E['subseccion']),
+            Paragraph("El rango entre el escenario adverso y favorable encapsula el 90% de las probabilidades matemáticas de crecimiento de su capital a largo plazo.", E['normal']),
+            _fig_a_imagen(fig_mc, h_inch=2.8),
+        ]))
+
+    story.append(Spacer(1, 0.1 * inch))
+    story.append(Paragraph("* Esta proyección asume la capitalización y reinversión del portafolio actual SIN aportaciones de capital adicionales.", E['pie']))
+
+    # ── DISCLAIMER ──
+    story.append(Spacer(1, 0.6 * inch))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=GRIS_LINEA, spaceAfter=0))
+    story.append(Spacer(1, 0.1 * inch))
+    story.append(Paragraph("Este documento ha sido autogenerado por Motor GaLa Premium como un Snapshot del estado actual de las inversiones. Los valores de Renta Variable representan un cálculo Mark-to-Market utilizando el último precio de cierre disponible y no garantizan ejecución exacta. Las proyecciones de Monte Carlo son probabilísticas y no garantizan rendimientos futuros. Dictamen para fines informativos y de auditoría interna.", E['disclaimer']))
+
+    # Construimos usando tu función de fondos oscuros
+    doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
