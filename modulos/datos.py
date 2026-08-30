@@ -74,24 +74,28 @@ def obtener_tasa_referencia_banxico() -> float:
     Se conecta al Banco de México y extrae la Tasa de Referencia actual en tiempo real.
     Devuelve la tasa en formato decimal.
     """
-    # 1. Extraemos directamente de la bóveda de Streamlit (Variable unificada)
-    token_banxico = st.secrets["TOKEN_BANXICO"]
-    
     url = "https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF61745/datos/oportuno"
     
-    # 2. DISFRAZ INSTITUCIONAL (Evita que el Firewall nos bloquee)
-    headers = {
-        "Bmx-Token": token_banxico,
-        "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-    
     try:
+        # 1. Intentamos extraer la llave de forma segura (sin que el programa explote si no existe)
+        token_banxico = st.secrets.get("TOKEN_BANXICO")
+        
+        if not token_banxico:
+            print("Advertencia: TOKEN_BANXICO está vacío o no existe. Usando tasa fallback.")
+            return 0.0650
+            
+        # 2. DISFRAZ INSTITUCIONAL (Evita que el Firewall nos bloquee)
+        headers = {
+            "Bmx-Token": token_banxico,
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        
         respuesta = requests.get(url, headers=headers)
         
         # Diagnóstico: ¿Banxico nos bloqueó?
         if respuesta.status_code != 200:
-            print(f"🚨 BANXICO RECHAZÓ LA CONEXIÓN. Código de error: {respuesta.status_code}")
+            print(f"BANXICO RECHAZÓ LA CONEXIÓN. Código de error: {respuesta.status_code}")
             return 0.0650  # Fallback
             
         respuesta.raise_for_status()
@@ -100,11 +104,17 @@ def obtener_tasa_referencia_banxico() -> float:
         tasa_str = datos['bmx']['series'][0]['datos'][0]['dato']
         tasa_decimal = float(tasa_str) / 100
         
-        print(f"📡 ÉXITO: Tasa Banxico actualizada en vivo: {tasa_decimal * 100:.2f}%")
+        print(f"ÉXITO: Tasa Banxico actualizada en vivo: {tasa_decimal * 100:.2f}%")
         return tasa_decimal
         
+    except FileNotFoundError:
+        print("Advertencia: No se encontró secrets.toml. Usando tasa Banxico por defecto.")
+        return 0.0650
+    except KeyError:
+        print("Advertencia: No se encontró TOKEN_BANXICO. Usando tasa Banxico por defecto.")
+        return 0.0650
     except Exception as e:
-        print(f"🚨 Falla crítica en el radar: {e}")
+        print(f"Falla crítica en el radar de Banxico: {e}")
         return 0.0650
 
 def obtener_uma_actual():
